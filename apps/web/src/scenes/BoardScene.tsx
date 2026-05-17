@@ -34,9 +34,6 @@ const CAMERA_CONFIG = {
   rotateSpeed: 0.45,
   zoomSpeed: 0.45,
   panSpeed: 0.55,
-  // azimuth bounds (radians): left -1.014, right 0.838
-  minAzimuthAngle: -1.014,
-  maxAzimuthAngle: 0.838,
   panBounds: {
     minX: -1.849,
     maxX: 0.515,
@@ -220,8 +217,6 @@ export default function BoardScene({ onDebugInfoChange }: BoardSceneProps) {
         maxDistance={CAMERA_CONFIG.maxDistance}
         minPolarAngle={0.01}
         maxPolarAngle={Math.PI - 0.01}
-        minAzimuthAngle={CAMERA_CONFIG.minAzimuthAngle}
-        maxAzimuthAngle={CAMERA_CONFIG.maxAzimuthAngle}
       />
     </Canvas>
   )
