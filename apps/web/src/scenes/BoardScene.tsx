@@ -1,8 +1,11 @@
-import { Suspense, useRef } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import BoardModel from '../components/BoardModel'
+import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
+import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
+import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
 
 export interface CameraDebugInfo {
   position: { x: number; y: number; z: number }
@@ -20,6 +23,11 @@ export interface CameraDebugInfo {
 
 interface BoardSceneProps {
   onDebugInfoChange?: (info: CameraDebugInfo) => void
+  isEditorActive?: boolean
+  editorData?: BoardLayoutData
+  editorMode?: EditorMode
+  editorSelectedPlayer?: number
+  onEditorDataChange?: (data: BoardLayoutData) => void
 }
 
 const CAMERA_CONFIG = {
@@ -119,7 +127,7 @@ function CameraDebugReporter({
   return null
 }
 
-function AdaptiveControlsBehavior({ controlsRef }: { controlsRef: React.MutableRefObject<any> }) {
+function AdaptiveControlsBehavior({ controlsRef, isEditorActive }: { controlsRef: React.MutableRefObject<any>, isEditorActive?: boolean }) {
   const { camera } = useThree()
   const lastClampedTargetRef = useRef<THREE.Vector3 | null>(null)
 
@@ -132,6 +140,11 @@ function AdaptiveControlsBehavior({ controlsRef }: { controlsRef: React.MutableR
   }
 
   useFrame(() => {
+    // Skip constraints when editor is active
+    if (isEditorActive) {
+      return
+    }
+
     const controls = controlsRef.current
     if (!controls) {
       return
@@ -177,8 +190,58 @@ function AdaptiveControlsBehavior({ controlsRef }: { controlsRef: React.MutableR
   return null
 }
 
-export default function BoardScene({ onDebugInfoChange }: BoardSceneProps) {
+function EditorVisualizationWrapper({
+  isActive,
+  data,
+  mode,
+  selectedPlayer,
+  onDataChange,
+  hoverPos,
+  onHoverChange,
+}: {
+  isActive?: boolean
+  data?: BoardLayoutData
+  mode?: EditorMode
+  selectedPlayer?: number
+  onDataChange?: (data: BoardLayoutData) => void
+  hoverPos?: { x: number; y: number; z: number } | null
+  onHoverChange?: (pos: { x: number; y: number; z: number } | null) => void
+}) {
+  if (!isActive || !data || !mode) {
+    return null
+  }
+
+  return (
+    <>
+      <BoardEditorVisualization
+        isActive={isActive}
+        data={data}
+        mode={mode}
+        selectedPlayer={selectedPlayer || 0}
+        hoverPos={hoverPos ?? null}
+      />
+      <BoardEditorInputHandler
+        isActive={isActive}
+        data={data}
+        mode={mode}
+        selectedPlayer={selectedPlayer || 0}
+        onDataChange={onDataChange || (() => {})}
+        onHoverChange={onHoverChange}
+      />
+    </>
+  )
+}
+
+export default function BoardScene({
+  onDebugInfoChange,
+  isEditorActive = false,
+  editorData,
+  editorMode = 'main-track',
+  editorSelectedPlayer = 0,
+  onEditorDataChange,
+}: BoardSceneProps) {
   const controlsRef = useRef<any>(null)
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number; z: number } | null>(null)
 
   return (
     <Canvas dpr={[1, 1.75]} className="h-full w-full">
@@ -196,13 +259,18 @@ export default function BoardScene({ onDebugInfoChange }: BoardSceneProps) {
         <BoardModel />
       </Suspense>
 
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} userData={{ editorInteractionSurface: true }}>
+        <planeGeometry args={[14, 14]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
         <planeGeometry args={[42, 42]} />
         <meshBasicMaterial color="#0f243f" />
       </mesh>
 
       <CameraDebugReporter controlsRef={controlsRef} onDebugInfoChange={onDebugInfoChange} />
-      <AdaptiveControlsBehavior controlsRef={controlsRef} />
+      <AdaptiveControlsBehavior controlsRef={controlsRef} isEditorActive={isEditorActive} />
 
       <OrbitControls
         ref={controlsRef}
@@ -213,10 +281,20 @@ export default function BoardScene({ onDebugInfoChange }: BoardSceneProps) {
         rotateSpeed={CAMERA_CONFIG.rotateSpeed}
         zoomSpeed={CAMERA_CONFIG.zoomSpeed}
         panSpeed={CAMERA_CONFIG.panSpeed}
-        minDistance={CAMERA_CONFIG.minDistance}
-        maxDistance={CAMERA_CONFIG.maxDistance}
-        minPolarAngle={0.01}
-        maxPolarAngle={Math.PI - 0.01}
+        minDistance={isEditorActive ? 0.1 : CAMERA_CONFIG.minDistance}
+        maxDistance={isEditorActive ? 1000 : CAMERA_CONFIG.maxDistance}
+        minPolarAngle={isEditorActive ? 0.01 : 0.01}
+        maxPolarAngle={isEditorActive ? Math.PI - 0.01 : Math.PI - 0.01}
+      />
+
+      <EditorVisualizationWrapper
+        isActive={isEditorActive}
+        data={editorData}
+        mode={editorMode}
+        selectedPlayer={editorSelectedPlayer}
+        onDataChange={onEditorDataChange}
+        hoverPos={hoverPos}
+        onHoverChange={setHoverPos}
       />
     </Canvas>
   )

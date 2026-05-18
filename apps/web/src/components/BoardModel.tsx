@@ -24,6 +24,7 @@ export default function BoardModel() {
       if ((node as THREE.Mesh).isMesh) {
         meshCount += 1
         const mesh = node as THREE.Mesh
+        mesh.userData.boardSurface = true
 
         if (!mesh.material) {
           mesh.material = new THREE.MeshBasicMaterial({ color: '#b8c4d9' })
@@ -43,6 +44,7 @@ export default function BoardModel() {
         new THREE.MeshBasicMaterial({ color: '#5f6f8a' }),
       )
       fallback.position.set(0, 0.3, 0)
+      fallback.userData.boardSurface = true
       clone.add(fallback)
     }
 

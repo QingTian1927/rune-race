@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "version": 1,
+    "players": 4,
+    "mainTrackSteps": 44,
+    "homeLaneStepsPerPlayer": 5,
+    "direction": "ccw"
+  },
+  "mainTrack": [],
+  "players": [
+    {
+      "player": 0,
+      "startIndex": 0,
+      "homeEntryIndex": 43,
+      "homeLane": [],
+      "stable": {
+        "min": { "x": 0, "y": 0, "z": 0 },
+        "max": { "x": 0, "y": 0, "z": 0 }
+      }
+    },
+    {
+      "player": 1,
+      "startIndex": 11,
+      "homeEntryIndex": 10,
+      "homeLane": [],
+      "stable": {
+        "min": { "x": 0, "y": 0, "z": 0 },
+        "max": { "x": 0, "y": 0, "z": 0 }
+      }
+    },
+    {
+      "player": 2,
+      "startIndex": 22,
+      "homeEntryIndex": 21,
+      "homeLane": [],
+      "stable": {
+        "min": { "x": 0, "y": 0, "z": 0 },
+        "max": { "x": 0, "y": 0, "z": 0 }
+      }
+    },
+    {
+      "player": 3,
+      "startIndex": 33,
+      "homeEntryIndex": 32,
+      "homeLane": [],
+      "stable": {
+        "min": { "x": 0, "y": 0, "z": 0 },
+        "max": { "x": 0, "y": 0, "z": 0 }
+      }
+    }
+  ]
+}
