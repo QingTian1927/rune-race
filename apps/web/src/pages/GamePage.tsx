@@ -210,6 +210,10 @@ export default function GamePage() {
         onDataChange={setEditorData}
         onExport={handleEditorExport}
         onClose={() => setIsEditorActive(false)}
+        onClear={() => {
+          const initial = createInitialEditorState().data
+          setEditorData(initial)
+        }}
         editorMouseMode={editorMouseMode}
         setEditorMouseMode={setEditorMouseMode}
       />

@@ -16,6 +16,7 @@ interface BoardEditorControlsProps {
   onDataChange: (data: BoardLayoutData) => void
   onExport: (json: string) => void
   onClose: () => void
+  onClear?: () => void
   editorMouseMode?: 'draw' | 'camera'
   setEditorMouseMode?: (v: 'draw' | 'camera') => void
 }
@@ -29,6 +30,7 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
   onPlayerChange,
   onExport,
   onClose,
+  onClear,
   editorMouseMode = 'draw',
   setEditorMouseMode,
 }) => {
@@ -121,6 +123,16 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
           className="px-2 py-1 bg-green-600 rounded"
         >
           Export
+        </button>
+        <button
+          onClick={() => {
+            if (!onClear) return
+            const ok = window.confirm('Clear all editor data? This cannot be undone.')
+            if (ok) onClear()
+          }}
+          className="px-2 py-1 bg-amber-700 rounded"
+        >
+          Clear
         </button>
         <button onClick={onClose} className="px-2 py-1 bg-red-600 rounded">
           Close
