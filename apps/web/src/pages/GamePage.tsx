@@ -132,6 +132,29 @@ export default function GamePage() {
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
   const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
 
+  // Attempt to auto-load board-layout.json from source data if present
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        // dynamic import will resolve the JSON at build time if present
+        const mod = await import('../../data/board-layout.json')
+        const loaded = (mod && (mod.default ?? mod)) as BoardLayoutData
+        if (!mounted) return
+        // basic validation: prefer to set only if structure seems valid
+        if (loaded && loaded.mainTrack && Array.isArray(loaded.mainTrack)) {
+          setEditorData(loaded)
+        }
+      } catch (err) {
+        // not present or failed to parse - ignore silently
+        // console.warn('No board-layout.json found in data folder or failed to load.', err)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'F3') {
