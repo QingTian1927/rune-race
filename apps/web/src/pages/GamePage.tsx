@@ -130,6 +130,7 @@ export default function GamePage() {
   const [editorData, setEditorData] = useState<BoardLayoutData>(createInitialEditorState().data)
   const [editorMode, setEditorMode] = useState<EditorMode>('main-track')
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
+  const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -178,6 +179,8 @@ export default function GamePage() {
         editorMode={editorMode}
         editorSelectedPlayer={editorSelectedPlayer}
         onEditorDataChange={setEditorData}
+        editorMouseMode={editorMouseMode}
+        setEditorMouseMode={setEditorMouseMode}
       />
 
       <div className="absolute left-4 top-4 z-30">
@@ -207,6 +210,8 @@ export default function GamePage() {
         onDataChange={setEditorData}
         onExport={handleEditorExport}
         onClose={() => setIsEditorActive(false)}
+        editorMouseMode={editorMouseMode}
+        setEditorMouseMode={setEditorMouseMode}
       />
 
       <LoadingOverlay active={active} progress={progress} />

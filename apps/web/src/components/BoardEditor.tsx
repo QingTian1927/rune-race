@@ -16,6 +16,8 @@ interface BoardEditorControlsProps {
   onDataChange: (data: BoardLayoutData) => void
   onExport: (json: string) => void
   onClose: () => void
+  editorMouseMode?: 'draw' | 'camera'
+  setEditorMouseMode?: (v: 'draw' | 'camera') => void
 }
 
 export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
@@ -27,6 +29,8 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
   onPlayerChange,
   onExport,
   onClose,
+  editorMouseMode = 'draw',
+  setEditorMouseMode,
 }) => {
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
@@ -52,9 +56,25 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
         >
           Home Lane
         </button>
+        <button
+          onClick={() => onModeChange('stable')}
+          className={`px-2 py-1 ${
+            mode === 'stable' ? 'bg-indigo-600' : 'bg-gray-600'
+          } rounded`}
+        >
+          Stable
+        </button>
+        <button
+          onClick={() => onModeChange('home')}
+          className={`px-2 py-1 ${
+            mode === 'home' ? 'bg-pink-600' : 'bg-gray-600'
+          } rounded`}
+        >
+          Home
+        </button>
       </div>
 
-      {mode === 'home-lane' && (
+      {(mode === 'home-lane' || mode === 'stable' || mode === 'home') && (
         <div className="mb-2 flex flex-wrap gap-2">
           <span>Player:</span>
           {[0, 1, 2, 3].map((p) => (
@@ -74,6 +94,8 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
       <div className="mb-2 space-y-1">
         <div>Main Track: {data.mainTrack.length}/44</div>
         <div>Home Lane (P{selectedPlayer}): {data.players[selectedPlayer].homeLane.length}/5</div>
+        <div>Stable Box (P{selectedPlayer}): {data.players[selectedPlayer].stable ? 'Saved' : 'None'}</div>
+        <div>Home Box (P{selectedPlayer}): {data.players[selectedPlayer].home ? 'Saved' : 'None'}</div>
       </div>
 
       {validationErrors.length > 0 && (
@@ -103,6 +125,20 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
         <button onClick={onClose} className="px-2 py-1 bg-red-600 rounded">
           Close
         </button>
+      </div>
+      <div className="mt-2 text-xs text-slate-300">
+        <div className="flex items-center gap-2">
+          <div className="px-2 py-1 bg-black/30 rounded">Mouse: {editorMouseMode === 'draw' ? 'Draw' : 'Camera'}</div>
+          <div className="text-slate-400">Use Toggle button to switch modes</div>
+          {setEditorMouseMode && (
+            <button
+              onClick={() => setEditorMouseMode(editorMouseMode === 'draw' ? 'camera' : 'draw')}
+              className="ml-2 px-2 py-1 bg-gray-700 rounded text-xs"
+            >
+              Toggle
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
