@@ -1,8 +1,10 @@
-import { Suspense, useRef, useState } from 'react'
+import { Suspense, useRef, useState, useMemo } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import BoardModel from '../components/BoardModel'
+import BoardPieces from '../components/BoardPieces'
+import getMockSnapshot from '../mock/getMockSnapshot'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
@@ -260,6 +262,8 @@ export default function BoardScene({
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number; z: number } | null>(null)
   const [previewBox, setPreviewBox] = useState<any | null>(null)
 
+  const mockSnapshot = useMemo(() => getMockSnapshot(), [])
+
   return (
     <Canvas dpr={[1, 1.75]} className="h-full w-full">
       <color attach="background" args={['#0b162b']} />
@@ -274,6 +278,7 @@ export default function BoardScene({
 
       <Suspense fallback={null}>
         <BoardModel />
+        <BoardPieces gameState={mockSnapshot} />
       </Suspense>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} userData={{ editorInteractionSurface: true }}>
