@@ -28,6 +28,8 @@ interface BoardSceneProps {
   editorMode?: EditorMode
   editorSelectedPlayer?: number
   onEditorDataChange?: (data: BoardLayoutData) => void
+  editorMouseMode?: 'draw' | 'camera'
+  setEditorMouseMode?: (v: 'draw' | 'camera') => void
 }
 
 const CAMERA_CONFIG = {
@@ -198,6 +200,10 @@ function EditorVisualizationWrapper({
   onDataChange,
   hoverPos,
   onHoverChange,
+  previewBox,
+  onPreviewBoxChange,
+  editorMouseMode,
+  setEditorMouseMode,
 }: {
   isActive?: boolean
   data?: BoardLayoutData
@@ -206,6 +212,10 @@ function EditorVisualizationWrapper({
   onDataChange?: (data: BoardLayoutData) => void
   hoverPos?: { x: number; y: number; z: number } | null
   onHoverChange?: (pos: { x: number; y: number; z: number } | null) => void
+  previewBox?: any | null
+  onPreviewBoxChange?: (box: any | null) => void
+  editorMouseMode?: 'draw' | 'camera'
+  setEditorMouseMode?: (v: 'draw' | 'camera') => void
 }) {
   if (!isActive || !data || !mode) {
     return null
@@ -219,6 +229,7 @@ function EditorVisualizationWrapper({
         mode={mode}
         selectedPlayer={selectedPlayer || 0}
         hoverPos={hoverPos ?? null}
+        previewBox={previewBox ?? null}
       />
       <BoardEditorInputHandler
         isActive={isActive}
@@ -227,6 +238,9 @@ function EditorVisualizationWrapper({
         selectedPlayer={selectedPlayer || 0}
         onDataChange={onDataChange || (() => {})}
         onHoverChange={onHoverChange}
+        onPreviewBoxChange={onPreviewBoxChange}
+        editorMouseMode={editorMouseMode}
+        setEditorMouseMode={setEditorMouseMode}
       />
     </>
   )
@@ -239,9 +253,12 @@ export default function BoardScene({
   editorMode = 'main-track',
   editorSelectedPlayer = 0,
   onEditorDataChange,
+  editorMouseMode,
+  setEditorMouseMode,
 }: BoardSceneProps) {
   const controlsRef = useRef<any>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number; z: number } | null>(null)
+  const [previewBox, setPreviewBox] = useState<any | null>(null)
 
   return (
     <Canvas dpr={[1, 1.75]} className="h-full w-full">
@@ -275,9 +292,9 @@ export default function BoardScene({
       <OrbitControls
         ref={controlsRef}
         target={CAMERA_CONFIG.target}
-        enablePan
+        enablePan={isEditorActive ? (editorMouseMode === 'camera') : true}
         enableZoom
-        enableRotate
+        enableRotate={isEditorActive ? (editorMouseMode === 'camera') : true}
         rotateSpeed={CAMERA_CONFIG.rotateSpeed}
         zoomSpeed={CAMERA_CONFIG.zoomSpeed}
         panSpeed={CAMERA_CONFIG.panSpeed}
@@ -295,6 +312,10 @@ export default function BoardScene({
         onDataChange={onEditorDataChange}
         hoverPos={hoverPos}
         onHoverChange={setHoverPos}
+        previewBox={previewBox}
+        onPreviewBoxChange={setPreviewBox}
+        editorMouseMode={editorMouseMode}
+        setEditorMouseMode={setEditorMouseMode}
       />
     </Canvas>
   )
