@@ -14,6 +14,8 @@ export interface BoxBounds {
   maxX: number
   maxY: number
   maxZ: number
+  // rotation around Y axis in radians (optional, default 0)
+  rotationY?: number
 }
 
 export interface BoardLayoutData {
