@@ -36,9 +36,11 @@ export interface BoardLayoutData {
     stable?: BoxBounds | null
     home?: BoxBounds | null
   }>
+  // optional global dice area bounding box (where dice are rolled)
+  dice?: BoxBounds | null
 }
 
-export type EditorMode = 'main-track' | 'home-lane' | 'stable' | 'home' | 'select'
+export type EditorMode = 'main-track' | 'home-lane' | 'stable' | 'home' | 'dice' | 'select'
 
 export interface EditorState {
   isEditorActive: boolean
@@ -94,6 +96,7 @@ const DEFAULT_LAYOUT: BoardLayoutData = {
       home: null,
     },
   ],
+  dice: null,
 }
 
 export const createInitialEditorState = (): EditorState => ({
