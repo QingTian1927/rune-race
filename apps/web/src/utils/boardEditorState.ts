@@ -7,6 +7,15 @@ export interface BoardPoint {
   z: number
 }
 
+export interface BoxBounds {
+  minX: number
+  minY: number
+  minZ: number
+  maxX: number
+  maxY: number
+  maxZ: number
+}
+
 export interface BoardLayoutData {
   meta: {
     version: number
@@ -21,10 +30,13 @@ export interface BoardLayoutData {
     startIndex: number
     homeEntryIndex: number
     homeLane: BoardPoint[]
+    // optional bounding boxes for this player's stable and home areas
+    stable?: BoxBounds | null
+    home?: BoxBounds | null
   }>
 }
 
-export type EditorMode = 'main-track' | 'home-lane' | 'select'
+export type EditorMode = 'main-track' | 'home-lane' | 'stable' | 'home' | 'select'
 
 export interface EditorState {
   isEditorActive: boolean
@@ -52,24 +64,32 @@ const DEFAULT_LAYOUT: BoardLayoutData = {
       startIndex: 0,
       homeEntryIndex: 43,
       homeLane: [],
+      stable: null,
+      home: null,
     },
     {
       player: 1,
       startIndex: 11,
       homeEntryIndex: 10,
       homeLane: [],
+      stable: null,
+      home: null,
     },
     {
       player: 2,
       startIndex: 22,
       homeEntryIndex: 21,
       homeLane: [],
+      stable: null,
+      home: null,
     },
     {
       player: 3,
       startIndex: 33,
       homeEntryIndex: 32,
       homeLane: [],
+      stable: null,
+      home: null,
     },
   ],
 }
