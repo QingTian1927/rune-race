@@ -74,6 +74,14 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
         >
           Home
         </button>
+        <button
+          onClick={() => onModeChange('dice')}
+          className={`px-2 py-1 ${
+            mode === 'dice' ? 'bg-amber-600' : 'bg-gray-600'
+          } rounded`}
+        >
+          Dice
+        </button>
       </div>
 
       {(mode === 'home-lane' || mode === 'stable' || mode === 'home') && (
@@ -98,6 +106,7 @@ export const BoardEditorControls: React.FC<BoardEditorControlsProps> = ({
         <div>Home Lane (P{selectedPlayer}): {data.players[selectedPlayer].homeLane.length}/5</div>
         <div>Stable Box (P{selectedPlayer}): {data.players[selectedPlayer].stable ? 'Saved' : 'None'}</div>
         <div>Home Box (P{selectedPlayer}): {data.players[selectedPlayer].home ? 'Saved' : 'None'}</div>
+        <div>Dice Box: {data.dice ? 'Saved' : 'None'}</div>
       </div>
 
       {validationErrors.length > 0 && (
