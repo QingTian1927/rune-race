@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useThree } from '@react-three/fiber'
 import { Vector3, Vector2, Raycaster, Matrix3 } from 'three'
-import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
+import { BoardLayoutData, EditorMode, BoxBounds } from '../utils/boardEditorState'
 
 interface BoardEditorInputHandlerProps {
   isActive: boolean
@@ -10,6 +10,9 @@ interface BoardEditorInputHandlerProps {
   selectedPlayer: number
   onDataChange: (data: BoardLayoutData) => void
   onHoverChange?: (pos: { x: number; y: number; z: number } | null) => void
+  onPreviewBoxChange?: (box: BoxBounds | null) => void
+  editorMouseMode?: 'draw' | 'camera'
+  setEditorMouseMode?: (v: 'draw' | 'camera') => void
 }
 
 export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = ({
@@ -19,9 +22,13 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
   selectedPlayer,
   onDataChange,
   onHoverChange,
+  onPreviewBoxChange,
+  editorMouseMode = 'draw',
+  setEditorMouseMode,
 }) => {
   const { camera, scene, gl } = useThree()
   const isDrawingBoxRef = useRef(false)
+  const boxStartRef = useRef<Vector3 | null>(null)
   const isDraggingRef = useRef(false)
   const dragStartXRef = useRef(0)
   const dragStartYRef = useRef(0)
@@ -74,11 +81,57 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       return null
     }
 
+    const sampleFloorYUnderRect = async (a: Vector3, b: Vector3) => {
+      // sample center and corners to estimate lowest surface Y under footprint
+      const minX = Math.min(a.x, b.x)
+      const maxX = Math.max(a.x, b.x)
+      const minZ = Math.min(a.z, b.z)
+      const maxZ = Math.max(a.z, b.z)
+
+      const samples: Array<{ x: number; z: number }> = [
+        { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 },
+        { x: minX, z: minZ },
+        { x: minX, z: maxZ },
+        { x: maxX, z: minZ },
+        { x: maxX, z: maxZ },
+      ]
+
+      let bestY: number | null = null
+      const ray = new Raycaster()
+      const down = new Vector3(0, -1, 0)
+      const originY = Math.max(a.y, b.y) + 5
+
+      for (const s of samples) {
+        ray.set(new Vector3(s.x, originY, s.z), down)
+        const intersects = ray.intersectObjects(scene.children, true)
+        for (const hit of intersects) {
+          const obj: any = hit.object
+          if (!obj.isMesh) continue
+          if (obj.userData?.editorHelper) continue
+          if (!obj.userData?.boardSurface && !obj.userData?.editorInteractionSurface) continue
+          const y = hit.point.y
+          if (bestY === null || y < bestY) bestY = y
+          break
+        }
+      }
+
+      return bestY
+    }
+
     const handleMouseDown = (e: MouseEvent) => {
       // start drag tracking
       dragStartXRef.current = e.clientX
       dragStartYRef.current = e.clientY
       isDraggingRef.current = false
+      // start box drawing when left button and in box mode
+      if (e.button === 0 && (mode === 'stable' || mode === 'home') && e.target === gl.domElement && editorMouseMode === 'draw') {
+        const hit = getBoardIntersection(e.clientX, e.clientY)
+        if (hit) {
+          boxStartRef.current = hit.point.clone()
+          isDrawingBoxRef.current = true
+          if (onPreviewBoxChange) onPreviewBoxChange(null)
+        }
+      }
     }
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -87,6 +140,47 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       const dyTotal = e.clientY - dragStartYRef.current
       if (Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal) > DRAG_THRESHOLD_PX) {
         isDraggingRef.current = true
+      }
+
+      // finish box drawing when mouse up
+      if (isDrawingBoxRef.current && (mode === 'stable' || mode === 'home')) {
+        isDrawingBoxRef.current = false
+        const start = boxStartRef.current
+        boxStartRef.current = null
+        if (start && e.target === gl.domElement) {
+          const endHit = getBoardIntersection(e.clientX, e.clientY)
+          if (endHit) {
+            const end = endHit.point.clone()
+            ;(async () => {
+              const floorY = await sampleFloorYUnderRect(start, end)
+              const minX = Math.min(start.x, end.x)
+              const maxX = Math.max(start.x, end.x)
+              const minZ = Math.min(start.z, end.z)
+              const maxZ = Math.max(start.z, end.z)
+              const bottomY = floorY ?? Math.min(start.y, end.y)
+              const BOX_HEIGHT = 0.2
+
+              const box: BoxBounds = {
+                minX,
+                minY: bottomY,
+                minZ,
+                maxX,
+                maxY: bottomY + BOX_HEIGHT,
+                maxZ,
+              }
+
+              const newData = JSON.parse(JSON.stringify(data))
+              if (mode === 'stable') {
+                newData.players[selectedPlayer].stable = box
+              } else {
+                newData.players[selectedPlayer].home = box
+              }
+              onDataChange(newData)
+              if (onPreviewBoxChange) onPreviewBoxChange(null)
+            })()
+          }
+        }
+        return
       }
 
       // Add point on mouseup if this was not a drag and not drawing a box
@@ -129,6 +223,10 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
           newData.mainTrack.pop()
         } else if (mode === 'home-lane' && newData.players[selectedPlayer].homeLane.length > 0) {
           newData.players[selectedPlayer].homeLane.pop()
+        } else if (mode === 'stable' && newData.players[selectedPlayer].stable) {
+          newData.players[selectedPlayer].stable = null
+        } else if (mode === 'home' && newData.players[selectedPlayer].home) {
+          newData.players[selectedPlayer].home = null
         }
 
         onDataChange(newData)
@@ -143,14 +241,46 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       }
 
       // Compute hover position and report via callback
-      if (onHoverChange && e.target === gl.domElement) {
-        const hit = getBoardIntersection(e.clientX, e.clientY)
-        if (hit) {
-          const surfaceEps = 0.01
-          const pos = hit.point.clone().add(hit.normal.clone().multiplyScalar(surfaceEps))
-          onHoverChange({ x: pos.x, y: pos.y, z: pos.z })
-        } else {
-          onHoverChange(null)
+      if (e.target === gl.domElement) {
+        // if drawing a box, compute and emit preview
+        if (isDrawingBoxRef.current && boxStartRef.current && (mode === 'stable' || mode === 'home')) {
+          const hit = getBoardIntersection(e.clientX, e.clientY)
+          if (hit) {
+            const start = boxStartRef.current
+            const end = hit.point.clone()
+            ;(async () => {
+              const floorY = await sampleFloorYUnderRect(start, end)
+              const minX = Math.min(start.x, end.x)
+              const maxX = Math.max(start.x, end.x)
+              const minZ = Math.min(start.z, end.z)
+              const maxZ = Math.max(start.z, end.z)
+              const bottomY = floorY ?? Math.min(start.y, end.y)
+              const BOX_HEIGHT = 0.2
+              const preview: BoxBounds = {
+                minX,
+                minY: bottomY,
+                minZ,
+                maxX,
+                maxY: bottomY + BOX_HEIGHT,
+                maxZ,
+              }
+              if (onPreviewBoxChange) onPreviewBoxChange(preview)
+            })()
+          } else {
+            if (onPreviewBoxChange) onPreviewBoxChange(null)
+          }
+          return
+        }
+
+        if (onHoverChange) {
+          const hit = getBoardIntersection(e.clientX, e.clientY)
+          if (hit) {
+            const surfaceEps = 0.01
+            const pos = hit.point.clone().add(hit.normal.clone().multiplyScalar(surfaceEps))
+            onHoverChange({ x: pos.x, y: pos.y, z: pos.z })
+          } else {
+            onHoverChange(null)
+          }
         }
       }
 
@@ -169,7 +299,18 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('keydown', handleKeyDown)
     }
-    }, [isActive, mode, selectedPlayer, data, camera, scene, gl, onDataChange, onHoverChange])
+    }, [isActive, mode, selectedPlayer, data, camera, scene, gl, onDataChange, onHoverChange, editorMouseMode, setEditorMouseMode, onPreviewBoxChange])
+
+    // Ensure drawing is cancelled when mode changes to camera
+    // (handled in a separate effect below)
+  useEffect(() => {
+    if (!isActive) return
+    if (editorMouseMode !== 'draw') {
+      isDrawingBoxRef.current = false
+      boxStartRef.current = null
+      if (onPreviewBoxChange) onPreviewBoxChange(null)
+    }
+  }, [editorMouseMode, isActive, onPreviewBoxChange])
 
   return null
 }
