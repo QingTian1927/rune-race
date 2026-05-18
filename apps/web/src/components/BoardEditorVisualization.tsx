@@ -107,11 +107,14 @@ export const BoardEditorVisualization: React.FC<BoardEditorVisualizationProps> =
         const geom = new BoxGeometry(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ)
         const mesh = new Mesh(geom, new MeshBasicMaterial({ color: colorHex, transparent: true, opacity }))
         mesh.position.set((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2)
+        // apply rotation around Y if present
+        if (b.rotationY) mesh.rotation.y = b.rotationY
         groupRef.current.add(markAsEditorHelper(mesh))
         // Add clear edges for contrast
         const edgesGeom = new EdgesGeometry(geom)
         const edge = new LineSegments(edgesGeom, new LineBasicMaterial({ color: '#ffffff', linewidth: 2 }))
         edge.position.copy(mesh.position)
+        if (b.rotationY) edge.rotation.y = b.rotationY
         groupRef.current.add(markAsEditorHelper(edge))
       }
 
@@ -127,10 +130,12 @@ export const BoardEditorVisualization: React.FC<BoardEditorVisualizationProps> =
       const geom = new BoxGeometry(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ)
       const mesh = new Mesh(geom, new MeshBasicMaterial({ color: '#ffff66', transparent: true, opacity: 0.35 }))
       mesh.position.set((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2)
+      if (b.rotationY) mesh.rotation.y = b.rotationY
       groupRef.current.add(markAsEditorHelper(mesh))
       const edgesGeom = new EdgesGeometry(geom)
       const edge = new LineSegments(edgesGeom, new LineBasicMaterial({ color: '#ffff66', linewidth: 2 }))
       edge.position.copy(mesh.position)
+      if (b.rotationY) edge.rotation.y = b.rotationY
       groupRef.current.add(markAsEditorHelper(edge))
     }
   })
