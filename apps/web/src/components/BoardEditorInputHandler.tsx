@@ -37,7 +37,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
   const rotateStartAngleRef = useRef(0)
   const rotateInitialRotationRef = useRef(0)
   const rotateCenterRef = useRef<Vector3 | null>(null)
-  const lastEditedBoxRef = useRef<{ kind: 'stable' | 'home'; player: number } | null>(null)
+  const lastEditedBoxRef = useRef<{ kind: 'stable' | 'home' | 'dice'; player?: number } | null>(null)
 
   useEffect(() => {
     if (!isActive) return
@@ -129,7 +129,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       dragStartYRef.current = e.clientY
       isDraggingRef.current = false
       // start box drawing when left button and in box mode
-      if (e.button === 0 && (mode === 'stable' || mode === 'home') && e.target === gl.domElement && editorMouseMode === 'draw') {
+      if (e.button === 0 && (mode === 'stable' || mode === 'home' || mode === 'dice') && e.target === gl.domElement && editorMouseMode === 'draw') {
         const hit = getBoardIntersection(e.clientX, e.clientY)
         if (hit) {
           boxStartRef.current = hit.point.clone()
@@ -139,10 +139,12 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       }
 
       // start rotating last-edited box when right button
-      if (e.button === 2 && (mode === 'stable' || mode === 'home') && e.target === gl.domElement && editorMouseMode === 'draw') {
+      if (e.button === 2 && (mode === 'stable' || mode === 'home' || mode === 'dice') && e.target === gl.domElement && editorMouseMode === 'draw') {
         const last = lastEditedBoxRef.current
         if (last) {
-          const b = (data.players[last.player] as any)[last.kind] as BoxBounds | null
+          let b: BoxBounds | null = null
+          if (last.kind === 'dice') b = data.dice ?? null
+          else b = (data.players[last.player!] as any)[last.kind] as BoxBounds | null
           if (b) {
             const center = new Vector3((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2)
             const hit = getBoardIntersection(e.clientX, e.clientY)
@@ -176,7 +178,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       }
 
       // finish box drawing when mouse up
-      if (isDrawingBoxRef.current && (mode === 'stable' || mode === 'home')) {
+      if (isDrawingBoxRef.current && (mode === 'stable' || mode === 'home' || mode === 'dice')) {
         isDrawingBoxRef.current = false
         const start = boxStartRef.current
         boxStartRef.current = null
@@ -206,12 +208,16 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
               const newData = JSON.parse(JSON.stringify(data))
               if (mode === 'stable') {
                 newData.players[selectedPlayer].stable = box
-              } else {
+                lastEditedBoxRef.current = { kind: 'stable', player: selectedPlayer }
+              } else if (mode === 'home') {
                 newData.players[selectedPlayer].home = box
+                lastEditedBoxRef.current = { kind: 'home', player: selectedPlayer }
+              } else {
+                newData.dice = box
+                lastEditedBoxRef.current = { kind: 'dice' }
               }
               onDataChange(newData)
               // remember this as last edited box for potential rotation
-              lastEditedBoxRef.current = { kind: mode, player: selectedPlayer }
               if (onPreviewBoxChange) onPreviewBoxChange(null)
             })()
           }
@@ -263,6 +269,8 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
           newData.players[selectedPlayer].stable = null
         } else if (mode === 'home' && newData.players[selectedPlayer].home) {
           newData.players[selectedPlayer].home = null
+        } else if (mode === 'dice' && newData.dice) {
+          newData.dice = null
         }
 
         onDataChange(newData)
@@ -289,7 +297,12 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
               const delta = curAng - rotateStartAngleRef.current
               const newRot = rotateInitialRotationRef.current + delta
               const newData = JSON.parse(JSON.stringify(data))
-              const target = (newData.players[last.player] as any)[last.kind] as BoxBounds | null
+              let target: BoxBounds | null = null
+              if (last.kind === 'dice') {
+                target = newData.dice ?? null
+              } else {
+                target = (newData.players[last.player!] as any)[last.kind] as BoxBounds | null
+              }
               if (target) {
                 target.rotationY = newRot
                 onDataChange(newData)
@@ -300,7 +313,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
         }
 
         // if drawing a box, compute and emit preview
-        if (isDrawingBoxRef.current && boxStartRef.current && (mode === 'stable' || mode === 'home')) {
+        if (isDrawingBoxRef.current && boxStartRef.current && (mode === 'stable' || mode === 'home' || mode === 'dice')) {
           const hit = getBoardIntersection(e.clientX, e.clientY)
           if (hit) {
             const start = boxStartRef.current
