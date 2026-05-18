@@ -44,6 +44,9 @@ importers:
       '@react-three/fiber':
         specifier: ^8.0.27
         version: 8.18.0(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.184.0)
+      '@rune-race/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       react:
         specifier: ^18.2.0
         version: 18.3.1
