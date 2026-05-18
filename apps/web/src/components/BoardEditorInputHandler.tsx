@@ -33,6 +33,11 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
   const dragStartXRef = useRef(0)
   const dragStartYRef = useRef(0)
   const DRAG_THRESHOLD_PX = 6
+  const isRotatingRef = useRef(false)
+  const rotateStartAngleRef = useRef(0)
+  const rotateInitialRotationRef = useRef(0)
+  const rotateCenterRef = useRef<Vector3 | null>(null)
+  const lastEditedBoxRef = useRef<{ kind: 'stable' | 'home'; player: number } | null>(null)
 
   useEffect(() => {
     if (!isActive) return
@@ -132,6 +137,27 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
           if (onPreviewBoxChange) onPreviewBoxChange(null)
         }
       }
+
+      // start rotating last-edited box when right button
+      if (e.button === 2 && (mode === 'stable' || mode === 'home') && e.target === gl.domElement && editorMouseMode === 'draw') {
+        const last = lastEditedBoxRef.current
+        if (last) {
+          const b = (data.players[last.player] as any)[last.kind] as BoxBounds | null
+          if (b) {
+            const center = new Vector3((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2)
+            const hit = getBoardIntersection(e.clientX, e.clientY)
+            if (hit) {
+              const v = new Vector2(hit.point.x - center.x, hit.point.z - center.z)
+              const startAng = Math.atan2(v.y, v.x)
+              rotateStartAngleRef.current = startAng
+              rotateInitialRotationRef.current = b.rotationY ?? 0
+              rotateCenterRef.current = center
+              isRotatingRef.current = true
+              e.preventDefault()
+            }
+          }
+        }
+      }
     }
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -140,6 +166,13 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       const dyTotal = e.clientY - dragStartYRef.current
       if (Math.sqrt(dxTotal * dxTotal + dyTotal * dyTotal) > DRAG_THRESHOLD_PX) {
         isDraggingRef.current = true
+      }
+
+      // finish rotating if in rotation mode
+      if (isRotatingRef.current) {
+        isRotatingRef.current = false
+        rotateCenterRef.current = null
+        return
       }
 
       // finish box drawing when mouse up
@@ -167,6 +200,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
                 maxX,
                 maxY: bottomY + BOX_HEIGHT,
                 maxZ,
+                rotationY: 0,
               }
 
               const newData = JSON.parse(JSON.stringify(data))
@@ -176,6 +210,8 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
                 newData.players[selectedPlayer].home = box
               }
               onDataChange(newData)
+              // remember this as last edited box for potential rotation
+              lastEditedBoxRef.current = { kind: mode, player: selectedPlayer }
               if (onPreviewBoxChange) onPreviewBoxChange(null)
             })()
           }
@@ -242,6 +278,27 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
 
       // Compute hover position and report via callback
       if (e.target === gl.domElement) {
+        // if rotating a box, compute rotation based on right-drag
+        if (isRotatingRef.current) {
+          const last = lastEditedBoxRef.current
+          if (last && rotateCenterRef.current) {
+            const hit = getBoardIntersection(e.clientX, e.clientY)
+            if (hit) {
+              const vcur = new Vector2(hit.point.x - rotateCenterRef.current.x, hit.point.z - rotateCenterRef.current.z)
+              const curAng = Math.atan2(vcur.y, vcur.x)
+              const delta = curAng - rotateStartAngleRef.current
+              const newRot = rotateInitialRotationRef.current + delta
+              const newData = JSON.parse(JSON.stringify(data))
+              const target = (newData.players[last.player] as any)[last.kind] as BoxBounds | null
+              if (target) {
+                target.rotationY = newRot
+                onDataChange(newData)
+              }
+            }
+          }
+          return
+        }
+
         // if drawing a box, compute and emit preview
         if (isDrawingBoxRef.current && boxStartRef.current && (mode === 'stable' || mode === 'home')) {
           const hit = getBoardIntersection(e.clientX, e.clientY)
@@ -263,6 +320,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
                 maxX,
                 maxY: bottomY + BOX_HEIGHT,
                 maxZ,
+                rotationY: 0,
               }
               if (onPreviewBoxChange) onPreviewBoxChange(preview)
             })()
@@ -290,6 +348,10 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
     window.addEventListener('mouseup', handleMouseUp)
     window.addEventListener('click', handleClick)
     window.addEventListener('mousemove', handleMouseMove)
+    const handleContextMenu = (ev: MouseEvent) => {
+      if (isRotatingRef.current) ev.preventDefault()
+    }
+    window.addEventListener('contextmenu', handleContextMenu)
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
@@ -298,6 +360,7 @@ export const BoardEditorInputHandler: React.FC<BoardEditorInputHandlerProps> = (
       window.removeEventListener('click', handleClick)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('contextmenu', handleContextMenu)
     }
     }, [isActive, mode, selectedPlayer, data, camera, scene, gl, onDataChange, onHoverChange, editorMouseMode, setEditorMouseMode, onPreviewBoxChange])
 
