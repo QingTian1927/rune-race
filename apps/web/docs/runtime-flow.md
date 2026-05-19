@@ -31,6 +31,27 @@ This is the state to split later when the backend connection is added. The likel
 - editor state
 - ephemeral UI state
 
+## Game state rendering
+
+When a `GameState` is available (either from backend or mock snapshot), `BoardScene` passes it to `BoardPieces`.
+
+`BoardPieces` renders:
+
+1. **Houses**: Colored house models at each player's `home` bounding box
+2. **Pawns**: Colored pawn models for each token, positioned based on token state:
+	- `in_base`: Arranged in 2x2 grid inside player's `stable` bounding box
+	- `on_track`: At corresponding main track point
+	- `in_home_lane`: At corresponding home lane point
+	- `finished`: At center of player's `home` box
+3. **Movement animation**: Automatically animates pawns over ~300ms when token position changes
+4. **3D models**: Loads pawn geometry asynchronously to avoid blocking initial render
+
+The mock snapshot generator creates sample states with:
+
+- 4 players (red, blue, green, yellow)
+- 4 tokens per player with realistic distributions
+- Random dice result and rolled phase for testing UI states
+
 ## Camera and editor interaction
 
 The scene currently uses `OrbitControls`.

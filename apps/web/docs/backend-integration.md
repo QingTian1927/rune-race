@@ -76,6 +76,14 @@ The frontend should be able to render:
 - animation events from recent history
 - winner or finished-state summary
 
+The frontend **currently renders**:
+
+- token positions based on state (in_base, on_track, in_home_lane, finished)
+- player houses in colored house models
+- pawns with smooth movement animation when positions update
+
+These are already wired to accept a `GameState` object. When the backend connection is ready, the socket layer simply needs to push new `GameState` snapshots to `BoardScene`, and the rendering will automatically update.
+
 ### Editor and layout data
 
 The editor state is separate from the live match state, but the backend may still want to persist or load board layouts.

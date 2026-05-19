@@ -9,6 +9,34 @@ This document describes how the frontend is structured today and which pieces ar
 
 See `apps/web/src/App.tsx` for the route split.
 
+## Rendering layers
+
+### Board Model
+
+`apps/web/src/components/BoardModel.tsx` renders the static 3D board geometry.
+
+It currently renders:
+
+- board surface
+- main track markers
+- player home markers
+- stable and home bounding box outlines
+
+### Board Pieces
+
+`apps/web/src/components/BoardPieces.tsx` renders dynamic game elements.
+
+It currently renders:
+
+- player houses: colored house models in the `home` bounding box for each player
+- pawns: colored pawn models positioned based on token state:
+	- `in_base`: arranged in a 2x2 grid inside the `stable` bounding box
+	- `on_track`: positioned at main track points
+	- `in_home_lane`: positioned at home lane points
+	- `finished`: positioned at center of home box
+
+The component automatically animates pawn movement when token positions change in the game state.
+
 ## Runtime layers
 
 ### Page layer
@@ -41,6 +69,11 @@ It currently composes:
 
 The scene layer should stay focused on rendering and input dispatch, not networking.
 
+It receives an optional `gameState` prop:
+
+- If provided, it renders that game state's tokens and players
+- If not provided, it renders a mock snapshot for development
+
 ### Editor layer
 
 The editor is split into two pieces:
@@ -68,13 +101,20 @@ This layer should remain a pure visual projection of editor state.
 
 ## Shared data flow
 
-The current frontend state is local and synchronous:
+The current frontend state architecture:
 
-1. A user gesture updates React state in `GamePage`.
-2. `BoardScene` receives the updated editor data.
-3. The visualization and input handler re-render from that state.
+- **Local development**: Uses `getMockSnapshot()` to generate a test game state with 4 players and sample token distributions
+- **With backend**: Will receive authoritative `GameState` via socket and pass it to `BoardScene`
+- **Rendering**: `BoardScene` composes `BoardModel` (static board) and `BoardPieces` (dynamic tokens)
+- **Editor**: Remains client-side local state, separate from game state
 
-When multiplayer backend integration starts, the ideal change is to swap the local state source for authoritative server snapshots while keeping the scene and editor components mostly unchanged.
+The key design is that `BoardScene` accepts both `gameState` (optional) and `editorData` (optional), allowing:
+
+- Pure editor mode (render board layout being edited)
+- Pure game mode (render live game with tokens)
+- Hybrid mode (rare, for debug/preview)
+
+When multiplayer backend integration completes, the socket layer will simply replace the mock snapshot source with real server snapshots.
 
 ## Local-only development features
 

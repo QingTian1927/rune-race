@@ -17,6 +17,14 @@ This folder documents the frontend game client so the UI can be wired to the bac
 - It does not yet own the live multiplayer backend connection.
 - These docs describe the client surfaces the backend will eventually need to feed.
 
+## Current rendering capabilities
+
+- **3D board**: Static board geometry with track markers and player zones
+- **Player houses**: Colored house models positioned in each player's home zone
+- **Pawns**: 3D pawn models that position based on token state and animate when tokens move
+- **Board editor**: Interactive 2D editor for designing board layouts with track and zone positioning
+- **Mock game state**: Fully functional mock `GameState` generator for development and testing
+
 ## Related backend docs
 
 - [Server contract index](../../server/docs/index.md)
