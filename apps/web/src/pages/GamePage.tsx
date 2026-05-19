@@ -4,6 +4,8 @@ import { useProgress } from '@react-three/drei'
 import BoardScene, { type CameraDebugInfo } from '../scenes/BoardScene'
 import { BoardLayoutData, createInitialEditorState, EditorMode } from '../utils/boardEditorState'
 import { BoardEditorControls } from '../components/BoardEditor'
+import getMockSnapshot from '../mock/getMockSnapshot'
+import type { GameState } from '@rune-race/shared'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) {
@@ -131,6 +133,20 @@ export default function GamePage() {
   const [editorMode, setEditorMode] = useState<EditorMode>('main-track')
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
   const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
+  const [gameState, setGameState] = useState<GameState>(() => {
+    const snapshot = getMockSnapshot()
+    return {
+      ...snapshot,
+      turn: {
+        ...snapshot.turn,
+        diceResult: null,
+        phase: 'waiting_roll' as const,
+      },
+      phase: 'waiting_roll' as const,
+      events: [],
+    }
+  })
+  const [rollTrigger, setRollTrigger] = useState(0)
 
   // Attempt to auto-load board-layout.json from source data if present
   useEffect(() => {
@@ -193,11 +209,18 @@ export default function GamePage() {
     URL.revokeObjectURL(url)
   }
 
+  const handleRollDice = () => {
+    setGameState(getMockSnapshot())
+    setRollTrigger((current) => current + 1)
+  }
+
   return (
     <div className="relative h-screen w-full overflow-hidden bg-slate-950">
       <BoardScene
         onDebugInfoChange={setCameraDebugInfo}
         isEditorActive={isEditorActive}
+        gameState={gameState}
+        rollTrigger={rollTrigger}
         editorData={editorData}
         editorMode={editorMode}
         editorSelectedPlayer={editorSelectedPlayer}
@@ -213,6 +236,15 @@ export default function GamePage() {
         >
           Back
         </Link>
+      </div>
+
+      <div className="absolute left-4 top-16 z-30">
+        <button
+          onClick={handleRollDice}
+          className="inline-flex items-center rounded-lg border border-amber-300/35 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur-sm transition hover:bg-amber-300/30"
+        >
+          Tung xúc xắc
+        </button>
       </div>
 
       {/* Editor toggle moved into DevMenu; only visible when DevMenu open */}

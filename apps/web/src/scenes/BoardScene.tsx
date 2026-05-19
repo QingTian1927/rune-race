@@ -4,6 +4,7 @@ import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import BoardModel from '../components/BoardModel'
 import BoardPieces from '../components/BoardPieces'
+import DiceShaker from '../components/DiceShaker'
 import getMockSnapshot from '../mock/getMockSnapshot'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
@@ -28,6 +29,7 @@ interface BoardSceneProps {
   onDebugInfoChange?: (info: CameraDebugInfo) => void
   isEditorActive?: boolean
   gameState?: GameState
+  rollTrigger?: number
   editorData?: BoardLayoutData
   editorMode?: EditorMode
   editorSelectedPlayer?: number
@@ -254,6 +256,7 @@ export default function BoardScene({
   onDebugInfoChange,
   isEditorActive = false,
   gameState,
+  rollTrigger = 0,
   editorData,
   editorMode = 'main-track',
   editorSelectedPlayer = 0,
@@ -283,7 +286,12 @@ export default function BoardScene({
       <Suspense fallback={null}>
         <BoardModel />
         <BoardPieces gameState={activeGameState} />
+        <DiceShaker gameState={activeGameState} rollTrigger={rollTrigger} />
       </Suspense>
+
+      <ambientLight intensity={1.2} />
+      <directionalLight position={[4, 8, 5]} intensity={1.8} color="#fff7e6" />
+      <directionalLight position={[-4, 5, -3]} intensity={0.8} color="#cfe7ff" />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} userData={{ editorInteractionSurface: true }}>
         <planeGeometry args={[14, 14]} />
