@@ -23,6 +23,8 @@ This is the practical path through the current client from load to interaction.
 - `editorMode`
 - `editorSelectedPlayer`
 - `editorMouseMode`
+- `gameState` (local mock snapshot for current gameplay rendering)
+- `rollTrigger` (local counter to trigger dice animation)
 
 This is the state to split later when the backend connection is added. The likely long-term shape is:
 
@@ -51,6 +53,19 @@ The mock snapshot generator creates sample states with:
 - 4 players (red, blue, green, yellow)
 - 4 tokens per player with realistic distributions
 - Random dice result and rolled phase for testing UI states
+
+## Local dice roll presentation flow
+
+Current frontend behavior (before live backend wiring):
+
+1. User clicks `Tung xúc xắc` in `GamePage`.
+2. `GamePage` creates a fresh local mock snapshot and increments `rollTrigger`.
+3. `BoardScene` passes both `gameState` and `rollTrigger` to `DiceShaker`.
+4. `DiceShaker` runs the bucket + die animation sequence.
+5. Die settles to a mapped orientation for the rolled value while staying grounded on the board surface.
+6. Bucket remains visible briefly after reveal (~2s), then fades out.
+
+This is intentionally local-only for now and should be replaced by server-driven roll snapshots later.
 
 ## Camera and editor interaction
 
@@ -96,6 +111,11 @@ The following pieces should eventually come from the backend instead of local-on
 - persisted board layout
 
 The current frontend already has the right seams to receive those values without rewriting the viewport.
+
+For dice specifically, the long-term behavior is:
+
+- backend sends authoritative `diceResult`
+- frontend keeps only presentation timing and visuals (bucket shake, reveal, and fade-out)
 
 ## What should stay client-side
 

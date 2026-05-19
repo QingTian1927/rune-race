@@ -37,6 +37,23 @@ It currently renders:
 
 The component automatically animates pawn movement when token positions change in the game state.
 
+### Dice Shaker
+
+`apps/web/src/components/DiceShaker.tsx` renders the dice roll presentation layer.
+
+It currently renders:
+
+- a bucket model and a die model loaded from `apps/web/assets/models`
+- a local animation state machine (`appearing -> shaking -> lifting -> revealing -> finished`)
+- face-to-rotation mapping for the die result (with face `6` as the default top orientation)
+- post-reveal bucket hold (about 2 seconds) and fade-out
+
+Key constraints in the current implementation:
+
+- die position is anchored to the dice spawn center from layout data
+- die vertical placement is corrected from model bounds so the die stays in contact with the board surface while rotating
+- bucket animation is visual-only and does not affect authoritative game logic
+
 ## Runtime layers
 
 ### Page layer
@@ -53,6 +70,11 @@ It currently holds:
 - editor mouse mode (`draw` or `camera`)
 
 This page is the best place to attach future socket/session state.
+
+Additional local gameplay presentation state currently owned by `GamePage`:
+
+- local mock `gameState` used by the current dice roll presentation
+- local `rollTrigger` counter used to start dice animation from UI intent
 
 ### Scene layer
 
@@ -73,6 +95,8 @@ It receives an optional `gameState` prop:
 
 - If provided, it renders that game state's tokens and players
 - If not provided, it renders a mock snapshot for development
+
+It also receives a local `rollTrigger` prop used by `DiceShaker` to trigger dice animation timing.
 
 ### Editor layer
 
@@ -104,8 +128,9 @@ This layer should remain a pure visual projection of editor state.
 The current frontend state architecture:
 
 - **Local development**: Uses `getMockSnapshot()` to generate a test game state with 4 players and sample token distributions
+- **Local dice flow**: `GamePage` exposes a `Tung xúc xắc` button that regenerates a mock snapshot and increments `rollTrigger`
 - **With backend**: Will receive authoritative `GameState` via socket and pass it to `BoardScene`
-- **Rendering**: `BoardScene` composes `BoardModel` (static board) and `BoardPieces` (dynamic tokens)
+- **Rendering**: `BoardScene` composes `BoardModel` (static board), `BoardPieces` (dynamic tokens), and `DiceShaker` (dice presentation)
 - **Editor**: Remains client-side local state, separate from game state
 
 The key design is that `BoardScene` accepts both `gameState` (optional) and `editorData` (optional), allowing:
@@ -124,6 +149,7 @@ The current client has a few features that are useful during frontend work but s
 - camera debug readout
 - editor mode toggle between draw and camera
 - export of the current editor layout JSON
+- local roll button that drives a mock dice presentation (not authoritative game logic)
 
 These features are safe to keep even after backend integration.
 
