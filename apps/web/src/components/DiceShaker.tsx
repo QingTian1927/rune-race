@@ -22,6 +22,9 @@ const PHASE_DURATIONS: Record<Exclude<DiceAnimationPhase, 'idle' | 'finished'>, 
   revealing: 0.22,
 }
 
+const BUCKET_HOLD_AFTER_REVEAL_SECONDS = 2
+const BUCKET_FADE_OUT_SECONDS = 0.25
+
 function cloneModel(scene: THREE.Group): THREE.Group {
   const clone = scene.clone(true)
 
@@ -216,6 +219,7 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
     const shookAt = appearedAt + PHASE_DURATIONS.shaking
     const liftedAt = shookAt + PHASE_DURATIONS.lifting
     const revealedAt = liftedAt + PHASE_DURATIONS.revealing
+    const bucketHideAt = revealedAt + BUCKET_HOLD_AFTER_REVEAL_SECONDS
 
     let nextPhase: DiceAnimationPhase = phaseRef.current
     if (elapsed < appearedAt) {
@@ -240,6 +244,14 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
     }
 
     const appearOpacity = nextPhase === 'appearing' ? THREE.MathUtils.clamp(elapsed / appearedAt, 0, 1) : 1
+    const bucketOpacity =
+      nextPhase === 'appearing'
+        ? appearOpacity
+        : elapsed < bucketHideAt
+          ? 1
+          : elapsed < bucketHideAt + BUCKET_FADE_OUT_SECONDS
+            ? 1 - THREE.MathUtils.clamp((elapsed - bucketHideAt) / BUCKET_FADE_OUT_SECONDS, 0, 1)
+            : 0
     const wobbleX = nextPhase === 'shaking' ? Math.sin(state.clock.elapsedTime * 22) * shakeAmount : 0
     const wobbleZ = nextPhase === 'shaking' ? Math.cos(state.clock.elapsedTime * 19) * shakeAmount * 0.8 : 0
 
@@ -294,7 +306,7 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
       }
     }
 
-    setOpacity(bucket, appearOpacity)
+    setOpacity(bucket, bucketOpacity)
     setOpacity(dice, 1)
   })
 
