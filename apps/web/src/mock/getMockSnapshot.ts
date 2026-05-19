@@ -12,6 +12,7 @@ import boardLayout from '../../data/board-layout.json'
 export default function getMockSnapshot(): GameState {
   const mainTrackLength = boardLayout.meta.mainTrackSteps
   const homeLaneEndIndex = boardLayout.meta.homeLaneStepsPerPlayer - 1
+  const diceResult = Math.floor(Math.random() * 6) + 1
 
   // Create players
   const players: Player[] = PLAYER_COLORS.slice(0, 4).map((color: PlayerColor) => ({
@@ -71,8 +72,8 @@ export default function getMockSnapshot(): GameState {
   const turn: Turn = {
     id: 'mock-turn-1',
     currentPlayerId,
-    diceResult: null,
-    phase: 'waiting_roll',
+    diceResult,
+    phase: 'rolled',
     legalMoves: [],
     startTime: Date.now(),
   }
@@ -84,12 +85,19 @@ export default function getMockSnapshot(): GameState {
     players,
     tokens,
     turn,
-    phase: 'waiting_roll',
+    phase: 'rolled',
     status: 'playing',
     currentPlayerIndex: 0,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    events: [],
+    events: [
+      {
+        type: 'dice_roll',
+        timestamp: Date.now(),
+        playerId: currentPlayerId,
+        details: { result: diceResult },
+      },
+    ],
   }
 
   return gameState

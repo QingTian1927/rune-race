@@ -8,6 +8,7 @@ import getMockSnapshot from '../mock/getMockSnapshot'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
+import type { GameState } from '@rune-race/shared'
 
 export interface CameraDebugInfo {
   position: { x: number; y: number; z: number }
@@ -26,6 +27,7 @@ export interface CameraDebugInfo {
 interface BoardSceneProps {
   onDebugInfoChange?: (info: CameraDebugInfo) => void
   isEditorActive?: boolean
+  gameState?: GameState
   editorData?: BoardLayoutData
   editorMode?: EditorMode
   editorSelectedPlayer?: number
@@ -251,6 +253,7 @@ function EditorVisualizationWrapper({
 export default function BoardScene({
   onDebugInfoChange,
   isEditorActive = false,
+  gameState,
   editorData,
   editorMode = 'main-track',
   editorSelectedPlayer = 0,
@@ -263,6 +266,7 @@ export default function BoardScene({
   const [previewBox, setPreviewBox] = useState<any | null>(null)
 
   const mockSnapshot = useMemo(() => getMockSnapshot(), [])
+  const activeGameState = gameState ?? mockSnapshot
 
   return (
     <Canvas dpr={[1, 1.75]} className="h-full w-full">
@@ -278,7 +282,7 @@ export default function BoardScene({
 
       <Suspense fallback={null}>
         <BoardModel />
-        <BoardPieces gameState={mockSnapshot} />
+        <BoardPieces gameState={activeGameState} />
       </Suspense>
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} userData={{ editorInteractionSurface: true }}>
