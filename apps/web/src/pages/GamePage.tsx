@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import BoardScene, { type CameraDebugInfo } from '../scenes/BoardScene'
 import { BoardLayoutData, createInitialEditorState, EditorMode } from '../utils/boardEditorState'
 import { BoardEditorControls } from '../components/BoardEditor'
 import getMockSnapshot from '../mock/getMockSnapshot'
-import type { GameState } from '@rune-race/shared'
+import { rollMockTurn, resolveMockTurn } from '../mock/mockGameEngine'
+import type { GameState, LegalMove } from '@rune-race/shared'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) {
@@ -134,19 +135,23 @@ export default function GamePage() {
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
   const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
   const [gameState, setGameState] = useState<GameState>(() => {
-    const snapshot = getMockSnapshot()
-    return {
-      ...snapshot,
-      turn: {
-        ...snapshot.turn,
-        diceResult: null,
-        phase: 'waiting_roll' as const,
-      },
-      phase: 'waiting_roll' as const,
-      events: [],
-    }
+    return getMockSnapshot()
   })
   const [rollTrigger, setRollTrigger] = useState(0)
+  const resolveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+
+  const legalMoveLabel = (move: LegalMove) => {
+    const tokenIndex = Number(move.tokenId.split(':').pop() ?? '0') + 1
+    if (move.moveType === 'spawn') {
+      return `Xuat quan #${tokenIndex}`
+    }
+
+    if (move.moveType === 'capture') {
+      return `Di quan #${tokenIndex} va an quan`
+    }
+
+    return `Di quan #${tokenIndex}`
+  }
 
   // Attempt to auto-load board-layout.json from source data if present
   useEffect(() => {
@@ -210,9 +215,36 @@ export default function GamePage() {
   }
 
   const handleRollDice = () => {
-    setGameState(getMockSnapshot())
+    setGameState((current) => rollMockTurn(current))
     setRollTrigger((current) => current + 1)
   }
+
+  const handleChooseMove = (moveId: string) => {
+    setGameState((current) => resolveMockTurn(current, moveId))
+  }
+
+  useEffect(() => {
+    if (resolveTimerRef.current) {
+      window.clearTimeout(resolveTimerRef.current)
+      resolveTimerRef.current = null
+    }
+
+    if (gameState.turn.phase !== 'rolled' || gameState.turn.diceResult === null) {
+      return
+    }
+
+    resolveTimerRef.current = window.setTimeout(() => {
+      setGameState((current) => resolveMockTurn(current))
+      resolveTimerRef.current = null
+    }, 4100)
+
+    return () => {
+      if (resolveTimerRef.current) {
+        window.clearTimeout(resolveTimerRef.current)
+        resolveTimerRef.current = null
+      }
+    }
+  }, [gameState.turn.diceResult, gameState.turn.phase])
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-slate-950">
@@ -240,11 +272,34 @@ export default function GamePage() {
 
       <div className="absolute left-4 top-16 z-30">
         <button
+          disabled={gameState.turn.phase !== 'waiting_roll'}
           onClick={handleRollDice}
-          className="inline-flex items-center rounded-lg border border-amber-300/35 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur-sm transition hover:bg-amber-300/30"
+          className="inline-flex items-center rounded-lg border border-amber-300/35 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur-sm transition hover:bg-amber-300/30 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Tung xúc xắc
         </button>
+        <div className="mt-2 rounded-lg border border-white/10 bg-slate-950/65 px-3 py-2 text-xs text-slate-200 backdrop-blur-sm">
+          <div>Current player: {gameState.players[gameState.currentPlayerIndex]?.name ?? 'n/a'}</div>
+          <div>Turn phase: {gameState.turn.phase}</div>
+          <div>Dice: {gameState.turn.diceResult ?? '-'}</div>
+        </div>
+
+        {gameState.turn.phase === 'waiting_choice' && gameState.turn.legalMoves.length > 1 ? (
+          <div className="mt-2 w-[280px] rounded-lg border border-white/15 bg-slate-900/90 p-3 text-xs text-slate-100 backdrop-blur-sm">
+            <div className="mb-2 text-sm font-semibold text-amber-200">Chon nuoc di</div>
+            <div className="space-y-2">
+              {gameState.turn.legalMoves.map((move) => (
+                <button
+                  key={move.id}
+                  onClick={() => handleChooseMove(move.id)}
+                  className="w-full rounded-md border border-amber-300/30 bg-amber-500/15 px-2 py-1 text-left text-amber-50 transition hover:bg-amber-400/25"
+                >
+                  {legalMoveLabel(move)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Editor toggle moved into DevMenu; only visible when DevMenu open */}

@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import type { GameState, Token } from '@rune-race/shared'
 import boardLayout from '../../data/board-layout.json'
 import { loadPawnModel } from '../utils/pawnLoader'
+import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
 interface BoardPiecesProps {
   gameState: GameState
@@ -19,6 +20,105 @@ const PLAYER_COLOR_HEX: Record<GameState['players'][number]['color'], string> = 
 
 function vecFrom(o: any) {
   return new THREE.Vector3(o.x, o.y, o.z)
+}
+
+function smoothArcPosition(start: THREE.Vector3, end: THREE.Vector3, progress: number) {
+  const clamped = THREE.MathUtils.clamp(progress, 0, 1)
+  const lifted = Math.sin(Math.PI * clamped)
+  const position = new THREE.Vector3().lerpVectors(start, end, clamped)
+  position.y += lifted * 0.24
+  return position
+}
+
+function getBoardDirectionMultiplier() {
+  return boardLayout.meta.direction === 'cw' ? -1 : 1
+}
+
+function getTrackWorldPosition(playerIndex: number, trackProgress: number) {
+  const playerLayout = boardLayout.players[playerIndex]
+  if (!playerLayout) {
+    return new THREE.Vector3()
+  }
+
+  const direction = getBoardDirectionMultiplier()
+  const trackIndex = ((playerLayout.startIndex + trackProgress * direction) % boardLayout.mainTrack.length + boardLayout.mainTrack.length) % boardLayout.mainTrack.length
+  const point = boardLayout.mainTrack[trackIndex]
+  return point ? vecFrom(point) : new THREE.Vector3()
+}
+
+function getHomeLaneWorldPosition(playerIndex: number, laneIndex: number) {
+  const lane = boardLayout.players[playerIndex]?.homeLane?.[laneIndex]
+  return lane ? vecFrom(lane) : new THREE.Vector3()
+}
+
+function getStableSlotWorldPosition(playerIndex: number, tokenId: string) {
+  const stable = boardLayout.players[playerIndex]?.stable
+  if (!stable) {
+    return new THREE.Vector3()
+  }
+
+  const cols = 2
+  const rows = 2
+  const slot = Number(tokenId.split(':').pop() ?? '0') % (cols * rows)
+  const cx = (stable.minX + stable.maxX) / 2
+  const cz = (stable.minZ + stable.maxZ) / 2
+  const width = stable.maxX - stable.minX
+  const depth = stable.maxZ - stable.minZ
+  const col = slot % cols
+  const row = Math.floor(slot / cols)
+
+  return new THREE.Vector3(
+    cx + (col - (cols - 1) / 2) * (width * 0.28),
+    stable.minY + (stable.maxY - stable.minY) * 0.12,
+    cz + (row - (rows - 1) / 2) * (depth * 0.28),
+  )
+}
+
+function tokenStateToWorldPosition(token: Token, playerIndex: number) {
+  if (token.state === 'in_base') {
+    return getStableSlotWorldPosition(playerIndex, token.id)
+  }
+
+  if (token.state === 'on_track') {
+    return getTrackWorldPosition(playerIndex, token.position)
+  }
+
+  if (token.state === 'in_home_lane') {
+    return getHomeLaneWorldPosition(playerIndex, token.position)
+  }
+
+  const home = boardLayout.players[playerIndex]?.home
+  if (!home) {
+    return new THREE.Vector3()
+  }
+
+  return new THREE.Vector3(
+    (home.minX + home.maxX) / 2,
+    (home.minY + home.maxY) / 2,
+    (home.minZ + home.maxZ) / 2,
+  )
+}
+
+function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, playerIndex: number) {
+  if (!eventDetails) {
+    return null
+  }
+
+  return eventDetails.path.map((step: MockPathStep) => {
+    if (step.state === 'on_track') {
+      return getTrackWorldPosition(playerIndex, step.position)
+    }
+
+    if (step.state === 'in_home_lane') {
+      return getHomeLaneWorldPosition(playerIndex, step.position)
+    }
+
+    if (step.state === 'in_base') {
+      return getStableSlotWorldPosition(playerIndex, eventDetails.tokenId)
+    }
+
+    return new THREE.Vector3()
+  })
 }
 
 function HousePlaceholder({ box, color = '#ffffff' }: { box: any; color?: string }) {
@@ -58,17 +158,22 @@ function HousePlaceholder({ box, color = '#ffffff' }: { box: any; color?: string
 function PawnInstance({
   token,
   playerIndex,
+  targetPosition,
+  motionPlan,
   animationDurationMs = 300,
 }: {
   token: Token
   playerIndex: number
+  targetPosition: THREE.Vector3
+  motionPlan: THREE.Vector3[] | null
   animationDurationMs?: number
 }) {
   const groupRef = useRef<THREE.Group | null>(null)
-  const startRef = useRef(new THREE.Vector3())
-  const targetRef = useRef(new THREE.Vector3())
-  const progressRef = useRef(1)
-  const lastUpdateRef = useRef<number | null>(null)
+  const queueRef = useRef<THREE.Vector3[]>([])
+  const segmentStartRef = useRef(new THREE.Vector3())
+  const segmentTargetRef = useRef(new THREE.Vector3())
+  const segmentStartTimeRef = useRef<number>(-1)
+  const motionKeyRef = useRef<string>('')
 
   useEffect(() => {
     let mounted = true
@@ -85,30 +190,62 @@ function PawnInstance({
   }, [playerIndex])
 
   useEffect(() => {
-    // initialize positions when token mounts or changes
-    if (!groupRef.current) return
-    const cur = groupRef.current.position
-    startRef.current.copy(cur)
-    // compute target from token._targetPos (injected by parent)
-    const t = (token as any)._targetPos as THREE.Vector3 | undefined
-    if (t) {
-      targetRef.current.copy(t)
+    if (!groupRef.current) {
+      return
     }
-    progressRef.current = 0
-    lastUpdateRef.current = null
-  }, [token.id])
+
+    const nextMotionKey = motionPlan && motionPlan.length > 0
+      ? `${token.id}:${token.state}:${token.position}:${motionPlan.length}:${motionPlan[0].x}:${motionPlan[0].y}:${motionPlan[0].z}`
+      : `${token.id}:${token.state}:${token.position}`
+
+    if (motionKeyRef.current === nextMotionKey) {
+      return
+    }
+
+    motionKeyRef.current = nextMotionKey
+
+    if (!motionPlan || motionPlan.length === 0) {
+      queueRef.current = []
+      segmentStartTimeRef.current = -1
+      groupRef.current.position.copy(targetPosition)
+      return
+    }
+
+    queueRef.current = motionPlan.map((point) => point.clone())
+    segmentStartRef.current.copy(groupRef.current.position)
+    segmentTargetRef.current.copy(queueRef.current[0] ?? targetPosition)
+    segmentStartTimeRef.current = -1
+  }, [motionPlan, targetPosition, token.id, token.position, token.state])
 
   useFrame((state) => {
     if (!groupRef.current) return
+
+    if (queueRef.current.length === 0) {
+      groupRef.current.position.copy(targetPosition)
+      return
+    }
+
+    if (segmentStartTimeRef.current < 0) {
+      segmentStartTimeRef.current = state.clock.elapsedTime
+    }
+
     const duration = Math.max(1, animationDurationMs) / 1000
-    if (progressRef.current >= 1) return
-    if (lastUpdateRef.current === null) lastUpdateRef.current = state.clock.elapsedTime
-    const elapsed = state.clock.elapsedTime - (lastUpdateRef.current ?? 0)
-    const p = Math.min(1, elapsed / duration)
-    const cur = new THREE.Vector3().lerpVectors(startRef.current, targetRef.current, p)
-    groupRef.current.position.copy(cur)
-    if (p >= 1) {
-      progressRef.current = 1
+    const elapsed = state.clock.elapsedTime - segmentStartTimeRef.current
+    const progress = Math.min(1, elapsed / duration)
+    groupRef.current.position.copy(smoothArcPosition(segmentStartRef.current, segmentTargetRef.current, progress))
+
+    if (progress >= 1) {
+      queueRef.current.shift()
+
+      if (queueRef.current.length === 0) {
+        segmentStartTimeRef.current = -1
+        groupRef.current.position.copy(targetPosition)
+        return
+      }
+
+      segmentStartRef.current.copy(segmentTargetRef.current)
+      segmentTargetRef.current.copy(queueRef.current[0])
+      segmentStartTimeRef.current = state.clock.elapsedTime
     }
   })
 
@@ -123,51 +260,37 @@ export default function BoardPieces({ gameState, animationDurationMs = 300 }: Bo
     return m
   }, [gameState.players])
 
-  // Compute target positions for each token
-  const tokensWithTargets = useMemo(() => {
-    return gameState.tokens.map((t) => {
-      const pi = playerIndexById[t.playerId]
-      let pos = new THREE.Vector3()
-
-      if (t.state === 'in_base') {
-        const stable = layout.players[pi]?.stable
-        if (stable) {
-          const cols = 2
-          const rows = 2
-          const baseIndex = parseInt(t.id.split(':')[1], 10) % (cols * rows)
-          const cx = (stable.minX + stable.maxX) / 2
-          const cz = (stable.minZ + stable.maxZ) / 2
-          const w = stable.maxX - stable.minX
-          const d = stable.maxZ - stable.minZ
-          const col = baseIndex % cols
-          const row = Math.floor(baseIndex / cols)
-          const x = cx + ( (col - (cols-1)/2) * (w * 0.28) )
-          const z = cz + ( (row - (rows-1)/2) * (d * 0.28) )
-          const y = stable.minY + (stable.maxY - stable.minY) * 0.12
-          pos.set(x, y, z)
-        }
-      } else if (t.state === 'on_track') {
-        const idx = Math.max(0, Math.min((layout.mainTrack.length || 0) - 1, t.position))
-        const p = layout.mainTrack[idx]
-        if (p) pos.copy(vecFrom(p))
-      } else if (t.state === 'in_home_lane') {
-        const hl = layout.players[pi]?.homeLane
-        const idx = Math.max(0, Math.min((hl?.length || 0) - 1, t.position))
-        const p = hl ? hl[idx] : null
-        if (p) pos.copy(vecFrom(p))
-      } else if (t.state === 'finished') {
-        const home = layout.players[pi]?.home
-        if (home) {
-          const x = (home.minX + home.maxX) / 2
-          const y = (home.minY + home.maxY) / 2
-          const z = (home.minZ + home.maxZ) / 2
-          pos.set(x, y, z)
-        }
+  const moveEventByTokenId = useMemo(() => {
+    const map = new Map<string, MockMoveEventDetails>()
+    gameState.events.forEach((event) => {
+      if (event.type !== 'token_moved') {
+        return
       }
 
-      return Object.assign({}, t, { _targetPos: pos, _playerIndex: pi })
+      const details = event.details as Partial<MockMoveEventDetails>
+      if (!details?.tokenId || !details.path) {
+        return
+      }
+
+      map.set(details.tokenId, details as MockMoveEventDetails)
     })
-  }, [gameState.tokens, layout, playerIndexById])
+    return map
+  }, [gameState.events])
+
+  const tokensWithTargets = useMemo(() => {
+    return gameState.tokens.map((token) => {
+      const playerIndex = playerIndexById[token.playerId] ?? 0
+      const targetPosition = tokenStateToWorldPosition(token, playerIndex)
+      const motionPlan = motionPlanFromEvent(moveEventByTokenId.get(token.id), playerIndex)
+
+      return {
+        token,
+        playerIndex,
+        targetPosition,
+        motionPlan,
+      }
+    })
+  }, [gameState.tokens, moveEventByTokenId, playerIndexById])
 
   return (
     <group>
@@ -178,9 +301,15 @@ export default function BoardPieces({ gameState, animationDurationMs = 300 }: Bo
       })}
 
       {/* Pawns */}
-      {tokensWithTargets.map((t: any) => (
-        <group key={t.id}>
-          <PawnInstance token={t} playerIndex={t._playerIndex ?? 0} animationDurationMs={animationDurationMs} />
+      {tokensWithTargets.map(({ token, playerIndex, targetPosition, motionPlan }) => (
+        <group key={token.id}>
+          <PawnInstance
+            token={token}
+            playerIndex={playerIndex}
+            targetPosition={targetPosition}
+            motionPlan={motionPlan}
+            animationDurationMs={animationDurationMs}
+          />
         </group>
       ))}
     </group>
