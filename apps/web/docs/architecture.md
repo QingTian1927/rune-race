@@ -37,6 +37,11 @@ It currently renders:
 
 The component automatically animates pawn movement when token positions change in the game state.
 
+It also supports capture-specific feedback:
+
+- brief hit/smoke-like visual at capture point
+- captured pawn return-to-base arc (instead of instant teleport)
+
 ### Dice Shaker
 
 `apps/web/src/components/DiceShaker.tsx` renders the dice roll presentation layer.
@@ -75,6 +80,7 @@ Additional local gameplay presentation state currently owned by `GamePage`:
 
 - local mock `gameState` used by the current dice roll presentation
 - local `rollTrigger` counter used to start dice animation from UI intent
+- finish-order panel data derived from `gameState.events` (`token_finished` events)
 
 ### Scene layer
 
@@ -128,10 +134,18 @@ This layer should remain a pure visual projection of editor state.
 The current frontend state architecture:
 
 - **Local development**: Uses `getMockSnapshot()` to generate a test game state with 4 players and sample token distributions
-- **Local dice flow**: `GamePage` exposes a `Tung xúc xắc` button that regenerates a mock snapshot and increments `rollTrigger`
+- **Local dice flow**: `GamePage` uses `rollMockTurn`/`resolveMockTurn` on the same state and increments `rollTrigger`
 - **With backend**: Will receive authoritative `GameState` via socket and pass it to `BoardScene`
 - **Rendering**: `BoardScene` composes `BoardModel` (static board), `BoardPieces` (dynamic tokens), and `DiceShaker` (dice presentation)
 - **Editor**: Remains client-side local state, separate from game state
+
+Current local mock rules now include:
+
+- spawn on dice `1` or `6`
+- auto-spawn when no non-spawn legal move exists
+- finish ranking tracked in events
+- skipping finished players
+- game end after 3 players finish
 
 The key design is that `BoardScene` accepts both `gameState` (optional) and `editorData` (optional), allowing:
 

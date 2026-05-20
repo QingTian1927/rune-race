@@ -26,6 +26,10 @@ This is the practical path through the current client from load to interaction.
 - `gameState` (local mock snapshot for current gameplay rendering)
 - `rollTrigger` (local counter to trigger dice animation)
 
+Derived presentation state:
+
+- finish ranking list (from `gameState.events` where `event.type === 'token_finished'`)
+
 This is the state to split later when the backend connection is added. The likely long-term shape is:
 
 - connection/session state
@@ -48,22 +52,35 @@ When a `GameState` is available (either from backend or mock snapshot), `BoardSc
 3. **Movement animation**: Automatically animates pawns over ~300ms when token position changes
 4. **3D models**: Loads pawn geometry asynchronously to avoid blocking initial render
 
-The mock snapshot generator creates sample states with:
+The current mock engine initializes:
 
 - 4 players (red, blue, green, yellow)
-- 4 tokens per player with realistic distributions
-- Random dice result and rolled phase for testing UI states
+- 4 tokens per player (all start in base)
+- deterministic turn lifecycle (`waiting_roll -> rolled|waiting_choice -> waiting_roll`)
 
 ## Local dice roll presentation flow
 
 Current frontend behavior (before live backend wiring):
 
 1. User clicks `Tung xúc xắc` in `GamePage`.
-2. `GamePage` creates a fresh local mock snapshot and increments `rollTrigger`.
+2. `GamePage` calls `rollMockTurn(currentState)` and increments `rollTrigger`.
 3. `BoardScene` passes both `gameState` and `rollTrigger` to `DiceShaker`.
 4. `DiceShaker` runs the bucket + die animation sequence.
 5. Die settles to a mapped orientation for the rolled value while staying grounded on the board surface.
 6. Bucket remains visible briefly after reveal (~2s), then fades out.
+7. `GamePage` resolves the move by calling `resolveMockTurn` automatically, or waits for user choice if multiple legal moves exist.
+
+## Current mock gameplay rules
+
+The frontend mock engine in `apps/web/src/mock/mockGameEngine.ts` now enforces these rules:
+
+- spawn is legal when dice is `1` or `6` (if entry square is valid)
+- if dice is `1/6` and only spawn moves are legal, spawn is auto-resolved
+- if multiple legal moves exist, turn enters `waiting_choice`
+- capture emits explicit `token_captured` details (`from`, `to`) for capture animation
+- player is marked as finished when all 4 tokens are in final zone (`in_home_lane` or `finished`)
+- finished players are skipped on subsequent turns
+- game ends when 3 players have finished
 
 This is intentionally local-only for now and should be replaced by server-driven roll snapshots later.
 
