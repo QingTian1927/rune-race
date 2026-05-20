@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import BoardScene, { type CameraDebugInfo } from '../scenes/BoardScene'
@@ -139,6 +139,29 @@ export default function GamePage() {
   })
   const [rollTrigger, setRollTrigger] = useState(0)
   const resolveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+
+  const finishOrder = useMemo(() => {
+    const seen = new Set<string>()
+    const order: string[] = []
+
+    gameState.events.forEach((event) => {
+      if (event.type !== 'token_finished') {
+        return
+      }
+
+      const playerId = typeof event.details?.playerId === 'string' ? event.details.playerId : ''
+      if (!playerId || seen.has(playerId)) {
+        return
+      }
+
+      seen.add(playerId)
+      order.push(playerId)
+    })
+
+    return order
+      .map((playerId) => gameState.players.find((player) => player.id === playerId))
+      .filter((player): player is NonNullable<typeof player> => Boolean(player))
+  }, [gameState.events, gameState.players])
 
   const legalMoveLabel = (move: LegalMove) => {
     const tokenIndex = Number(move.tokenId.split(':').pop() ?? '0') + 1
@@ -300,6 +323,22 @@ export default function GamePage() {
             </div>
           </div>
         ) : null}
+      </div>
+
+      <div className="absolute left-4 top-[240px] z-30 w-[240px] rounded-lg border border-white/15 bg-slate-900/80 px-3 py-3 text-xs text-slate-100 backdrop-blur-sm">
+        <div className="mb-2 text-sm font-semibold text-emerald-200">Thu tu ve dich</div>
+        {finishOrder.length === 0 ? (
+          <div className="text-slate-300">Chua co nguoi ve dich</div>
+        ) : (
+          <div className="space-y-1">
+            {finishOrder.map((player, index) => (
+              <div key={player.id} className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-2 py-1">
+                <span>#{index + 1}</span>
+                <span>{player.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Editor toggle moved into DevMenu; only visible when DevMenu open */}

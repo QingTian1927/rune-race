@@ -2,7 +2,7 @@ import type { GameEvent, GameState, LegalMove, Player, TokenState } from '@rune-
 import { PLAYER_COLORS } from '@rune-race/shared'
 import boardLayout from '../../data/board-layout.json'
 
-export const MOCK_PLAYER_COUNT = 2
+export const MOCK_PLAYER_COUNT = 4
 export const BOARD_TRACK_LENGTH = boardLayout.meta.mainTrackSteps
 export const BOARD_HOME_LANE_LENGTH = boardLayout.meta.homeLaneStepsPerPlayer
 export const BOARD_DIRECTION_MULTIPLIER = boardLayout.meta.direction === 'cw' ? -1 : 1
@@ -143,11 +143,15 @@ function baseSlotForToken(tokenId: string) {
   return match ? Number(match[1]) : 0
 }
 
+function canSpawnFromBase(diceResult: number) {
+  return diceResult === 1 || diceResult === 6
+}
+
 function tokenPathFromMove(token: GameState['tokens'][number], diceResult: number) {
   const maxProgress = BOARD_TRACK_LENGTH + BOARD_HOME_LANE_LENGTH - 1
 
   if (token.state === 'in_base') {
-    if (diceResult !== 6) {
+    if (!canSpawnFromBase(diceResult)) {
       return null
     }
 
@@ -307,41 +311,158 @@ function applyPathToToken(token: GameState['tokens'][number], path: MockPathStep
 }
 
 function getNextPlayerIndex(state: GameState, keepCurrentPlayer: boolean) {
-  if (keepCurrentPlayer) {
-    return state.currentPlayerIndex
+  if (state.players.length === 0) {
+    return 0
   }
 
-  return (state.currentPlayerIndex + 1) % state.players.length
+  const completedPlayerIds = new Set(getFinishOrderFromEvents(state.events))
+
+  if (keepCurrentPlayer) {
+    const currentPlayerId = state.players[state.currentPlayerIndex]?.id
+    if (currentPlayerId && !completedPlayerIds.has(currentPlayerId)) {
+      return state.currentPlayerIndex
+    }
+  }
+
+  for (let offset = 1; offset <= state.players.length; offset += 1) {
+    const candidateIndex = (state.currentPlayerIndex + offset) % state.players.length
+    const candidatePlayerId = state.players[candidateIndex]?.id
+    if (candidatePlayerId && !completedPlayerIds.has(candidatePlayerId)) {
+      return candidateIndex
+    }
+  }
+
+  return state.currentPlayerIndex
 }
 
 function makeTurnId(state: GameState) {
   return `${state.roomId}:turn:${state.version + 1}`
 }
 
-function shouldAutoSpawnWithoutChoice(state: GameState, diceResult: number, legalMoves: LegalMove[]) {
-  if (diceResult !== 6 || legalMoves.length <= 1) {
+function shouldAutoSpawnWithoutChoice(diceResult: number, legalMoves: LegalMove[]) {
+  if (!canSpawnFromBase(diceResult) || legalMoves.length === 0) {
     return false
   }
 
-  const currentPlayerId = state.turn.currentPlayerId
-  const playerTokens = state.tokens.filter((token) => token.playerId === currentPlayerId)
-  const hasTokenOutOfBase = playerTokens.some((token) => token.state !== 'in_base')
-  if (hasTokenOutOfBase) {
-    return false
+  const hasSpawnMove = legalMoves.some((move) => move.moveType === 'spawn')
+  const hasTrackOrLaneMove = legalMoves.some((move) => move.moveType !== 'spawn')
+  return hasSpawnMove && !hasTrackOrLaneMove
+}
+
+function getFinishOrderFromEvents(events: GameEvent[]) {
+  const order: string[] = []
+  const seen = new Set<string>()
+
+  events.forEach((event) => {
+    if (event.type !== 'token_finished') {
+      return
+    }
+
+    const playerId = typeof event.details?.playerId === 'string' ? event.details.playerId : ''
+    if (!playerId || seen.has(playerId)) {
+      return
+    }
+
+    seen.add(playerId)
+    order.push(playerId)
+  })
+
+  return order
+}
+
+function isTokenInFinalZone(token: GameState['tokens'][number]) {
+  return token.state === 'in_home_lane' || token.state === 'finished'
+}
+
+function getPlayersFullyInHomeLane(players: Player[], tokens: GameState['tokens']) {
+  return players
+    .map((player) => player.id)
+    .filter((playerId) => {
+      const playerTokens = tokens.filter((token) => token.playerId === playerId)
+      return playerTokens.length > 0 && playerTokens.every(isTokenInFinalZone)
+    })
+}
+
+function appendFinishEvents(state: GameState, tokens: GameState['tokens'], timestamp: number, preferredPlayerId?: string) {
+  const finishOrder = getFinishOrderFromEvents(state.events)
+  const alreadyFinished = new Set(finishOrder)
+  const fullyFinishedPlayers = getPlayersFullyInHomeLane(state.players, tokens)
+
+  const newcomers = fullyFinishedPlayers.filter((playerId) => !alreadyFinished.has(playerId))
+  if (newcomers.length === 0) {
+    return { events: state.events, finishOrder }
   }
 
-  return legalMoves.every((move) => move.moveType === 'spawn')
+  if (preferredPlayerId && newcomers.includes(preferredPlayerId)) {
+    newcomers.sort((a, b) => {
+      if (a === preferredPlayerId) return -1
+      if (b === preferredPlayerId) return 1
+      const ai = state.players.findIndex((player) => player.id === a)
+      const bi = state.players.findIndex((player) => player.id === b)
+      return ai - bi
+    })
+  }
+
+  const nextEvents = [...state.events]
+  newcomers.forEach((playerId) => {
+    finishOrder.push(playerId)
+    nextEvents.push({
+      type: 'token_finished',
+      timestamp,
+      playerId,
+      details: {
+        playerId,
+        rank: finishOrder.length,
+      },
+    })
+  })
+
+  return { events: nextEvents, finishOrder }
 }
 
 export function rollMockTurn(state: GameState) {
-  if (state.turn.phase !== 'waiting_roll') {
+  if (state.status === 'finished' || state.turn.phase !== 'waiting_roll') {
     return state
+  }
+
+  const finishedPlayers = new Set(getFinishOrderFromEvents(state.events))
+  if (finishedPlayers.has(state.turn.currentPlayerId)) {
+    const nextPlayerIndex = getNextPlayerIndex(state, false)
+    const nextPlayer = state.players[nextPlayerIndex] ?? state.players[0]
+
+    return {
+      ...state,
+      version: state.version + 1,
+      currentPlayerIndex: nextPlayerIndex,
+      turn: {
+        id: makeTurnId(state),
+        currentPlayerId: nextPlayer?.id ?? state.turn.currentPlayerId,
+        diceResult: null,
+        phase: 'waiting_roll',
+        legalMoves: [],
+        startTime: now(),
+      },
+      phase: 'waiting_roll',
+      updatedAt: now(),
+      events: [
+        ...state.events,
+        {
+          type: 'turn_advanced',
+          timestamp: now(),
+          playerId: state.turn.currentPlayerId,
+          details: {
+            nextPlayerId: nextPlayer?.id ?? state.turn.currentPlayerId,
+            reason: 'skip_finished_player',
+          },
+        },
+      ],
+    } satisfies GameState
   }
 
   const diceResult = rollDice()
   const legalMoves = computeLegalMoves(state, diceResult)
   const timestamp = now()
-  const shouldAutoSpawn = shouldAutoSpawnWithoutChoice(state, diceResult, legalMoves)
+  const shouldAutoSpawn = shouldAutoSpawnWithoutChoice(diceResult, legalMoves)
   const phase = legalMoves.length > 1 && !shouldAutoSpawn ? 'waiting_choice' : 'rolled'
 
   return {
@@ -358,6 +479,7 @@ export function rollMockTurn(state: GameState) {
     phase,
     updatedAt: timestamp,
     events: [
+      ...state.events,
       {
         type: 'dice_roll',
         timestamp,
@@ -383,8 +505,51 @@ export function resolveMockTurn(state: GameState, moveId?: string) {
   }
 
   if (!chosenMove) {
+    const finishData = appendFinishEvents(state, state.tokens, timestamp)
+    const finishedByRank = new Set(finishData.finishOrder)
+    const shouldEndGame = finishData.finishOrder.length >= 3
+
+    if (shouldEndGame) {
+      return {
+        ...state,
+        version: state.version + 1,
+        status: 'finished',
+        winnerId: finishData.finishOrder[0],
+        turn: {
+          id: makeTurnId(state),
+          currentPlayerId: state.turn.currentPlayerId,
+          diceResult: null,
+          phase: 'turn_end',
+          legalMoves: [],
+          startTime: timestamp,
+        },
+        phase: 'turn_end',
+        updatedAt: timestamp,
+        events: [
+          ...finishData.events,
+          {
+            type: 'turn_advanced',
+            timestamp,
+            playerId: state.turn.currentPlayerId,
+            details: {
+              nextPlayerId: state.turn.currentPlayerId,
+              reason: 'game_finished',
+            },
+          },
+        ],
+      } satisfies GameState
+    }
+
     const keepCurrentPlayer = diceResult === 6
-    const nextPlayerIndex = getNextPlayerIndex(state, keepCurrentPlayer)
+    const nextPlayerIndex = keepCurrentPlayer && !finishedByRank.has(state.turn.currentPlayerId)
+      ? state.currentPlayerIndex
+      : getNextPlayerIndex(
+          {
+            ...state,
+            events: finishData.events,
+          },
+          false,
+        )
     const nextPlayer = state.players[nextPlayerIndex] ?? state.players[0]
 
     return {
@@ -402,7 +567,7 @@ export function resolveMockTurn(state: GameState, moveId?: string) {
       phase: 'waiting_roll',
       updatedAt: timestamp,
       events: [
-        ...state.events,
+        ...finishData.events,
         {
           type: 'turn_advanced',
           timestamp,
@@ -492,7 +657,13 @@ export function resolveMockTurn(state: GameState, moveId?: string) {
       playerId: moveToken.playerId,
       details: {
         tokenId: moveToken.id,
+        playerId: moveToken.playerId,
         capturedTokenId: captureCandidate.id,
+        from: pathInfo.to,
+        to: {
+          state: 'in_base',
+          position: baseSlotForToken(captureCandidate.id),
+        },
       },
     })
   }
@@ -507,14 +678,60 @@ export function resolveMockTurn(state: GameState, moveId?: string) {
     },
   })
 
+  const finishData = appendFinishEvents(
+    {
+      ...state,
+      events,
+    },
+    updatedTokens,
+    timestamp,
+    moveToken.playerId,
+  )
+
+  const shouldEndGame = finishData.finishOrder.length >= 3
+  if (shouldEndGame) {
+    return {
+      ...state,
+      version: state.version + 1,
+      currentPlayerIndex: nextPlayerIndex,
+      tokens: updatedTokens,
+      status: 'finished',
+      winnerId: finishData.finishOrder[0],
+      turn: {
+        id: makeTurnId(state),
+        currentPlayerId: nextPlayer?.id ?? moveToken.playerId,
+        diceResult: null,
+        phase: 'turn_end',
+        legalMoves: [],
+        startTime: timestamp,
+      },
+      phase: 'turn_end',
+      updatedAt: timestamp,
+      events: finishData.events,
+    } satisfies GameState
+  }
+
+  const finishedByRank = new Set(finishData.finishOrder)
+  const resolvedNextPlayerIndex = keepCurrentPlayer && !finishedByRank.has(moveToken.playerId)
+    ? state.currentPlayerIndex
+    : getNextPlayerIndex(
+        {
+          ...state,
+          currentPlayerIndex: state.currentPlayerIndex,
+          events: finishData.events,
+        },
+        false,
+      )
+  const resolvedNextPlayer = state.players[resolvedNextPlayerIndex] ?? state.players[0]
+
   return {
     ...state,
     version: state.version + 1,
-    currentPlayerIndex: nextPlayerIndex,
+    currentPlayerIndex: resolvedNextPlayerIndex,
     tokens: updatedTokens,
     turn: {
       id: makeTurnId(state),
-      currentPlayerId: nextPlayer?.id ?? moveToken.playerId,
+      currentPlayerId: resolvedNextPlayer?.id ?? moveToken.playerId,
       diceResult: null,
       phase: 'waiting_roll',
       legalMoves: [],
@@ -522,6 +739,6 @@ export function resolveMockTurn(state: GameState, moveId?: string) {
     },
     phase: 'waiting_roll',
     updatedAt: timestamp,
-    events,
+    events: finishData.events,
   } satisfies GameState
 }
