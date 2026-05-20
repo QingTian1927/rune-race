@@ -136,24 +136,42 @@ function setOpacity(object: THREE.Object3D, opacity: number) {
 function latestDiceRollSignal(gameState: GameState): string {
   const rollEvent = [...gameState.events].reverse().find((event) => event.type === 'dice_roll')
   if (rollEvent) {
-    return `${rollEvent.timestamp}:${gameState.turn.diceResult ?? 'none'}`
+    return `${rollEvent.timestamp}`
   }
 
   return `${gameState.version}:${gameState.turn.diceResult ?? 'none'}`
+}
+
+function latestDiceRollResult(gameState: GameState): number | null {
+  const rollEvent = [...gameState.events].reverse().find((event) => event.type === 'dice_roll')
+  if (!rollEvent) {
+    return gameState.turn.diceResult
+  }
+
+  const eventResult = Number(rollEvent.details?.result ?? NaN)
+  if (Number.isFinite(eventResult) && eventResult >= 1 && eventResult <= 6) {
+    return eventResult
+  }
+
+  return gameState.turn.diceResult
 }
 
 function getRestDieRotation(result: number): { x: number; y: number; z: number } {
   switch (((result - 1) % 6) + 1) {
     case 1:
       return { x: Math.PI, y: 0, z: 0 }
+    // Adjusted mapping so the model's top face equals the rolled result.
+    // Observed previous mapping: 1->1, 2->3, 3->5, 4->2, 5->4, 6->6.
+    // New mapping uses the rotations that previously produced the desired top face.
+    // Swap rotations for 2<->5 and 3<->4 to match the model's face mapping.
     case 2:
-      return { x: -Math.PI / 2, y: 0, z: 0 }
-    case 3:
-      return { x: 0, y: 0, z: -Math.PI / 2 }
-    case 4:
       return { x: 0, y: 0, z: Math.PI / 2 }
-    case 5:
+    case 3:
+      return { x: -Math.PI / 2, y: 0, z: 0 }
+    case 4:
       return { x: Math.PI / 2, y: 0, z: 0 }
+    case 5:
+      return { x: 0, y: 0, z: -Math.PI / 2 }
     default:
       return { x: 0, y: 0, z: 0 }
   }
@@ -162,7 +180,7 @@ function getRestDieRotation(result: number): { x: number; y: number; z: number }
 export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) {
   const layout = boardLayout as any
   const diceBox = layout?.dice ?? null
-  const rollResult = gameState.turn.diceResult ?? 1
+  const rollResult = latestDiceRollResult(gameState)
   const rollSignal = useMemo(() => latestDiceRollSignal(gameState), [gameState])
 
   const bucketRef = useRef<THREE.Group | null>(null)
@@ -181,25 +199,57 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
   const diceProbe = useMemo(() => normalizedDice.object.clone(true), [normalizedDice])
 
   useEffect(() => {
-    const hasDiceResult = gameState.turn.diceResult !== null
+    const hasDiceResult = rollResult !== null
     const triggerChanged = rollTrigger !== triggerRef.current
 
     triggerRef.current = rollTrigger
 
-    if (!hasDiceResult || !triggerChanged) {
-      signalRef.current = rollSignal
+    if (!hasDiceResult) {
       phaseRef.current = 'idle'
       phaseStartRef.current = -1
+      return
+    }
+
+    if (!triggerChanged) {
       return
     }
 
     signalRef.current = rollSignal
     phaseRef.current = 'appearing'
     phaseStartRef.current = -1
-  }, [gameState.turn.diceResult, rollSignal, rollTrigger])
+  }, [rollResult, rollSignal, rollTrigger])
 
   useFrame((state) => {
-    if (!diceBox || phaseRef.current === 'idle') {
+    if (!diceBox) {
+      return
+    }
+
+    const bucket = bucketRef.current
+    const dice = diceRef.current
+    const diceVisual = diceVisualRef.current
+    if (!bucket || !dice || rollResult === null) {
+      return
+    }
+
+    const centerX = (diceBox.minX + diceBox.maxX) / 2
+    const centerY = diceBox.minY
+    const centerZ = (diceBox.minZ + diceBox.maxZ) / 2
+    const restDieRotation = getRestDieRotation(rollResult)
+
+    if (phaseRef.current === 'idle') {
+      bucket.position.set(centerX, centerY + 0.3, centerZ)
+      bucket.rotation.set(0, diceBox.rotationY ?? 0, 0)
+      dice.position.set(centerX, centerY, centerZ)
+      if (diceVisual) {
+        diceVisual.rotation.set(restDieRotation.x, restDieRotation.y, restDieRotation.z)
+        diceProbe.rotation.copy(diceVisual.rotation)
+        const restBounds = new THREE.Box3().setFromObject(diceProbe)
+        if (!restBounds.isEmpty()) {
+          diceVisual.position.set(0, -restBounds.min.y, 0)
+        }
+      }
+      setOpacity(bucket, 0)
+      setOpacity(dice, 1)
       return
     }
 
@@ -208,9 +258,6 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
     }
 
     const elapsed = state.clock.elapsedTime - phaseStartRef.current
-    const centerX = (diceBox.minX + diceBox.maxX) / 2
-    const centerY = diceBox.minY
-    const centerZ = (diceBox.minZ + diceBox.maxZ) / 2
     const liftHeight = 0.3
     const shakeAmount = 0.02
     const shakeRotation = 0.14
@@ -236,13 +283,6 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
 
     phaseRef.current = nextPhase
 
-    const bucket = bucketRef.current
-    const dice = diceRef.current
-    const diceVisual = diceVisualRef.current
-    if (!bucket || !dice) {
-      return
-    }
-
     const appearOpacity = nextPhase === 'appearing' ? THREE.MathUtils.clamp(elapsed / appearedAt, 0, 1) : 1
     const bucketOpacity =
       nextPhase === 'appearing'
@@ -264,11 +304,6 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
     const bucketLift = nextPhase === 'revealing' || nextPhase === 'finished'
       ? THREE.MathUtils.clamp((elapsed - liftedAt) / PHASE_DURATIONS.revealing, 0, 1)
       : 0
-
-    const diceReveal = nextPhase === 'revealing' || nextPhase === 'finished'
-      ? THREE.MathUtils.clamp((elapsed - liftedAt) / PHASE_DURATIONS.revealing, 0, 1)
-      : 0
-    const restDieRotation = getRestDieRotation(rollResult)
 
     bucket.position.set(
       centerX + wobbleX,
@@ -310,7 +345,7 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
     setOpacity(dice, 1)
   })
 
-  if (!diceBox || gameState.turn.diceResult === null) {
+  if (!diceBox || rollResult === null) {
     return null
   }
 
