@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { GameState, Token } from '@rune-race/shared'
 import boardLayout from '../../data/board-layout.json'
-import { loadPawnModel } from '../utils/pawnLoader'
+import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
 import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
 interface BoardPiecesProps {
@@ -15,6 +16,11 @@ type CaptureMotion = {
   key: string
   sourcePosition: THREE.Vector3
   targetPosition: THREE.Vector3
+}
+
+type MotionWaypoint = {
+  step: MockPathStep
+  position: THREE.Vector3
 }
 
 type CaptureEventDetails = {
@@ -30,6 +36,149 @@ const PLAYER_COLOR_HEX: Record<GameState['players'][number]['color'], string> = 
   blue: '#3b82f6',
   green: '#22c55e',
   yellow: '#facc15',
+}
+
+const TRACK_DIRECTION_RANGES = [
+  { start: 0, end: 4, yaw: 0 },            // north
+  { start: 5, end: 8, yaw: -Math.PI / 2 }, // east
+  { start: 9, end: 10, yaw: 0 },           // north
+  { start: 11, end: 15, yaw: Math.PI / 2 },// west
+  { start: 16, end: 19, yaw: 0 },          // north
+  { start: 20, end: 21, yaw: Math.PI / 2 },// west
+  { start: 22, end: 26, yaw: Math.PI },    // south
+  { start: 27, end: 30, yaw: Math.PI / 2 },// west
+  { start: 31, end: 32, yaw: Math.PI },    // south
+  { start: 33, end: 37, yaw: -Math.PI / 2 },// east
+  { start: 38, end: 41, yaw: Math.PI },    // south
+  { start: 42, end: 43, yaw: -Math.PI / 2 },// east
+] as const
+
+const PLAYER_BASE_YAWS = [
+  Math.PI / 4,
+  (3 * Math.PI) / 4,
+  (-3 * Math.PI) / 4,
+  -Math.PI / 4,
+]
+
+const PAWN_MODEL_YAW_OFFSET = (-3 * Math.PI) / 4
+const MAIN_TRACK_YAW_CORRECTION = 0
+
+function normalizeYaw(yaw: number) {
+  return THREE.MathUtils.euclideanModulo(yaw + Math.PI, Math.PI * 2) - Math.PI
+}
+
+function lerpAngle(current: number, target: number, alpha: number) {
+  const delta = normalizeYaw(target - current)
+  return current + delta * alpha
+}
+
+function yawFromDirection(direction: THREE.Vector3) {
+  if (direction.lengthSq() < 1e-8) {
+    return 0
+  }
+
+  return normalizeYaw(-Math.atan2(direction.x, direction.z))
+}
+
+function getTrackYawForAbsoluteIndex(absoluteIndex: number) {
+  const range = TRACK_DIRECTION_RANGES.find((candidate) => absoluteIndex >= candidate.start && absoluteIndex <= candidate.end)
+  return range ? range.yaw : 0
+}
+
+function getAbsoluteTrackIndex(playerIndex: number, trackProgress: number) {
+  const playerLayout = boardLayout.players[playerIndex]
+  if (!playerLayout) {
+    return 0
+  }
+
+  const length = boardLayout.mainTrack.length
+  const direction = getBoardDirectionMultiplier()
+  return ((playerLayout.startIndex + trackProgress * direction) % length + length) % length
+}
+
+function getTrackFacingYaw(playerIndex: number, trackProgress: number) {
+  const playerLayout = boardLayout.players[playerIndex]
+  const absoluteIndex = getAbsoluteTrackIndex(playerIndex, trackProgress)
+  const trackYaw = normalizeYaw(getTrackYawForAbsoluteIndex(absoluteIndex) + MAIN_TRACK_YAW_CORRECTION + PAWN_MODEL_YAW_OFFSET)
+
+  if (playerLayout && absoluteIndex === playerLayout.homeEntryIndex) {
+    return normalizeYaw(trackYaw + Math.PI / 2)
+  }
+
+  return trackYaw
+}
+
+function getLaneDirectionVector(playerIndex: number, laneIndex: number) {
+  const lane = boardLayout.players[playerIndex]?.homeLane ?? []
+  const current = lane[laneIndex]
+  if (!current) {
+    return new THREE.Vector3(0, 0, 1)
+  }
+
+  const next = lane[laneIndex + 1]
+  if (next) {
+    return vecFrom(next).sub(vecFrom(current))
+  }
+
+  const previous = lane[laneIndex - 1]
+  if (previous) {
+    return vecFrom(current).sub(vecFrom(previous))
+  }
+
+  return new THREE.Vector3(0, 0, 1)
+}
+
+function getHomeLaneFacingYaw(playerIndex: number, laneIndex: number) {
+  const baseYaw = yawFromDirection(getLaneDirectionVector(playerIndex, laneIndex))
+  if (playerIndex === 0 || playerIndex === 2) {
+    return normalizeYaw(baseYaw + Math.PI)
+  }
+  return baseYaw
+}
+
+function getFinishedFacingYaw(playerIndex: number) {
+  const lane = boardLayout.players[playerIndex]?.homeLane ?? []
+  if (lane.length > 0) {
+    return getHomeLaneFacingYaw(playerIndex, lane.length - 1)
+  }
+
+  return PLAYER_BASE_YAWS[playerIndex] ?? 0
+}
+
+function getBaseFacingYaw(playerIndex: number) {
+  return normalizeYaw((PLAYER_BASE_YAWS[playerIndex] ?? 0) + PAWN_MODEL_YAW_OFFSET)
+}
+
+function getTokenFacingYaw(token: Token, playerIndex: number) {
+  if (token.state === 'in_base') {
+    return getBaseFacingYaw(playerIndex)
+  }
+
+  if (token.state === 'on_track') {
+    return getTrackFacingYaw(playerIndex, token.position)
+  }
+
+  if (token.state === 'in_home_lane') {
+    return getHomeLaneFacingYaw(playerIndex, token.position)
+  }
+
+  return getFinishedFacingYaw(playerIndex)
+}
+
+function getMotionWaypointFacingYaw(waypoint: MotionWaypoint, playerIndex: number) {
+  if (waypoint.step.state === 'in_base') {
+    return getBaseFacingYaw(playerIndex)
+  }
+
+  if (waypoint.step.state === 'on_track') {
+    return getTrackFacingYaw(playerIndex, waypoint.step.position)
+  }
+
+  if (waypoint.step.state === 'in_home_lane') {
+    return getHomeLaneFacingYaw(playerIndex, waypoint.step.position)
+  }
+
+  return getFinishedFacingYaw(playerIndex)
 }
 
 function vecFrom(o: any) {
@@ -165,25 +314,30 @@ function tokenStateToWorldPosition(token: Token, playerIndex: number) {
   )
 }
 
-function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, playerIndex: number) {
+function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, playerIndex: number): MotionWaypoint[] | null {
   if (!eventDetails) {
     return null
   }
 
   return eventDetails.path.map((step: MockPathStep) => {
+    let position = new THREE.Vector3()
+
     if (step.state === 'on_track') {
-      return getTrackWorldPosition(playerIndex, step.position)
+      position = getTrackWorldPosition(playerIndex, step.position)
     }
 
     if (step.state === 'in_home_lane') {
-      return getHomeLaneWorldPosition(playerIndex, step.position)
+      position = getHomeLaneWorldPosition(playerIndex, step.position)
     }
 
     if (step.state === 'in_base') {
-      return getStableSlotWorldPosition(playerIndex, eventDetails.tokenId)
+      position = getStableSlotWorldPosition(playerIndex, eventDetails.tokenId)
     }
 
-    return new THREE.Vector3()
+    return {
+      step,
+      position,
+    }
   })
 }
 
@@ -255,34 +409,25 @@ function PawnInstance({
   token: Token
   playerIndex: number
   targetPosition: THREE.Vector3
-  motionPlan: THREE.Vector3[] | null
+  motionPlan: MotionWaypoint[] | null
   captureMotion: CaptureMotion | null
   animationDurationMs?: number
 }) {
   const modelRef = useRef<THREE.Group | null>(null)
   const effectRef = useRef<THREE.Group | null>(null)
-  const queueRef = useRef<THREE.Vector3[]>([])
+  const queueRef = useRef<MotionWaypoint[]>([])
   const segmentStartRef = useRef(new THREE.Vector3())
   const segmentTargetRef = useRef(new THREE.Vector3())
+  const segmentTargetStepRef = useRef<MockPathStep | null>(null)
   const segmentStartTimeRef = useRef<number>(-1)
   const motionKeyRef = useRef<string>('')
   const captureKeyRef = useRef<string>('')
   const captureStartTimeRef = useRef<number>(-1)
   const capturePhaseRef = useRef<'idle' | 'hit' | 'return' | 'done'>('idle')
+  const pawnModelPath = getPawnModelPath(playerIndex)
+  const pawnScene = useGLTF(pawnModelPath).scene
 
-  useEffect(() => {
-    let mounted = true
-    loadPawnModel(playerIndex).then((g) => {
-      if (!mounted) return
-      const node = g.clone()
-      if (modelRef.current) {
-        modelRef.current.add(node)
-      }
-    })
-    return () => {
-      mounted = false
-    }
-  }, [playerIndex])
+  const normalizedPawn = useMemo(() => normalizePawnModel(pawnScene, { x: 0.28, y: 0.24, z: 0.28 }), [pawnScene])
 
   // If the pawn was just captured, ensure the model appears at the hit source
   // as soon as it's mounted so it doesn't briefly appear at its base slot.
@@ -338,16 +483,21 @@ function PawnInstance({
       queueRef.current = []
       segmentStartTimeRef.current = -1
       modelRef.current.position.copy(targetPosition)
+      modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), 1)
       return
     }
 
-    queueRef.current = motionPlan.map((point) => point.clone())
+    queueRef.current = motionPlan.map((waypoint) => ({
+      step: waypoint.step,
+      position: waypoint.position.clone(),
+    }))
     segmentStartRef.current.copy(modelRef.current.position)
-    segmentTargetRef.current.copy(queueRef.current[0] ?? targetPosition)
+    segmentTargetRef.current.copy(queueRef.current[0]?.position ?? targetPosition)
+    segmentTargetStepRef.current = queueRef.current[0]?.step ?? null
     segmentStartTimeRef.current = -1
   }, [captureMotion, motionPlan, targetPosition, token.id, token.position, token.state])
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!modelRef.current) return
 
     if (captureMotion) {
@@ -377,6 +527,7 @@ function PawnInstance({
         modelRef.current.position.y += lift
         modelRef.current.position.z -= wobble * 0.6
         modelRef.current.scale.setScalar(1 + Math.sin(hitProgress * Math.PI) * 0.22)
+        modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getBaseFacingYaw(playerIndex), Math.min(1, delta * 10))
         return
       }
 
@@ -384,6 +535,7 @@ function PawnInstance({
       const returnProgress = THREE.MathUtils.clamp((elapsed - hitDuration) / returnDuration, 0, 1)
       modelRef.current.position.copy(smoothArcPosition(captureMotion.sourcePosition, captureMotion.targetPosition, returnProgress))
       modelRef.current.scale.setScalar(1 - returnProgress * 0.05)
+      modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getBaseFacingYaw(playerIndex), Math.min(1, delta * 10))
 
       if (returnProgress >= 1) {
         modelRef.current.position.copy(captureMotion.targetPosition)
@@ -399,6 +551,7 @@ function PawnInstance({
 
     if (queueRef.current.length === 0) {
       modelRef.current.position.copy(targetPosition)
+      modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
       return
     }
 
@@ -410,6 +563,13 @@ function PawnInstance({
     const elapsed = state.clock.elapsedTime - segmentStartTimeRef.current
     const progress = Math.min(1, elapsed / duration)
     modelRef.current.position.copy(smoothArcPosition(segmentStartRef.current, segmentTargetRef.current, progress))
+    if (segmentTargetStepRef.current) {
+      modelRef.current.rotation.y = lerpAngle(
+        modelRef.current.rotation.y,
+        getMotionWaypointFacingYaw({ step: segmentTargetStepRef.current, position: segmentTargetRef.current }, playerIndex),
+        Math.min(1, delta * 10),
+      )
+    }
 
     if (progress >= 1) {
       queueRef.current.shift()
@@ -417,18 +577,22 @@ function PawnInstance({
       if (queueRef.current.length === 0) {
         segmentStartTimeRef.current = -1
         modelRef.current.position.copy(targetPosition)
+        modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
         return
       }
 
       segmentStartRef.current.copy(segmentTargetRef.current)
-      segmentTargetRef.current.copy(queueRef.current[0])
+      segmentTargetRef.current.copy(queueRef.current[0].position)
+      segmentTargetStepRef.current = queueRef.current[0].step
       segmentStartTimeRef.current = state.clock.elapsedTime
     }
   })
 
   return (
     <group>
-      <group ref={modelRef} />
+      <group ref={modelRef} scale={[0.85, 0.85, 0.85]}>
+        <primitive object={normalizedPawn} />
+      </group>
       <group ref={effectRef} visible={Boolean(captureMotion)}>
         <mesh position={[0, 0.04, 0]}>
           <sphereGeometry args={[0.06, 16, 16]} />
