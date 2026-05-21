@@ -23,7 +23,27 @@ function LoadingOverlay({ active, progress }: { active: boolean; progress: numbe
   )
 }
 
-function DevMenu({ info, tab, onTabChange, isEditorActive, onToggleEditor, cursorPos }: { info: CameraDebugInfo | null; tab: string; onTabChange: (tab: string) => void; isEditorActive: boolean; onToggleEditor: () => void; cursorPos: { x: number; y: number } | null }) {
+function DevMenu({
+  info,
+  tab,
+  onTabChange,
+  isEditorActive,
+  onToggleEditor,
+  cursorPos,
+  gameState,
+  selectableTokenIds,
+  debugMoves,
+}: {
+  info: CameraDebugInfo | null
+  tab: string
+  onTabChange: (tab: string) => void
+  isEditorActive: boolean
+  onToggleEditor: () => void
+  cursorPos: { x: number; y: number } | null
+  gameState: GameState
+  selectableTokenIds: string[]
+  debugMoves: Array<{ id: string; tokenId: string; label: string }>
+}) {
   if (tab === 'camera') {
     if (!info) {
       return (
@@ -40,6 +60,12 @@ function DevMenu({ info, tab, onTabChange, isEditorActive, onToggleEditor, curso
               className="px-2 py-1 bg-gray-600 rounded text-xs"
             >
               Editor
+            </button>
+            <button
+              onClick={() => onTabChange('game')}
+              className="px-2 py-1 bg-gray-600 rounded text-xs"
+            >
+              Game
             </button>
           </div>
           Waiting for camera data...
@@ -61,6 +87,12 @@ function DevMenu({ info, tab, onTabChange, isEditorActive, onToggleEditor, curso
             className="px-2 py-1 bg-gray-600 rounded text-xs"
           >
             Editor
+          </button>
+          <button
+            onClick={() => onTabChange('game')}
+            className="px-2 py-1 bg-gray-600 rounded text-xs"
+          >
+            Game
           </button>
         </div>
         <p className="text-sm font-semibold text-cyan-300">Dev Camera Menu</p>
@@ -88,6 +120,53 @@ function DevMenu({ info, tab, onTabChange, isEditorActive, onToggleEditor, curso
     )
   }
 
+  if (tab === 'game') {
+    return (
+      <div className="w-[320px] rounded-xl border border-white/15 bg-slate-950/85 p-4 text-xs text-slate-100 shadow-2xl backdrop-blur-sm">
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => onTabChange('camera')}
+            className="px-2 py-1 bg-gray-600 rounded text-xs"
+          >
+            Camera
+          </button>
+          <button
+            onClick={() => onTabChange('editor')}
+            className="px-2 py-1 bg-gray-600 rounded text-xs"
+          >
+            Editor
+          </button>
+          <button
+            onClick={() => onTabChange('game')}
+            className="px-2 py-1 bg-amber-600 rounded text-xs"
+          >
+            Game
+          </button>
+        </div>
+        <p className="text-sm font-semibold text-amber-300">Game Debug</p>
+        <p className="mt-1 text-[11px] text-slate-400">Toggle: F3</p>
+        <div className="mt-3 space-y-1">
+          <p>Turn phase: {gameState.turn.phase}</p>
+          <p>Dice: {gameState.turn.diceResult ?? '-'}</p>
+          <p>Legal moves: {debugMoves.length}</p>
+          <p>Selectable tokens: {selectableTokenIds.length}</p>
+        </div>
+        <div className="mt-3 space-y-1">
+          {debugMoves.length === 0 ? (
+            <div className="text-slate-400">No legal moves</div>
+          ) : (
+            debugMoves.map((move) => (
+              <div key={move.id} className="rounded border border-white/10 bg-white/5 px-2 py-1">
+                <div>{move.label}</div>
+                <div className="text-[10px] text-slate-400">{move.tokenId}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-[320px] rounded-xl border border-white/15 bg-slate-950/85 p-4 text-xs text-slate-100 shadow-2xl backdrop-blur-sm">
       <div className="flex gap-2 mb-3">
@@ -102,6 +181,12 @@ function DevMenu({ info, tab, onTabChange, isEditorActive, onToggleEditor, curso
           className="px-2 py-1 bg-green-600 rounded text-xs"
         >
           Editor
+        </button>
+        <button
+          onClick={() => onTabChange('game')}
+          className="px-2 py-1 bg-gray-600 rounded text-xs"
+        >
+          Game
         </button>
       </div>
       <p className="text-sm font-semibold text-green-300">Board Editor Controls</p>
@@ -176,6 +261,38 @@ export default function GamePage() {
     return `Di quan #${tokenIndex}`
   }
 
+  const isWaitingChoice = gameState.turn.phase === 'waiting_choice' && gameState.turn.legalMoves.length > 1
+
+  const selectableTokenIds = useMemo(() => {
+    if (!isWaitingChoice) {
+      return []
+    }
+
+    const seen = new Set<string>()
+    gameState.turn.legalMoves.forEach((move) => {
+      seen.add(move.tokenId)
+    })
+    return Array.from(seen)
+  }, [gameState.turn.legalMoves, isWaitingChoice])
+
+  const moveIdByTokenId = useMemo(() => {
+    const map = new Map<string, string>()
+    gameState.turn.legalMoves.forEach((move) => {
+      if (!map.has(move.tokenId)) {
+        map.set(move.tokenId, move.id)
+      }
+    })
+    return map
+  }, [gameState.turn.legalMoves])
+
+  const debugMoves = useMemo(() => {
+    return gameState.turn.legalMoves.map((move) => ({
+      id: move.id,
+      tokenId: move.tokenId,
+      label: legalMoveLabel(move),
+    }))
+  }, [gameState.turn.legalMoves])
+
   // Attempt to auto-load board-layout.json from source data if present
   useEffect(() => {
     let mounted = true
@@ -246,6 +363,16 @@ export default function GamePage() {
     setGameState((current) => resolveMockTurn(current, moveId))
   }
 
+  const handleSelectToken = (tokenId: string) => {
+    if (!isWaitingChoice) {
+      return
+    }
+    const moveId = moveIdByTokenId.get(tokenId)
+    if (moveId) {
+      handleChooseMove(moveId)
+    }
+  }
+
   useEffect(() => {
     if (resolveTimerRef.current) {
       window.clearTimeout(resolveTimerRef.current)
@@ -276,6 +403,8 @@ export default function GamePage() {
         isEditorActive={isEditorActive}
         gameState={gameState}
         rollTrigger={rollTrigger}
+        selectableTokenIds={selectableTokenIds}
+        onSelectToken={handleSelectToken}
         editorData={editorData}
         editorMode={editorMode}
         editorSelectedPlayer={editorSelectedPlayer}
@@ -307,22 +436,6 @@ export default function GamePage() {
           <div>Dice: {gameState.turn.diceResult ?? '-'}</div>
         </div>
 
-        {gameState.turn.phase === 'waiting_choice' && gameState.turn.legalMoves.length > 1 ? (
-          <div className="mt-2 w-[280px] rounded-lg border border-white/15 bg-slate-900/90 p-3 text-xs text-slate-100 backdrop-blur-sm">
-            <div className="mb-2 text-sm font-semibold text-amber-200">Chon nuoc di</div>
-            <div className="space-y-2">
-              {gameState.turn.legalMoves.map((move) => (
-                <button
-                  key={move.id}
-                  onClick={() => handleChooseMove(move.id)}
-                  className="w-full rounded-md border border-amber-300/30 bg-amber-500/15 px-2 py-1 text-left text-amber-50 transition hover:bg-amber-400/25"
-                >
-                  {legalMoveLabel(move)}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
 
       <div className="absolute left-4 top-[240px] z-30 w-[240px] rounded-lg border border-white/15 bg-slate-900/80 px-3 py-3 text-xs text-slate-100 backdrop-blur-sm">
@@ -345,7 +458,17 @@ export default function GamePage() {
 
       {showDevMenu ? (
         <div className="absolute right-4 top-4 z-30">
-          <DevMenu info={cameraDebugInfo} tab={devMenuTab} onTabChange={setDevMenuTab} isEditorActive={isEditorActive} onToggleEditor={handleToggleEditor} cursorPos={cursorPos} />
+          <DevMenu
+            info={cameraDebugInfo}
+            tab={devMenuTab}
+            onTabChange={setDevMenuTab}
+            isEditorActive={isEditorActive}
+            onToggleEditor={handleToggleEditor}
+            cursorPos={cursorPos}
+            gameState={gameState}
+            selectableTokenIds={selectableTokenIds}
+            debugMoves={debugMoves}
+          />
         </div>
       ) : null}
 

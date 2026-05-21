@@ -30,6 +30,8 @@ interface BoardSceneProps {
   isEditorActive?: boolean
   gameState?: GameState
   rollTrigger?: number
+  selectableTokenIds?: string[]
+  onSelectToken?: (tokenId: string) => void
   editorData?: BoardLayoutData
   editorMode?: EditorMode
   editorSelectedPlayer?: number
@@ -257,6 +259,8 @@ export default function BoardScene({
   isEditorActive = false,
   gameState,
   rollTrigger = 0,
+  selectableTokenIds,
+  onSelectToken,
   editorData,
   editorMode = 'main-track',
   editorSelectedPlayer = 0,
@@ -285,7 +289,11 @@ export default function BoardScene({
 
       <Suspense fallback={null}>
         <BoardModel />
-        <BoardPieces gameState={activeGameState} />
+        <BoardPieces
+          gameState={activeGameState}
+          selectableTokenIds={selectableTokenIds}
+          onSelectToken={onSelectToken}
+        />
         <DiceShaker gameState={activeGameState} rollTrigger={rollTrigger} />
       </Suspense>
 

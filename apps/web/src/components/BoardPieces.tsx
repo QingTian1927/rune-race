@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { Billboard, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { GameState, Token } from '@rune-race/shared'
 import boardLayout from '../../data/board-layout.json'
@@ -10,6 +10,8 @@ import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 interface BoardPiecesProps {
   gameState: GameState
   animationDurationMs?: number
+  selectableTokenIds?: string[]
+  onSelectToken?: (tokenId: string) => void
 }
 
 type CaptureMotion = {
@@ -404,6 +406,12 @@ function PawnInstance({
   targetPosition,
   motionPlan,
   captureMotion,
+  isSelectable,
+  arrowColor,
+  isHovered,
+  onPointerDown,
+  onPointerOver,
+  onPointerOut,
   animationDurationMs = 300,
 }: {
   token: Token
@@ -411,10 +419,18 @@ function PawnInstance({
   targetPosition: THREE.Vector3
   motionPlan: MotionWaypoint[] | null
   captureMotion: CaptureMotion | null
+  isSelectable: boolean
+  arrowColor: string
+  isHovered: boolean
+  onPointerDown?: (event: any) => void
+  onPointerOver?: (event: any) => void
+  onPointerOut?: (event: any) => void
   animationDurationMs?: number
 }) {
   const modelRef = useRef<THREE.Group | null>(null)
   const effectRef = useRef<THREE.Group | null>(null)
+  const arrowRef = useRef<THREE.Mesh | null>(null)
+  const arrowBaseScale = 0.40
   const queueRef = useRef<MotionWaypoint[]>([])
   const segmentStartRef = useRef(new THREE.Vector3())
   const segmentTargetRef = useRef(new THREE.Vector3())
@@ -552,6 +568,11 @@ function PawnInstance({
     if (queueRef.current.length === 0) {
       modelRef.current.position.copy(targetPosition)
       modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
+      if (arrowRef.current) {
+        const pulse = isHovered ? 0.07 * (1 + Math.sin(state.clock.elapsedTime * 5.5)) : 0
+        const scale = arrowBaseScale * (1 + pulse)
+        arrowRef.current.scale.set(scale, scale, scale)
+      }
       return
     }
 
@@ -578,6 +599,11 @@ function PawnInstance({
         segmentStartTimeRef.current = -1
         modelRef.current.position.copy(targetPosition)
         modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
+        if (arrowRef.current) {
+          const pulse = isHovered ? 0.07 * (1 + Math.sin(state.clock.elapsedTime * 5.5)) : 0
+          const scale = arrowBaseScale * (1 + pulse)
+          arrowRef.current.scale.set(scale, scale, scale)
+        }
         return
       }
 
@@ -592,6 +618,36 @@ function PawnInstance({
     <group>
       <group ref={modelRef} scale={[0.85, 0.85, 0.85]}>
         <primitive object={normalizedPawn} />
+        {isSelectable ? (
+          <mesh
+            onPointerDown={onPointerDown}
+            onPointerOver={onPointerOver}
+            onPointerOut={onPointerOut}
+          >
+            <sphereGeometry args={[0.24, 16, 16]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        ) : null}
+        {isSelectable ? (
+          <Billboard position={[0, 0.42, 0]} follow lockX={false} lockY={false} lockZ={false}>
+            <mesh ref={arrowRef} rotation={[0, 0, Math.PI]} scale={[arrowBaseScale, arrowBaseScale, arrowBaseScale]}>
+              <shapeGeometry
+                args={[
+                  new THREE.Shape([
+                    new THREE.Vector2(0, 0.12),
+                    new THREE.Vector2(0.09, -0.02),
+                    new THREE.Vector2(0.03, -0.02),
+                    new THREE.Vector2(0.03, -0.12),
+                    new THREE.Vector2(-0.03, -0.12),
+                    new THREE.Vector2(-0.03, -0.02),
+                    new THREE.Vector2(-0.09, -0.02),
+                  ])
+                ]}
+              />
+              <meshBasicMaterial color={arrowColor} transparent opacity={0.95} depthWrite={false} side={THREE.DoubleSide} />
+            </mesh>
+          </Billboard>
+        ) : null}
       </group>
       <group ref={effectRef} visible={Boolean(captureMotion)}>
         <mesh position={[0, 0.04, 0]}>
@@ -607,8 +663,15 @@ function PawnInstance({
   )
 }
 
-export default function BoardPieces({ gameState, animationDurationMs = 300 }: BoardPiecesProps) {
+export default function BoardPieces({
+  gameState,
+  animationDurationMs = 300,
+  selectableTokenIds,
+  onSelectToken,
+}: BoardPiecesProps) {
   const layout = boardLayout as any
+  const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null)
+  const selectableTokenSet = useMemo(() => new Set(selectableTokenIds ?? []), [selectableTokenIds])
   const playerIndexById = useMemo(() => {
     const m: Record<string, number> = {}
     gameState.players.forEach((p, i) => (m[p.id] = i))
@@ -657,6 +720,9 @@ export default function BoardPieces({ gameState, animationDurationMs = 300 }: Bo
       const captureMotion = token.state === 'in_base'
         ? captureMotionFromEvent(captureMoveByCapturedTokenId.get(token.id), playerIndexById, token)
         : null
+      const isSelectable = selectableTokenSet.has(token.id)
+      const isHovered = isSelectable && hoveredTokenId === token.id
+      const arrowColor = isHovered ? '#22d3ee' : '#f8fafc'
 
       return {
         token,
@@ -664,9 +730,11 @@ export default function BoardPieces({ gameState, animationDurationMs = 300 }: Bo
         targetPosition,
         motionPlan,
         captureMotion,
+        isSelectable,
+        arrowColor,
       }
     })
-  }, [captureMoveByCapturedTokenId, gameState.tokens, moveEventByTokenId, playerIndexById])
+  }, [captureMoveByCapturedTokenId, gameState.tokens, hoveredTokenId, moveEventByTokenId, playerIndexById, selectableTokenSet])
 
   return (
     <group>
@@ -677,7 +745,7 @@ export default function BoardPieces({ gameState, animationDurationMs = 300 }: Bo
       })}
 
       {/* Pawns */}
-      {tokensWithTargets.map(({ token, playerIndex, targetPosition, motionPlan, captureMotion }) => (
+      {tokensWithTargets.map(({ token, playerIndex, targetPosition, motionPlan, captureMotion, isSelectable, arrowColor }) => (
         <group key={token.id}>
           <PawnInstance
             token={token}
@@ -685,6 +753,30 @@ export default function BoardPieces({ gameState, animationDurationMs = 300 }: Bo
             targetPosition={targetPosition}
             motionPlan={motionPlan}
             captureMotion={captureMotion}
+            isSelectable={isSelectable}
+            arrowColor={arrowColor}
+            isHovered={hoveredTokenId === token.id}
+            onPointerDown={(event) => {
+              if (!isSelectable || !onSelectToken) {
+                return
+              }
+              event.stopPropagation()
+              onSelectToken(token.id)
+            }}
+            onPointerOver={(event) => {
+              if (!isSelectable) {
+                return
+              }
+              event.stopPropagation()
+              setHoveredTokenId(token.id)
+            }}
+            onPointerOut={(event) => {
+              if (!isSelectable) {
+                return
+              }
+              event.stopPropagation()
+              setHoveredTokenId((current) => (current === token.id ? null : current))
+            }}
             animationDurationMs={animationDurationMs}
           />
         </group>
