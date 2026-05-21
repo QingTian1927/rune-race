@@ -37,6 +37,12 @@ It currently renders:
 
 The component automatically animates pawn movement when token positions change in the game state.
 
+It also renders move-selection hints when the current player has multiple legal moves:
+
+- selectable pawns show a small 2D arrow marker that always faces the camera
+- hovering a selectable pawn brightens the arrow and adds a subtle pulse
+- selecting a move happens by clicking the pawn directly (no list-based UI)
+
 It also supports capture-specific feedback:
 
 - brief hit/smoke-like visual at capture point
@@ -81,6 +87,7 @@ Additional local gameplay presentation state currently owned by `GamePage`:
 - local mock `gameState` used by the current dice roll presentation
 - local `rollTrigger` counter used to start dice animation from UI intent
 - finish-order panel data derived from `gameState.events` (`token_finished` events)
+- selectable token IDs and move mapping derived from `gameState.turn.legalMoves` for click-to-move UI
 
 ### Scene layer
 

@@ -70,6 +70,8 @@ Current frontend behavior (before live backend wiring):
 6. Bucket remains visible briefly after reveal (~2s), then fades out.
 7. `GamePage` resolves the move by calling `resolveMockTurn` automatically, or waits for user choice if multiple legal moves exist.
 
+When multiple legal moves exist, the client highlights selectable pawns with a small arrow marker (camera-facing). The player chooses by clicking a pawn; hovering a selectable pawn pulses the arrow.
+
 ## Current mock gameplay rules
 
 The frontend mock engine in `apps/web/src/mock/mockGameEngine.ts` now enforces these rules:

@@ -22,6 +22,7 @@ This folder documents the frontend game client so the UI can be wired to the bac
 - **3D board**: Static board geometry with track markers and player zones
 - **Player houses**: Colored house models positioned in each player's home zone
 - **Pawns**: 3D pawn models that position based on token state and animate when tokens move
+- **Move selection hints**: Selectable pawns show a camera-facing arrow marker; hovering pulses the arrow and clicking chooses the move
 - **Capture feedback**: Captured pawns play a hit/smoke-like cue and animate back to stable instead of instantly snapping
 - **Dice shaker animation**: Local roll button flow with bucket + die animation in the dice spawn zone
 - **Board editor**: Interactive 2D editor for designing board layouts with track and zone positioning
