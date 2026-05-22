@@ -75,10 +75,10 @@ export interface GameEvent {
   details: Record<string, unknown>
 }
 
-/** Room lifecycle state for lobby -> playing -> finished flow. */
+/** @deprecated Use LobbySnapshot from types/lobby — kept for migration. */
 export type RoomStatus = 'lobby' | 'playing' | 'finished'
 
-/** Lightweight room snapshot used to drive lobby UI before a game starts. */
+/** @deprecated Use LobbySnapshot */
 export interface RoomSnapshot {
   roomId: string
   status: RoomStatus

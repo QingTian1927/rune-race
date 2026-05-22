@@ -1,65 +1,95 @@
 /**
- * Runtime validation schemas for WebSocket events using Zod.
- * Server uses these to validate all incoming client commands.
- * Client can use for optional client-side validation.
+ * Zod schemas for WebSocket command validation.
  */
 
 import { z } from 'zod'
 
-// Player color enum
 const PlayerColorSchema = z.enum(['red', 'blue', 'green', 'yellow'])
 
-// Client -> Server command schemas (what server trusts)
-export const JoinGameSchema = z.object({
+// --- Lobby ---
+export const LobbyJoinSchema = z
+  .object({
+    playerId: z.string().min(1),
+    playerName: z.string().min(1).max(50),
+    lobbyId: z.string().min(1).optional(),
+    joinCode: z.string().min(1).optional(),
+    password: z.string().optional(),
+  })
+  .refine((d) => Boolean(d.lobbyId) || Boolean(d.joinCode), {
+    message: 'lobbyId or joinCode is required',
+  })
+
+export const LobbySetColorSchema = z.object({
   playerId: z.string().min(1),
-  playerName: z.string().min(1).max(50),
-  roomId: z.string().min(1),
   color: PlayerColorSchema,
 })
-export type JoinGameCommand = z.infer<typeof JoinGameSchema>
+
+export const LobbyPlayerIdSchema = z.object({
+  playerId: z.string().min(1),
+})
+
+export const LobbyKickSchema = z.object({
+  playerId: z.string().min(1),
+  targetPlayerId: z.string().min(1),
+})
+
+export const LobbyUpdateSettingsSchema = z.object({
+  playerId: z.string().min(1),
+  name: z.string().min(1).max(80).optional(),
+  password: z.string().min(1).max(64).optional(),
+  clearPassword: z.boolean().optional(),
+})
+
+export const LobbyTransferHostSchema = z.object({
+  playerId: z.string().min(1),
+  newHostPlayerId: z.string().min(1),
+})
+
+// --- Game ---
+export const GameJoinSchema = z.object({
+  playerId: z.string().min(1),
+  gameId: z.string().min(1),
+})
 
 export const RollDiceSchema = z.object({
   playerId: z.string().min(1),
 })
-export type RollDiceCommand = z.infer<typeof RollDiceSchema>
 
 export const ChooseMoveSchema = z.object({
   playerId: z.string().min(1),
   moveId: z.string().min(1),
 })
-export type ChooseMoveCommand = z.infer<typeof ChooseMoveSchema>
 
 export const SyncRequestSchema = z.object({
   playerId: z.string().min(1),
 })
-export type SyncRequestCommand = z.infer<typeof SyncRequestSchema>
-
-export const StartGameSchema = z.object({
-  playerId: z.string().min(1),
-  roomId: z.string().min(1),
-})
-export type StartGameCommand = z.infer<typeof StartGameSchema>
 
 export const PingSchema = z.object({
   playerId: z.string().min(1),
 })
-export type PingCommand = z.infer<typeof PingSchema>
 
-// Utility: validate command payloads
+const schemas: Record<string, z.ZodSchema> = {
+  'lobby:join': LobbyJoinSchema,
+  'lobby:set_color': LobbySetColorSchema,
+  'lobby:ready': LobbyPlayerIdSchema,
+  'lobby:unready': LobbyPlayerIdSchema,
+  'lobby:leave': LobbyPlayerIdSchema,
+  'lobby:kick': LobbyKickSchema,
+  'lobby:cancel_countdown': LobbyPlayerIdSchema,
+  'lobby:update_settings': LobbyUpdateSettingsSchema,
+  'lobby:transfer_host': LobbyTransferHostSchema,
+  'lobby:sync_request': LobbyPlayerIdSchema,
+  'game:join': GameJoinSchema,
+  'game:roll': RollDiceSchema,
+  'game:choose_move': ChooseMoveSchema,
+  'game:sync_request': SyncRequestSchema,
+  'game:ping': PingSchema,
+}
+
 export const validateCommand = (command: string, payload: unknown) => {
-  const schemas: Record<string, z.ZodSchema> = {
-    'game:join': JoinGameSchema,
-    'game:roll': RollDiceSchema,
-    'game:choose_move': ChooseMoveSchema,
-    'game:sync_request': SyncRequestSchema,
-    'game:start': StartGameSchema,
-    'game:ping': PingSchema,
-  }
-
   const schema = schemas[command]
   if (!schema) {
     throw new Error(`Unknown command: ${command}`)
   }
-
   return schema.parse(payload)
 }
