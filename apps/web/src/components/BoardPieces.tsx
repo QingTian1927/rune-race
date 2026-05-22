@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Billboard, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { GameState, Token } from '@rune-race/shared'
 import boardLayout from '../../data/board-layout.json'
+import { boardSlotForPlayer } from '../utils/boardSlots'
+import {
+  extractCaptureDetailsFromDelta,
+  extractMoveDetailsFromDelta,
+  getDeltaEventsSinceVersion,
+  updateVersionCursor,
+  type CaptureEventDetails,
+} from '../lib/tokenMotion'
 import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
 import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
@@ -12,6 +20,8 @@ interface BoardPiecesProps {
   animationDurationMs?: number
   selectableTokenIds?: string[]
   onSelectToken?: (tokenId: string) => void
+  /** Hold token motion until dice presentation finishes. */
+  freezeTokenAnimations?: boolean
 }
 
 type CaptureMotion = {
@@ -25,12 +35,14 @@ type MotionWaypoint = {
   position: THREE.Vector3
 }
 
-type CaptureEventDetails = {
-  tokenId: string
-  playerId: string
-  capturedTokenId: string
-  from?: MockPathStep
-  to?: MockPathStep
+const POSITION_EPSILON = 0.0008
+
+function nearVector(a: THREE.Vector3, x: number, y: number, z: number) {
+  return (
+    Math.abs(a.x - x) < POSITION_EPSILON &&
+    Math.abs(a.y - y) < POSITION_EPSILON &&
+    Math.abs(a.z - z) < POSITION_EPSILON
+  )
 }
 
 const PLAYER_COLOR_HEX: Record<GameState['players'][number]['color'], string> = {
@@ -403,8 +415,11 @@ function HousePlaceholder({ box, color = '#ffffff' }: { box: any; color?: string
 function PawnInstance({
   token,
   playerIndex,
-  targetPosition,
+  targetX,
+  targetY,
+  targetZ,
   motionPlan,
+  motionPlanKey,
   captureMotion,
   isSelectable,
   arrowColor,
@@ -416,8 +431,11 @@ function PawnInstance({
 }: {
   token: Token
   playerIndex: number
-  targetPosition: THREE.Vector3
+  targetX: number
+  targetY: number
+  targetZ: number
   motionPlan: MotionWaypoint[] | null
+  motionPlanKey: string | null
   captureMotion: CaptureMotion | null
   isSelectable: boolean
   arrowColor: string
@@ -485,33 +503,39 @@ function PawnInstance({
       return
     }
 
-    const nextMotionKey = motionPlan && motionPlan.length > 0
-      ? `${token.id}:${token.state}:${token.position}:${motionPlan.length}:${motionPlan[0].x}:${motionPlan[0].y}:${motionPlan[0].z}`
-      : `${token.id}:${token.state}:${token.position}`
+    const settleKey = `${token.id}:${token.state}:${token.position}`
 
-    if (motionKeyRef.current === nextMotionKey) {
-      return
-    }
-
-    motionKeyRef.current = nextMotionKey
-
-    if (!motionPlan || motionPlan.length === 0) {
+    if (!motionPlanKey || !motionPlan || motionPlan.length === 0) {
+      if (motionKeyRef.current === settleKey) {
+        return
+      }
+      motionKeyRef.current = settleKey
       queueRef.current = []
       segmentStartTimeRef.current = -1
-      modelRef.current.position.copy(targetPosition)
-      modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), 1)
+      modelRef.current.position.set(targetX, targetY, targetZ)
+      modelRef.current.rotation.y = lerpAngle(
+        modelRef.current.rotation.y,
+        getTokenFacingYaw(token, playerIndex),
+        1,
+      )
       return
     }
+
+    if (motionKeyRef.current === motionPlanKey) {
+      return
+    }
+
+    motionKeyRef.current = motionPlanKey
 
     queueRef.current = motionPlan.map((waypoint) => ({
       step: waypoint.step,
       position: waypoint.position.clone(),
     }))
     segmentStartRef.current.copy(modelRef.current.position)
-    segmentTargetRef.current.copy(queueRef.current[0]?.position ?? targetPosition)
+    segmentTargetRef.current.copy(queueRef.current[0]?.position ?? new THREE.Vector3(targetX, targetY, targetZ))
     segmentTargetStepRef.current = queueRef.current[0]?.step ?? null
     segmentStartTimeRef.current = -1
-  }, [captureMotion, motionPlan, targetPosition, token.id, token.position, token.state])
+  }, [captureMotion, motionPlan, motionPlanKey, targetX, targetY, targetZ, token, playerIndex])
 
   useFrame((state, delta) => {
     if (!modelRef.current) return
@@ -566,7 +590,9 @@ function PawnInstance({
     }
 
     if (queueRef.current.length === 0) {
-      modelRef.current.position.copy(targetPosition)
+      if (!nearVector(modelRef.current.position, targetX, targetY, targetZ)) {
+        modelRef.current.position.set(targetX, targetY, targetZ)
+      }
       modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
       if (arrowRef.current) {
         const pulse = isHovered ? 0.07 * (1 + Math.sin(state.clock.elapsedTime * 5.5)) : 0
@@ -597,7 +623,9 @@ function PawnInstance({
 
       if (queueRef.current.length === 0) {
         segmentStartTimeRef.current = -1
-        modelRef.current.position.copy(targetPosition)
+        if (!nearVector(modelRef.current.position, targetX, targetY, targetZ)) {
+          modelRef.current.position.set(targetX, targetY, targetZ)
+        }
         modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
         if (arrowRef.current) {
           const pulse = isHovered ? 0.07 * (1 + Math.sin(state.clock.elapsedTime * 5.5)) : 0
@@ -668,55 +696,65 @@ export default function BoardPieces({
   animationDurationMs = 300,
   selectableTokenIds,
   onSelectToken,
+  freezeTokenAnimations = false,
 }: BoardPiecesProps) {
   const layout = boardLayout as any
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null)
   const selectableTokenSet = useMemo(() => new Set(selectableTokenIds ?? []), [selectableTokenIds])
+  const versionCursorRef = useRef({ version: -1, eventCount: 0 })
+  const skipHistoryAnimationRef = useRef(true)
+
+  const deltaEvents = useMemo(() => {
+    if (skipHistoryAnimationRef.current) {
+      return []
+    }
+    if (freezeTokenAnimations) {
+      return []
+    }
+    return getDeltaEventsSinceVersion(gameState, versionCursorRef.current)
+  }, [freezeTokenAnimations, gameState.version, gameState.events])
+
+  useLayoutEffect(() => {
+    if (freezeTokenAnimations) {
+      return
+    }
+    if (skipHistoryAnimationRef.current) {
+      skipHistoryAnimationRef.current = false
+      updateVersionCursor(gameState, versionCursorRef.current)
+      return
+    }
+    updateVersionCursor(gameState, versionCursorRef.current)
+  }, [freezeTokenAnimations, gameState.version, gameState.events.length])
+
   const playerIndexById = useMemo(() => {
     const m: Record<string, number> = {}
-    gameState.players.forEach((p, i) => (m[p.id] = i))
+    gameState.players.forEach((p) => {
+      m[p.id] = boardSlotForPlayer(gameState.players, p.id)
+    })
     return m
   }, [gameState.players])
 
-  const moveEventByTokenId = useMemo(() => {
-    const map = new Map<string, MockMoveEventDetails>()
-    gameState.events.forEach((event) => {
-      if (event.type !== 'token_moved') {
-        return
-      }
+  const moveEventByTokenId = useMemo(
+    () => extractMoveDetailsFromDelta(deltaEvents),
+    [deltaEvents],
+  )
 
-      const details = event.details as Partial<MockMoveEventDetails>
-      if (!details?.tokenId || !details.path) {
-        return
-      }
-
-      map.set(details.tokenId, details as MockMoveEventDetails)
-    })
-    return map
-  }, [gameState.events])
-
-  const captureMoveByCapturedTokenId = useMemo(() => {
-    const map = new Map<string, CaptureEventDetails>()
-    gameState.events.forEach((event) => {
-      if (event.type !== 'token_captured') {
-        return
-      }
-
-      const details = event.details as Partial<CaptureEventDetails>
-      if (!details?.capturedTokenId) {
-        return
-      }
-
-      map.set(details.capturedTokenId, details as CaptureEventDetails)
-    })
-    return map
-  }, [gameState.events])
+  const captureMoveByCapturedTokenId = useMemo(
+    () => extractCaptureDetailsFromDelta(deltaEvents),
+    [deltaEvents],
+  )
 
   const tokensWithTargets = useMemo(() => {
     return gameState.tokens.map((token) => {
       const playerIndex = playerIndexById[token.playerId] ?? 0
       const targetPosition = tokenStateToWorldPosition(token, playerIndex)
-      const motionPlan = motionPlanFromEvent(moveEventByTokenId.get(token.id), playerIndex)
+      const movePayload = moveEventByTokenId.get(token.id)
+      const motionPlan = movePayload
+        ? motionPlanFromEvent(movePayload.details, playerIndex)
+        : null
+      const motionPlanKey = movePayload
+        ? `${token.id}:move:${gameState.version}:${movePayload.timestamp}:${movePayload.details.path.length}`
+        : null
       const captureMotion = token.state === 'in_base'
         ? captureMotionFromEvent(captureMoveByCapturedTokenId.get(token.id), playerIndexById, token)
         : null
@@ -727,31 +765,46 @@ export default function BoardPieces({
       return {
         token,
         playerIndex,
-        targetPosition,
+        targetX: targetPosition.x,
+        targetY: targetPosition.y,
+        targetZ: targetPosition.z,
         motionPlan,
+        motionPlanKey,
         captureMotion,
         isSelectable,
         arrowColor,
       }
     })
-  }, [captureMoveByCapturedTokenId, gameState.tokens, hoveredTokenId, moveEventByTokenId, playerIndexById, selectableTokenSet])
+  }, [
+    captureMoveByCapturedTokenId,
+    gameState.tokens,
+    gameState.version,
+    hoveredTokenId,
+    moveEventByTokenId,
+    playerIndexById,
+    selectableTokenSet,
+  ])
 
   return (
     <group>
       {/* Houses */}
-      {gameState.players.map((p, i) => {
-        const home = (layout.players && layout.players[i] && layout.players[i].home) || null
+      {gameState.players.map((p) => {
+        const slot = boardSlotForPlayer(gameState.players, p.id)
+        const home = layout.players?.[slot]?.home ?? null
         return <HousePlaceholder key={`house-${p.id}`} box={home} color={PLAYER_COLOR_HEX[p.color] ?? '#ddd'} />
       })}
 
       {/* Pawns */}
-      {tokensWithTargets.map(({ token, playerIndex, targetPosition, motionPlan, captureMotion, isSelectable, arrowColor }) => (
+      {tokensWithTargets.map(({ token, playerIndex, targetX, targetY, targetZ, motionPlan, motionPlanKey, captureMotion, isSelectable, arrowColor }) => (
         <group key={token.id}>
           <PawnInstance
             token={token}
             playerIndex={playerIndex}
-            targetPosition={targetPosition}
+            targetX={targetX}
+            targetY={targetY}
+            targetZ={targetZ}
             motionPlan={motionPlan}
+            motionPlanKey={motionPlanKey}
             captureMotion={captureMotion}
             isSelectable={isSelectable}
             arrowColor={arrowColor}

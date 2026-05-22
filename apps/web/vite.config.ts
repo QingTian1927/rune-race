@@ -9,6 +9,16 @@ export default defineConfig({
     fs: {
       allow: ['..', '../../'],
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/socket.io': {
+        target: 'http://localhost:3000',
+        ws: true,
+      },
+    },
   },
   preview: {
     port: 5173,

@@ -3,6 +3,11 @@ import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { GameState } from '@rune-race/shared'
+import {
+  BUCKET_FADE_OUT_SECONDS,
+  BUCKET_HOLD_AFTER_REVEAL_SECONDS,
+  DICE_PHASE_DURATIONS,
+} from '../lib/dicePresentation'
 import boardLayout from '../../data/board-layout.json'
 
 type DiceAnimationPhase = 'idle' | 'appearing' | 'shaking' | 'lifting' | 'revealing' | 'finished'
@@ -15,15 +20,7 @@ interface DiceShakerProps {
 const BUCKET_MODEL_PATH = '/assets/models/bucket.glb'
 const DICE_MODEL_PATH = '/assets/models/dice.glb'
 
-const PHASE_DURATIONS: Record<Exclude<DiceAnimationPhase, 'idle' | 'finished'>, number> = {
-  appearing: 0.22,
-  shaking: 1.1,
-  lifting: 0.42,
-  revealing: 0.22,
-}
-
-const BUCKET_HOLD_AFTER_REVEAL_SECONDS = 2
-const BUCKET_FADE_OUT_SECONDS = 0.25
+const PHASE_DURATIONS = DICE_PHASE_DURATIONS
 
 function cloneModel(scene: THREE.Group): THREE.Group {
   const clone = scene.clone(true)

@@ -32,6 +32,7 @@ interface BoardSceneProps {
   rollTrigger?: number
   selectableTokenIds?: string[]
   onSelectToken?: (tokenId: string) => void
+  freezeTokenAnimations?: boolean
   editorData?: BoardLayoutData
   editorMode?: EditorMode
   editorSelectedPlayer?: number
@@ -261,6 +262,7 @@ export default function BoardScene({
   rollTrigger = 0,
   selectableTokenIds,
   onSelectToken,
+  freezeTokenAnimations,
   editorData,
   editorMode = 'main-track',
   editorSelectedPlayer = 0,
@@ -293,6 +295,7 @@ export default function BoardScene({
           gameState={activeGameState}
           selectableTokenIds={selectableTokenIds}
           onSelectToken={onSelectToken}
+          freezeTokenAnimations={freezeTokenAnimations}
         />
         <DiceShaker gameState={activeGameState} rollTrigger={rollTrigger} />
       </Suspense>

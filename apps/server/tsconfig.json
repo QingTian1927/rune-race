@@ -7,7 +7,8 @@
     "baseUrl": ".",
     "paths": {
       "@rune-race/shared": ["../../packages/shared/src/index.ts"],
-      "@rune-race/shared/*": ["../../packages/shared/src/*"]
+      "@rune-race/shared/*": ["../../packages/shared/src/*"],
+      "@rune-race/game-engine": ["../../packages/game-engine/src/index.ts"]
     },
     "strict": true,
     "esModuleInterop": true,

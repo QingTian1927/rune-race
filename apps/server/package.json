@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "fastify": "^4.25.0",
+    "@rune-race/game-engine": "workspace:*",
     "@rune-race/shared": "workspace:*",
     "socket.io": "^4.7.2",
     "zod": "^3.22.2"

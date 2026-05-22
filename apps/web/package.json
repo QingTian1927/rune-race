@@ -11,7 +11,9 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^8.0.27",
+    "@rune-race/game-engine": "workspace:*",
     "@rune-race/shared": "workspace:*",
+    "socket.io-client": "^4.7.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0",
