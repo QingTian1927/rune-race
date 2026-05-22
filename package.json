@@ -18,6 +18,9 @@
     "build:web": "pnpm --filter @rune-race/web build",
     "build:server": "pnpm --filter @rune-race/server build",
     "build:shared": "pnpm --filter @rune-race/shared build",
+    "build:game-engine": "pnpm --filter @rune-race/game-engine build",
+    "test:game-engine": "pnpm --filter @rune-race/game-engine test",
+    "test:server": "pnpm --filter @rune-race/server test",
     "type-check": "pnpm --filter @rune-race/web type-check"
   }
 }
