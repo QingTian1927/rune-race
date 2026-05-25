@@ -1,123 +1,99 @@
-# Backend Integration Contract
+# Backend integration
 
-This document describes what the frontend expects from the backend and what the backend should be able to rely on from the frontend.
-
-The goal is to make future wiring straightforward in both directions:
-
-- the backend can publish authoritative snapshots and events
-- the frontend can send user intent without guessing game rules
+The web client is **wired to the live server** for lobby and online play. Local mode uses the same rules package without sockets.
 
 ## Source of truth
 
-The backend must remain authoritative for:
+| Data | Authority |
+|------|-----------|
+| Lobby membership, ready, countdown | Server `lobby:snapshot` |
+| Game state, dice, moves | Server `game:state_snapshot` |
+| Board layout in editor | Client JSON (export only in MVP) |
+| Dice animation timing | Client `dicePresentation.ts` |
 
-- room membership
-- lobby readiness
-- game start and end
-- turn order
-- dice rolls
-- legal move generation
-- token movement
-- persisted game state
+## HTTP (`lib/api.ts`)
 
-The frontend should treat server snapshots as truth and render from them.
+| Function | Endpoint |
+|----------|----------|
+| `fetchPublicRooms` | `GET /api/rooms` |
+| `createRoom` | `POST /api/rooms` |
+| `resolveRoomByCode` | `GET /api/rooms/by-code/:joinCode` |
+| `joinMatchmaking` | `POST /api/matchmaking/join` |
+| `leaveMatchmaking` | `DELETE /api/matchmaking/leave` |
+| `getMatchmakingStatus` | `GET /api/matchmaking/status?playerId=` |
 
-## Existing shared protocol
+## Socket (`lib/socket.ts`)
 
-The repository already has shared protocol definitions in `packages/shared`:
+Singleton `io(API_BASE || undefined)` with websocket + polling.
 
-- `packages/shared/src/protocol/events.ts`
-- `packages/shared/src/schemas/events.ts`
-- `packages/shared/src/schemas/game.ts`
-- `packages/shared/src/types/game.ts`
+### Lobby (`useLobbySocket`)
 
-These files are the canonical place to extend when the backend and frontend need to agree on new payloads.
+Emit: `lobby:join`, `lobby:set_color`, `lobby:ready`, `lobby:unready`, `lobby:leave`, host actions, `lobby:sync_request`.
 
-## Current WebSocket intent surface
+Listen: `lobby:snapshot`, `lobby:start_countdown`, `lobby:start_countdown_cancelled`, `lobby:game_started`, `lobby:error`.
 
-The existing shared protocol already describes these client intents:
+### Game (`useGameSocket`)
 
-- `game:join`
-- `game:start`
-- `game:roll`
-- `game:choose_move`
-- `game:sync_request`
-- `game:ping`
+Emit: `game:join`, `game:roll`, `game:choose_move`, `game:sync_request`.
 
-And these server-to-client events:
+Listen: `game:connected`, `game:state_snapshot`, `game:error`.
 
-- `game:connected`
-- `game:room_snapshot`
-- `game:state_snapshot`
-- `game:error`
-- `game:turn_timeout_warning`
+**Snapshots:** `applyAuthoritativeState(state, { deltaEvents: payload.events })`. Treat `events` as **delta** during play; full list on join/sync.
 
-## How the frontend should consume backend data
+## Player identity (`lib/playerSession.ts`)
 
-### Lobby and connection
+- `rune-race-player-id` — stable anonymous id (`anon-{uuid}`).
+- `rune-race-player-name` — display name for lobby.
 
-The frontend should be able to render:
+UUID generation uses `randomUUID` → `getRandomValues` → `Math.random` fallback for **HTTP LAN** (non-secure context).
 
-- connection state
-- room ID
-- player list
-- host badge
-- ready/start availability
-- errors from the server
+## Presentation vs authority
 
-### Gameplay
+Online rolls may include move resolution in one snapshot. The client:
 
-The frontend should be able to render:
+1. Detects `dice_roll` in delta + version bump.
+2. Gates UI (~3s): no token animation, no move arrows, no roll button.
+3. Applies pending state after animation.
 
-- current player
-- dice result
-- legal moves
-- token positions and states
-- animation events from recent history
-- winner or finished-state summary
+Do not defer turn separately from tokens (causes desync); use `createGatedDisplayState` in `dicePresentation.ts`.
 
-The frontend **currently renders**:
+## UI permissions (online)
 
-- token positions based on state (in_base, on_track, in_home_lane, finished)
-- player houses in colored house models
-- pawns with smooth movement animation when positions update
+`OnlineGamePage` passes to `GameView`:
 
-These are already wired to accept a `GameState` object. When the backend connection is ready, the socket layer simply needs to push new `GameState` snapshots to `BoardScene`, and the rendering will automatically update.
+- `canRoll` — my turn + `waiting_roll` + not presenting dice
+- `localPlayerId={playerId}` — move arrows only for current client when choosing
 
-### Editor and layout data
+Opponents see the board update after snapshots but not selection chrome.
 
-The editor state is separate from the live match state, but the backend may still want to persist or load board layouts.
+## Environment
 
-The client can already export a full JSON board layout from the editor panel. That JSON is the easiest format for a backend save/load endpoint or socket action.
+| Variable | Meaning |
+|----------|---------|
+| `VITE_API_URL` | API + socket base (e.g. `http://192.168.1.10:3000`). Empty = same origin + Vite proxy. |
 
-## Suggested handshake flow
+### LAN checklist
 
-1. Frontend opens a socket connection.
-2. Frontend emits `game:join` or restores a session with `game:sync_request`.
-3. Backend answers with `game:connected` and either `game:room_snapshot` or `game:state_snapshot`.
-4. Frontend renders the snapshot and keeps listening for authoritative updates.
-5. User actions are sent back as intents only.
+1. Server: `0.0.0.0:3000` (default).
+2. Web: `pnpm dev --host`.
+3. Other device: `http://<host-ip>:5173`.
+4. If socket fails cross-origin, set `VITE_API_URL` to `http://<host-ip>:3000`.
 
-## Suggested integration boundary in the client
+## Shared protocol
 
-When backend work starts, keep the network code outside the viewport components.
+Extend only via `packages/shared`:
 
-Good places for the socket adapter are:
+- `src/protocol/events.ts`
+- `src/schemas/events.ts`
+- `src/types/lobby.ts`, `src/types/game.ts`
 
-- a top-level game store
-- a dedicated socket service module
-- a page-level controller that maps snapshots to component props
+Then update [protocol-reference](./protocol-reference.md) and [server socket contract](../../server/docs/socket-contract.md).
 
-Avoid putting socket calls directly inside the 3D components unless the interaction is extremely local.
+## Minimal checklist for new client features
 
-## Minimal backend responsibilities for the current client
+1. Add intent to shared `ClientToServerEvents` + Zod schema.
+2. Implement handler in `apps/server/src/socket/handlers.ts`.
+3. Add hook method or page handler in `apps/web`.
+4. Map snapshot fields in `GameView` / `BoardPieces` if visual.
 
-To get the current client working against a backend, the backend should at least provide:
-
-- a join endpoint or socket event
-- authoritative room snapshot payloads
-- authoritative game state payloads
-- reconnect sync support
-- command validation and error reporting
-
-If the backend can satisfy those responsibilities, the current frontend can be wired without redesigning the viewport.
+Avoid socket calls inside Three.js leaf components unless the interaction is purely local.

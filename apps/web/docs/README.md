@@ -1,44 +1,71 @@
-# Web Client Docs
+# Web client documentation
 
-This folder documents the frontend game client so the UI can be wired to the backend later without re-discovering the app structure.
+Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, and online multiplayer.
 
 ## Read first
 
-1. [Client Architecture](./architecture.md)
-2. [Runtime Flow](./runtime-flow.md)
-3. [Backend Integration Contract](./backend-integration.md)
-4. [Editor Data Model](./editor-data-model.md)
-5. [Protocol Reference](./protocol-reference.md)
+1. [Architecture](./architecture.md) — routes, components, hooks
+2. [Runtime flow](./runtime-flow.md) — boot, local vs online, dice presentation
+3. [Backend integration](./backend-integration.md) — API, socket, LAN dev
+4. [Protocol reference](./protocol-reference.md) — event list (mirrors `@rune-race/shared`)
+5. [Editor data model](./editor-data-model.md) — board layout JSON
 
 ## Scope
 
-- The current app is a Vite + React + TypeScript frontend in `apps/web`.
-- It already renders a game viewport and a board editor.
-- It does not yet own the live multiplayer backend connection.
-- These docs describe the client surfaces the backend will eventually need to feed.
+| Mode | Route | Authority |
+|------|-------|-----------|
+| Home / rooms | `/` | HTTP + socket lobby |
+| Lobby | `/lobby/:lobbyId` | Server `lobby:snapshot` |
+| Online game | `/game/:gameId` | Server `game:state_snapshot` |
+| Local test | `/play/local` | `@rune-race/game-engine` (same rules as server) |
 
-## Current rendering capabilities
+## Stack
 
-- **3D board**: Static board geometry with track markers and player zones
-- **Player houses**: Colored house models positioned in each player's home zone
-- **Pawns**: 3D pawn models that position based on token state and animate when tokens move
-- **Move selection hints**: Selectable pawns show a camera-facing arrow marker; hovering pulses the arrow and clicking chooses the move
-- **Capture feedback**: Captured pawns play a hit/smoke-like cue and animate back to stable instead of instantly snapping
-- **Dice shaker animation**: Local roll button flow with bucket + die animation in the dice spawn zone
-- **Board editor**: Interactive 2D editor for designing board layouts with track and zone positioning
-- **Mock game rules**: Frontend mock engine supports turn flow, legal moves, spawn on `1/6`, finish ranking, and endgame conditions for testing
+- **3D:** React Three Fiber, drei, Three.js
+- **Rules:** `@rune-race/game-engine` (re-exported from `mock/mockGameEngine.ts`)
+- **Protocol:** `@rune-race/shared`
+- **Dev proxy:** `/api` and `/socket.io` → `localhost:3000` (`vite.config.ts`)
 
-## Related backend docs
+## Rendering capabilities
 
-- [Server contract index](../../server/docs/index.md)
-- [Frontend rebuild notes](../../server/docs/frontend-rebuild-notes.md)
+- 3D board, houses, pawns with path animation
+- Move selection: camera-facing arrows on **local player's** pawns only (online)
+- Dice shaker (bucket + die) with presentation gate before token moves
+- Board editor (layout JSON export)
+- Finish-order panel from `token_finished` events
 
-## Good starting points in code
+## Server docs
 
-- `apps/web/src/App.tsx`
-- `apps/web/src/pages/GamePage.tsx`
-- `apps/web/src/scenes/BoardScene.tsx`
-- `apps/web/src/components/BoardEditor.tsx`
-- `packages/shared/src/protocol/events.ts`
-- `packages/shared/src/schemas/events.ts`
-- `packages/shared/src/types/game.ts`
+- [Server index](../../server/docs/index.md)
+- [Client integration (server view)](../../server/docs/client-integration.md)
+
+## Key source files
+
+```
+apps/web/src/
+├── App.tsx                 # Routes
+├── pages/
+│   ├── HomePage.tsx        # Rooms + matchmaking
+│   ├── LobbyPage.tsx
+│   ├── OnlineGamePage.tsx
+│   └── LocalGamePage.tsx
+├── components/
+│   ├── GameView.tsx        # HUD + BoardScene shell
+│   ├── BoardPieces.tsx
+│   └── DiceShaker.tsx
+├── hooks/
+│   ├── useLobbySocket.ts
+│   ├── useGameSocket.ts
+│   └── usePresentationGameState.ts
+└── lib/
+    ├── api.ts, socket.ts, playerSession.ts
+    ├── dicePresentation.ts, tokenMotion.ts
+    └── utils/boardSlots.ts
+```
+
+## Dev
+
+```bash
+pnpm dev              # web :5173 + server :3000
+pnpm dev --host       # expose Vite on LAN
+```

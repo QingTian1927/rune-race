@@ -2,46 +2,132 @@
 
 ## Base URL
 
-`http://localhost:3000`
+Development: `http://localhost:3000`
+
+The web client uses `VITE_API_URL` (empty = same origin). Vite dev server proxies `/api` and `/socket.io` to port 3000.
 
 ## Routes
 
 ### `GET /`
 
-Returns a basic status payload.
+Server status.
 
 ```json
-{
-  "message": "Rune Race Server",
-  "status": "running"
-}
+{ "message": "Rune Race Server", "status": "running" }
 ```
 
 ### `GET /health`
 
-Returns a health check payload.
+```json
+{ "status": "ok", "timestamp": "2026-05-21T12:00:00.000Z" }
+```
+
+### `GET /api/rooms`
+
+Public lobby list (visibility `public`, status `lobby` or `countdown`).
 
 ```json
 {
-  "status": "ok",
-  "timestamp": "2026-05-17T12:00:00.000Z"
+  "rooms": [
+    {
+      "lobbyId": "uuid",
+      "joinCode": "Ab12Cd34",
+      "name": "My room",
+      "playerCount": 2,
+      "maxPlayers": 4,
+      "hasPassword": false,
+      "status": "lobby"
+    }
+  ]
 }
 ```
 
-### `POST /dev/create-room`
+### `GET /api/rooms/by-code/:joinCode`
 
-Creates a lobby room for local development or testing.
-
-Response:
+Resolve **8-character case-sensitive** join code → lobby metadata. `404` if not found.
 
 ```json
 {
-  "roomId": "room-1715940000000"
+  "lobbyId": "uuid",
+  "joinCode": "Ab12Cd34",
+  "name": "My room",
+  "playerCount": 1,
+  "maxPlayers": 4,
+  "hasPassword": true,
+  "status": "lobby"
 }
 ```
+
+### `POST /api/rooms`
+
+Create a lobby; creator is host.
+
+**Body:**
+
+```json
+{
+  "playerId": "anon-optional-uuid",
+  "playerName": "Player",
+  "name": "Optional room name",
+  "password": "optional",
+  "visibility": "public"
+}
+```
+
+**Response:**
+
+```json
+{
+  "lobbyId": "uuid",
+  "joinCode": "Ab12Cd34",
+  "playerId": "anon-..."
+}
+```
+
+Client should then `lobby:join` over Socket.IO with the same `playerId`.
+
+### `POST /api/matchmaking/join`
+
+Enqueue for auto-match.
+
+**Body:** `{ "playerId": "...", "playerName": "..." }`
+
+**Response:**
+
+```json
+{
+  "status": "queued",
+  "waitedSeconds": 12,
+  "queueSize": 3
+}
+```
+
+When matched:
+
+```json
+{
+  "status": "matched",
+  "waitedSeconds": 0,
+  "queueSize": 0,
+  "lobbyId": "uuid",
+  "joinCode": "Ab12Cd34"
+}
+```
+
+### `DELETE /api/matchmaking/leave`
+
+**Body:** `{ "playerId": "..." }` → `{ "status": "left" }`
+
+### `GET /api/matchmaking/status?playerId=...`
+
+Poll queue/match state (same shape as join response).
+
+### `POST /dev/create-room` (deprecated)
+
+Legacy helper; prefer `POST /api/rooms`. Returns `lobbyId`, `joinCode`.
 
 ## Notes
 
-- This endpoint only creates the room record.
-- It does not join any player.
-- The frontend should still use Socket.IO `game:join` to enter the room.
+- HTTP does not join the socket room; always follow with `lobby:join`.
+- `playerId` is client-generated and stored in `localStorage` on the web app.
+- Passwords are hashed server-side; never returned in list responses.

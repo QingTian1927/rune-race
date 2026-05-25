@@ -93,6 +93,15 @@ This makes it useful for:
 - regression fixtures
 - hand-authored board definitions
 
+## Runtime board file
+
+The live game and `@rune-race/game-engine` read:
+
+- `apps/web/data/board-layout.json`
+- `packages/game-engine/data/board-layout.json` (authoritative copy for rules)
+
+Keep these aligned when exporting from the editor.
+
 ## Future backend use
 
 The backend can reuse this same model for:

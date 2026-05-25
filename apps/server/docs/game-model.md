@@ -1,139 +1,84 @@
-# Game Model
+# Game model
+
+Rules are implemented in **`@rune-race/game-engine`** (`packages/game-engine/src/engine.ts`). The server calls `handleRoll` / `handleChooseMove` from `commands.ts`.
+
+Board geometry comes from `packages/game-engine/data/board-layout.json` (shared with the web client).
 
 ## Core entities
 
-### Player
+See `packages/shared/src/types/game.ts` for full types.
 
-```ts
-{
-  id: string
-  name: string
-  color: 'red' | 'blue' | 'green' | 'yellow'
-}
-```
+| Entity | Notes |
+|--------|--------|
+| **Player** | `id`, `name`, `color` |
+| **Token** | `id` = `${playerId}:${index}`; `state`, `position` |
+| **Turn** | `phase`, `diceResult`, `legalMoves`, `currentPlayerId` |
+| **GameState** | `roomId` holds **gameId** value; `version`, `events`, `winnerId` when finished |
 
-### Token
+## Board (summary)
 
-```ts
-{
-  id: string
-  playerId: string
-  position: number
-  state: 'in_base' | 'on_track' | 'in_home_lane' | 'finished'
-}
-```
-
-### Turn
-
-```ts
-{
-  id: string
-  currentPlayerId: string
-  diceResult: number | null
-  phase: 'waiting_roll' | 'rolled' | 'waiting_choice' | 'resolving_move' | 'play_cards' | 'turn_end'
-  legalMoves: LegalMove[]
-  startTime: number
-}
-```
-
-### LegalMove
-
-```ts
-{
-  id: string
-  tokenId: string
-  destination: number
-  moveType: 'spawn' | 'move' | 'capture'
-  capturedTokenId?: string
-}
-```
-
-### RoomSnapshot
-
-```ts
-{
-  roomId: string
-  status: 'lobby' | 'playing' | 'finished'
-  players: Player[]
-  maxPlayers: number
-  hostPlayerId: string | null
-  canStart: boolean
-}
-```
-
-### GameState
-
-```ts
-{
-  roomId: string
-  version: number
-  players: Player[]
-  tokens: Token[]
-  turn: Turn
-  phase: GamePhase
-  status: 'waiting' | 'playing' | 'finished'
-  currentPlayerIndex: number
-  winnerId?: string
-  createdAt: number
-  updatedAt: number
-  events: GameEvent[]
-}
-```
-
-## Board rules
-
-- Main ring size: 40 positions.
-- Home lane size: 4 positions.
-- Tokens per player: 4.
-- Safe tiles: 0, 5, 10, 15, 20, 25, 30, 35.
-- Spawn entry positions:
-  - red -> 0
-  - blue -> 10
-  - green -> 20
-  - yellow -> 30
-- Home lane entry positions:
-  - red -> 5
-  - blue -> 15
-  - green -> 25
-  - yellow -> 35
+- Main track: 40 steps (from layout JSON).
+- Home lane: 4 steps per player.
+- 4 tokens per player.
+- Safe tiles and per-color spawn / home-lane entry: see layout `meta` and engine helpers.
+- Pawn colors on the 3D board use **color slot** (not raw player array index).
 
 ## Turn flow
 
-1. Turn starts in `waiting_roll`.
-2. Current player emits `game:roll`.
-3. Server rolls dice and computes legal moves.
-4. If there are 0 legal moves, turn ends automatically.
-5. If there is 1 legal move, server auto-resolves it.
-6. If there are multiple legal moves, turn enters `waiting_choice`.
-7. Current player emits `game:choose_move`.
-8. Server resolves move, checks win, then advances turn.
+1. **`waiting_roll`** — active player calls `game:roll`.
+2. Server rolls dice, computes `legalMoves`.
+3. **0 moves** — turn advances (may append finish events for players fully in home lane).
+4. **1 move** — server auto-calls `resolveTurn` (client gets one snapshot).
+5. **2+ moves** — **`waiting_choice`** until `game:choose_move`.
+6. After resolve: extra turn if dice was **6** and player not finished; else next non-finished player.
 
-## Move resolution rules
+Phases `resolving_move`, `play_cards`, `turn_end` exist in types; MVP flow uses the subset above.
 
-- Spawn only happens on a roll of 6.
-- Tokens on the main track can move forward by dice value.
-- Landing on an enemy token on a non-safe tile captures that token.
-- Safe tiles cannot be captured.
-- Tokens can enter the home lane after leaving the main board.
-- Exact finishing is required in the home lane.
-- A player wins when all 4 tokens are `finished`.
+## Move rules (MVP)
+
+| Rule | Behavior |
+|------|----------|
+| Spawn | Dice **1** or **6**; entry square must be free |
+| Move | Forward by dice value on track / home lane |
+| Capture | Enemy on non-safe tile; captured token → base |
+| Home lane | Enter after completing main loop; exact count to finish |
+| Player “finished” | All 4 tokens in `in_home_lane` or `finished` → `token_finished` event with rank |
+| Skip turn | Finished players are skipped in turn order |
+
+## Game end
+
+```ts
+shouldEndGameByFinishCount(playerCount, finishedCount)
+// true when finishedCount >= playerCount - 1
+```
+
+Examples:
+
+- **3 players:** ends when **2** have finished (1 left — no need to play out).
+- **4 players:** ends when **3** have finished.
+- **2 players:** ends when **1** has finished.
+
+`winnerId` is the first player in finish order (`finishOrder[0]`).
 
 ## Game events
 
-The server appends recent events to `GameState.events` for animation and reconciliation.
+Appended to `GameState.events` (server sends **delta** on updates):
 
-Event types:
+| Type | Use |
+|------|-----|
+| `dice_roll` | `details.result` |
+| `token_moved` | Path steps for animation |
+| `token_captured` | Capture from/to |
+| `token_finished` | `details.playerId`, `rank` |
+| `turn_advanced` | `details.nextPlayerId`, `reason` |
+| `error` | Rare; validation failures usually go to `game:error` socket event |
 
-- `dice_roll`
-- `token_moved`
-- `token_captured`
-- `token_finished`
-- `turn_advanced`
-- `error`
+## Server internals
 
-## Server-internal notes
+| Module | Responsibility |
+|--------|----------------|
+| `LobbyStore` | Players, ready, countdown, host actions, `onGameStart` |
+| `GameStore` | Session map, `roll` / `chooseMove`, listeners |
+| `game-engine` | Pure state transitions; no I/O |
 
-- `GameEngine` is the authoritative state machine.
-- `RoomManager` owns room membership and game lifecycle.
-- Client code should never attempt to compute or mutate authoritative moves on its own.
-- `moveId` is generated from token ID plus destination, and token IDs may contain `:`.
+Client must not compute authoritative legal moves for online play (local `/play/local` uses the same engine for testing).

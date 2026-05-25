@@ -1,186 +1,134 @@
-# Socket.IO Contract
+# Socket.IO contract
+
+Canonical types: `packages/shared/src/protocol/events.ts` and `packages/shared/src/schemas/events.ts`.
 
 ## Connection
 
-- URL: `ws://localhost:3000`
-- CORS origin: `*`
-- Namespace: default namespace
-- Transport: Socket.IO
+| Setting | Value |
+|---------|--------|
+| URL (dev) | `http://localhost:3000` (client uses `io(API_BASE)`) |
+| Namespace | default `/` |
+| CORS | `*` |
+| Validation | `validateCommand(eventName, payload)` before handler logic |
 
-## Connection lifecycle
+## Lifecycle overview
 
-1. Client connects.
-2. Client emits `game:join`.
-3. Server replies with `game:connected` and `game:room_snapshot`.
-4. Client listens for `game:state_snapshot` and `game:error`.
-5. Client can emit `game:sync_request` on reconnect.
+### Lobby
 
-## Client -> Server events
+1. `lobby:join` → `lobby:connected` + `lobby:snapshot` (room broadcast).
+2. `lobby:set_color`, `lobby:ready` / `lobby:unready` → updated `lobby:snapshot`.
+3. All players ready → `lobby:start_countdown` `{ seconds: 5 }` + snapshot `status: countdown`.
+4. Countdown completes → `lobby:game_started` + initial `game:state_snapshot` on `game:{gameId}`.
+5. Clients emit `game:join` with `gameId`.
 
-### `game:join`
+### Game
+
+1. `game:join` → `game:connected` + full `game:state_snapshot` (all `events` on first join).
+2. `game:roll` / `game:choose_move` → `game:state_snapshot` with **delta** `events`.
+3. Reconnect: `game:sync_request` → latest full snapshot to that socket only.
+
+---
+
+## Client → Server
+
+### Lobby
+
+| Event | Purpose |
+|-------|---------|
+| `lobby:join` | Join by `lobbyId` and/or `joinCode`; optional `password` |
+| `lobby:set_color` | Pick `red` \| `blue` \| `green` \| `yellow` |
+| `lobby:ready` | Mark ready (may start countdown) |
+| `lobby:unready` | Cancel ready; emits `lobby:start_countdown_cancelled` |
+| `lobby:leave` | Leave lobby |
+| `lobby:kick` | Host kicks `targetPlayerId` |
+| `lobby:cancel_countdown` | Host cancels start countdown |
+| `lobby:update_settings` | Host: `name`, `password`, `clearPassword` |
+| `lobby:transfer_host` | Host transfers to `newHostPlayerId` |
+| `lobby:sync_request` | Request current `lobby:snapshot` |
+
+**`lobby:join` payload:**
 
 ```ts
 {
   playerId: string
   playerName: string
-  roomId: string
-  color: 'red' | 'blue' | 'green' | 'yellow'
+  lobbyId?: string
+  joinCode?: string
+  password?: string
 }
 ```
 
-Semantics:
+### Game
 
-- Must be sent before any other gameplay action.
-- Adds the player to a lobby room.
-- First player becomes host.
+| Event | Payload | Semantics |
+|-------|---------|-----------|
+| `game:join` | `{ playerId, gameId }` | Must be a player in that game |
+| `game:roll` | `{ playerId }` | Current player, phase `waiting_roll` |
+| `game:choose_move` | `{ playerId, moveId }` | Phase `waiting_choice`; `moveId` from `legalMoves` |
+| `game:sync_request` | `{ playerId }` | Full state resync |
+| `game:ping` | `{ playerId }` | Validated; no-op |
 
-Validation:
+---
 
-- `playerId` non-empty string
-- `playerName` 1-50 chars
-- `roomId` non-empty string
-- `color` must be one of the 4 colors
+## Server → Client
 
-### `game:start`
+### Lobby
+
+| Event | Payload |
+|-------|---------|
+| `lobby:connected` | `{ playerId, lobbyId }` |
+| `lobby:snapshot` | `LobbySnapshot` |
+| `lobby:start_countdown` | `{ seconds: number }` |
+| `lobby:start_countdown_cancelled` | `{ reason: string }` |
+| `lobby:game_started` | `{ gameId, lobbyId, firstPlayerId }` |
+| `lobby:error` | `{ message, code }` |
+
+**`LobbySnapshot` (summary):**
 
 ```ts
 {
-  playerId: string
-  roomId: string
+  lobbyId: string
+  joinCode: string
+  status: 'lobby' | 'countdown' | 'in_game'
+  settings: { name, hasPassword, maxPlayers, minPlayersToStart }
+  players: LobbyPlayer[]  // color, ready, connected, isHost
+  takenColors: PlayerColor[]
+  playerCount: number
+  countdownSeconds: number | null
+  currentGameId: string | null
+  canCountdown: boolean
 }
 ```
 
-Semantics:
+### Game
 
-- Only valid in `lobby`.
-- Only the room host can start the game.
-- Room must have at least 2 players.
-- Server creates the initial authoritative game state.
+| Event | Payload |
+|-------|---------|
+| `game:connected` | `{ playerId, gameId }` |
+| `game:state_snapshot` | `{ version, state: GameState, events: GameEvent[] }` |
+| `game:error` | `{ message, code }` |
+| `game:turn_timeout_warning` | `{ secondsRemaining }` — **defined but not emitted yet** |
 
-### `game:roll`
-
-```ts
-{
-  playerId: string
-}
-```
-
-Semantics:
-
-- Only the current player can roll.
-- Valid only while the game is playing.
-- Server rolls the dice and computes legal moves.
-
-### `game:choose_move`
-
-```ts
-{
-  playerId: string
-  moveId: string
-}
-```
-
-Semantics:
-
-- Valid only when the turn is waiting for a choice.
-- `moveId` must match a legal move returned by the server.
-
-### `game:sync_request`
-
-```ts
-{
-  playerId: string
-}
-```
-
-Semantics:
-
-- Use after reconnect or when client state is stale.
-- Server responds with the latest room or game snapshot.
-
-### `game:ping`
-
-```ts
-{
-  playerId: string
-}
-```
-
-Semantics:
-
-- Lightweight heartbeat command.
-- Currently validated but otherwise ignored.
-
-## Server -> Client events
-
-### `game:connected`
-
-```ts
-{
-  playerId: string
-  roomId: string
-}
-```
-
-### `game:room_snapshot`
-
-```ts
-{
-  roomId: string
-  status: 'lobby' | 'playing' | 'finished'
-  players: Player[]
-  maxPlayers: number
-  hostPlayerId: string | null
-  canStart: boolean
-}
-```
-
-Use this for lobby UI.
-
-### `game:state_snapshot`
-
-```ts
-{
-  version: number
-  state: GameState
-  events: GameEvent[]
-}
-```
-
-Use this as the authoritative game state payload.
-
-### `game:error`
-
-```ts
-{
-  message: string
-  code: string
-}
-```
-
-Common codes:
-
-- `JOIN_FAILED`
-- `START_FAILED`
-- `NOT_IN_ROOM`
-- `GAME_NOT_STARTED`
-- `ROLL_ERROR`
-- `MOVE_ERROR`
-- `SYNC_ERROR`
-- `ROOM_NOT_FOUND`
-
-### `game:turn_timeout_warning`
-
-```ts
-{
-  secondsRemaining: number
-}
-```
-
-Defined in the shared protocol, but not actively emitted by the current server flow.
+---
 
 ## Snapshot rules
 
-- The server broadcasts snapshots after every accepted action.
-- The frontend should not mutate the state locally as the source of truth.
-- `version` increments on each authoritative update.
+- **`version`** increments on each authoritative change.
+- **`events` on gameplay updates:** delta only (new events since last version). Use for animations (`dice_roll`, `token_moved`, etc.).
+- **`events` on `game:join` / `game:sync_request`:** full `state.events` array.
+- After `handleRoll` with one legal move, a single snapshot may contain both roll and resolve events.
+- Do not apply client-side move resolution as source of truth.
+
+## Common error codes
+
+**Lobby:** `JOIN_FAILED`, `SET_COLOR_FAILED`, `READY_FAILED`, `UNREADY_FAILED`, `LEAVE_FAILED`, `KICK_FAILED`, `CANCEL_FAILED`, `SETTINGS_FAILED`, `TRANSFER_FAILED`, `SYNC_FAILED`
+
+**Game:** `JOIN_FAILED`, `ROLL_FAILED`, `MOVE_FAILED`, `SYNC_FAILED`
+
+## Deprecated (do not use)
+
+Old room API names are removed from the server:
+
+- ~~`game:room_snapshot`~~ → `lobby:snapshot`
+- ~~`game:start`~~ → automatic start after lobby countdown
+- ~~`game:join` with `roomId` + `color`~~ → `lobby:join` then `game:join` with `gameId`

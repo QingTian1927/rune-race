@@ -1,182 +1,90 @@
-# Client Architecture
+# Client architecture
 
-This document describes how the frontend is structured today and which pieces are intended to stay thin when the backend is connected.
+## Routes
 
-## Top-level routes
+Defined in `apps/web/src/App.tsx`:
 
-- `/` renders a simple landing page.
-- `/game` renders the main game viewport and editor shell.
+| Path | Component | Description |
+|------|-----------|-------------|
+| `/` | `HomePage` | Create/join room, public list, matchmaking |
+| `/lobby/:lobbyId` | `LobbyPage` | Colors, ready, host controls |
+| `/game/:gameId` | `OnlineGamePage` | Live multiplayer viewport |
+| `/play/local` | `LocalGamePage` | Offline test with same engine as server |
 
-See `apps/web/src/App.tsx` for the route split.
+## Layering
 
-## Rendering layers
+```
+Pages (Home, Lobby, Online, Local)
+    → hooks (useLobbySocket, useGameSocket, usePresentationGameState)
+    → GameView (HUD, dev menu, editor controls)
+        → BoardScene (Canvas, OrbitControls)
+            → BoardModel (static mesh)
+            → BoardPieces (pawns, houses, animations)
+            → DiceShaker (roll presentation)
+```
 
-### Board Model
+**Editor** (optional F3 / panel): `BoardEditor`, `BoardEditorInputHandler`, `BoardEditorVisualization` — local layout state, not sent to server in MVP.
 
-`apps/web/src/components/BoardModel.tsx` renders the static 3D board geometry.
+## Rendering components
 
-It currently renders:
+### `BoardModel`
 
-- board surface
-- main track markers
-- player home markers
-- stable and home bounding box outlines
+Static board geometry and track markers.
 
-### Board Pieces
+### `BoardPieces`
 
-`apps/web/src/components/BoardPieces.tsx` renders dynamic game elements.
+- Positions tokens from `GameState` (`in_base`, `on_track`, `in_home_lane`, `finished`).
+- **Color slot:** `boardSlotForPlayer()` maps player color → board slot (fixes pawn/house colors vs player order).
+- **Motion:** `tokenMotion.ts` — animates only **delta** events since last `version`; `freezeTokenAnimations` during dice presentation.
+- **Selection:** arrows + click handler when `selectableTokenIds` is non-empty.
 
-It currently renders:
+### `DiceShaker`
 
-- player houses: colored house models in the `home` bounding box for each player
-- pawns: colored pawn models positioned based on token state:
-	- `in_base`: arranged in a 2x2 grid inside the `stable` bounding box
-	- `on_track`: positioned at main track points
-	- `in_home_lane`: positioned at home lane points
-	- `finished`: positioned at center of home box
+Phases: `appearing → shaking → lifting → revealing → finished`. Timings from `lib/dicePresentation.ts` (bucket hold **1s** after reveal).
 
-The component automatically animates pawn movement when token positions change in the game state.
+### `GameView`
 
-It also renders move-selection hints when the current player has multiple legal moves:
+Shared shell for local and online:
 
-- selectable pawns show a small 2D arrow marker that always faces the camera
-- hovering a selectable pawn brightens the arrow and adds a subtle pulse
-- selecting a move happens by clicking the pawn directly (no list-based UI)
+- Roll button, phase/dice HUD, finish-order list
+- Props: `canRoll`, `localPlayerId`, `isPresentingDice`, `autoResolveRolled` (local only)
+- Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`
 
-It also supports capture-specific feedback:
+## Hooks
 
-- brief hit/smoke-like visual at capture point
-- captured pawn return-to-base arc (instead of instant teleport)
+### `useLobbySocket(lobbyId, playerId)`
 
-### Dice Shaker
+Subscribes to `lobby:snapshot`, emits lobby commands. Handles join on connect.
 
-`apps/web/src/components/DiceShaker.tsx` renders the dice roll presentation layer.
+### `useGameSocket(gameId, playerId)`
 
-It currently renders:
+Subscribes to `game:state_snapshot`; uses `usePresentationGameState` for display state and dice gate. Blocks `roll` / `chooseMove` while presenting dice.
 
-- a bucket model and a die model loaded from `apps/web/assets/models`
-- a local animation state machine (`appearing -> shaking -> lifting -> revealing -> finished`)
-- face-to-rotation mapping for the die result (with face `6` as the default top orientation)
-- post-reveal bucket hold (about 2 seconds) and fade-out
+### `usePresentationGameState`
 
-Key constraints in the current implementation:
+When delta contains `dice_roll` and `version` advanced:
 
-- die position is anchored to the dice spawn center from layout data
-- die vertical placement is corrected from model bounds so the die stays in contact with the board surface while rotating
-- bucket animation is visual-only and does not affect authoritative game logic
+1. Show gated state (frozen tokens, no legal moves).
+2. After `DICE_ANIMATION_TOTAL_MS` (~2960ms), apply pending authoritative state.
 
-## Runtime layers
+Skips dice gate on **first** snapshot (full event history on join).
 
-### Page layer
+## Shared packages
 
-`apps/web/src/pages/GamePage.tsx` owns the page-level state.
+| Package | Client usage |
+|---------|----------------|
+| `@rune-race/shared` | Types, socket event typings, Zod |
+| `@rune-race/game-engine` | Local game + same rules as server |
 
-It currently holds:
+## Configuration
 
-- dev menu visibility
-- camera debug state
-- editor active/inactive state
-- editor layout data
-- editor mode and selected player
-- editor mouse mode (`draw` or `camera`)
+- `config.ts`: `API_BASE = import.meta.env.VITE_API_URL ?? ''`
+- Empty `API_BASE` → same-origin; Vite proxies `/api` and `/socket.io` to port 3000.
 
-This page is the best place to attach future socket/session state.
+## Dev-only features
 
-Additional local gameplay presentation state currently owned by `GamePage`:
+- **F3** dev menu (camera / game debug / editor toggle)
+- Board layout export JSON
+- Local roll without server on `/play/local`
 
-- local mock `gameState` used by the current dice roll presentation
-- local `rollTrigger` counter used to start dice animation from UI intent
-- finish-order panel data derived from `gameState.events` (`token_finished` events)
-- selectable token IDs and move mapping derived from `gameState.turn.legalMoves` for click-to-move UI
-
-### Scene layer
-
-`apps/web/src/scenes/BoardScene.tsx` owns the 3D viewport and rendering behavior.
-
-It currently composes:
-
-- the Three.js canvas
-- the board model
-- the invisible editor interaction plane
-- orbit controls
-- the editor visualization overlay
-- the editor input handler
-
-The scene layer should stay focused on rendering and input dispatch, not networking.
-
-It receives an optional `gameState` prop:
-
-- If provided, it renders that game state's tokens and players
-- If not provided, it renders a mock snapshot for development
-
-It also receives a local `rollTrigger` prop used by `DiceShaker` to trigger dice animation timing.
-
-### Editor layer
-
-The editor is split into two pieces:
-
-- `apps/web/src/components/BoardEditor.tsx` renders the control panel.
-- `apps/web/src/components/BoardEditorInputHandler.tsx` converts mouse/keyboard gestures into layout changes.
-
-This separation is deliberate:
-
-- the controls panel can change editor state without knowing Three.js details
-- the input handler can mutate board data without owning UI chrome
-
-### Visualization layer
-
-`apps/web/src/components/BoardEditorVisualization.tsx` renders the editable board overlays.
-
-It currently draws:
-
-- main track points and lines
-- per-player home lane points and lines
-- stable and home bounding boxes
-- preview geometry while drawing a box
-
-This layer should remain a pure visual projection of editor state.
-
-## Shared data flow
-
-The current frontend state architecture:
-
-- **Local development**: Uses `getMockSnapshot()` to generate a test game state with 4 players and sample token distributions
-- **Local dice flow**: `GamePage` uses `rollMockTurn`/`resolveMockTurn` on the same state and increments `rollTrigger`
-- **With backend**: Will receive authoritative `GameState` via socket and pass it to `BoardScene`
-- **Rendering**: `BoardScene` composes `BoardModel` (static board), `BoardPieces` (dynamic tokens), and `DiceShaker` (dice presentation)
-- **Editor**: Remains client-side local state, separate from game state
-
-Current local mock rules now include:
-
-- spawn on dice `1` or `6`
-- auto-spawn when no non-spawn legal move exists
-- finish ranking tracked in events
-- skipping finished players
-- game end after 3 players finish
-
-The key design is that `BoardScene` accepts both `gameState` (optional) and `editorData` (optional), allowing:
-
-- Pure editor mode (render board layout being edited)
-- Pure game mode (render live game with tokens)
-- Hybrid mode (rare, for debug/preview)
-
-When multiplayer backend integration completes, the socket layer will simply replace the mock snapshot source with real server snapshots.
-
-## Local-only development features
-
-The current client has a few features that are useful during frontend work but should not be mistaken for backend game flow:
-
-- dev menu visibility via `F3`
-- camera debug readout
-- editor mode toggle between draw and camera
-- export of the current editor layout JSON
-- local roll button that drives a mock dice presentation (not authoritative game logic)
-
-These features are safe to keep even after backend integration.
-
-## Where backend wiring will likely land
-
-- socket setup and reconnect logic: `GamePage`
-- authoritative room/game snapshots: a top-level client store or page state adapter
-- snapshot-to-UI mapping: a game view model layer between socket data and `BoardScene`
-- editor layout persistence: a dedicated editor save/load service
+Keep these separate from authoritative online state.
