@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { PLAYER_COLORS } from '@rune-race/shared'
-import { createInitialGameState, resolveTurn, rollTurn, sortPlayersByColor } from './engine'
+import {
+  createInitialGameState,
+  resolveTurn,
+  rollTurn,
+  shouldEndGameByFinishCount,
+  sortPlayersByColor,
+} from './engine'
 
 describe('createInitialGameState', () => {
   it('sorts players by color order and sets first player', () => {
@@ -67,6 +73,22 @@ describe('extra turn on 6', () => {
     expect(state.turn.currentPlayerId).toBe('p-green')
     expect(state.turn.phase).toBe('waiting_roll')
     expect(state.currentPlayerIndex).toBe(0)
+  })
+})
+
+describe('shouldEndGameByFinishCount', () => {
+  const cases: Array<{ players: number; finished: number; ends: boolean }> = [
+    { players: 3, finished: 1, ends: false },
+    { players: 3, finished: 2, ends: true },
+    { players: 4, finished: 2, ends: false },
+    { players: 4, finished: 3, ends: true },
+    { players: 2, finished: 1, ends: true },
+  ]
+
+  cases.forEach(({ players, finished, ends }) => {
+    it(`${finished}/${players} finished => ${ends ? 'game over' : 'continue'}`, () => {
+      expect(shouldEndGameByFinishCount(players, finished)).toBe(ends)
+    })
   })
 })
 

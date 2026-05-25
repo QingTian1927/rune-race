@@ -392,6 +392,12 @@ function shouldAutoSpawnWithoutChoice(diceResult: number, legalMoves: LegalMove[
   return hasSpawnMove && !hasTrackOrLaneMove
 }
 
+/** Game ends when all but one player have finished (last place is implicit). */
+export function shouldEndGameByFinishCount(playerCount: number, finishedCount: number): boolean {
+  if (playerCount <= 0 || finishedCount <= 0) return false
+  return finishedCount >= playerCount - 1
+}
+
 function getFinishOrderFromEvents(events: GameEvent[]) {
   const order: string[] = []
   const seen = new Set<string>()
@@ -550,7 +556,10 @@ export function resolveTurn(state: GameState, moveId?: string) {
   if (!chosenMove) {
     const finishData = appendFinishEvents(state, state.tokens, timestamp)
     const finishedByRank = new Set(finishData.finishOrder)
-    const shouldEndGame = finishData.finishOrder.length >= 3
+    const shouldEndGame = shouldEndGameByFinishCount(
+      state.players.length,
+      finishData.finishOrder.length,
+    )
 
     if (shouldEndGame) {
     return syncCurrentPlayerIndex({
@@ -731,7 +740,10 @@ export function resolveTurn(state: GameState, moveId?: string) {
     moveToken.playerId,
   )
 
-  const shouldEndGame = finishData.finishOrder.length >= 3
+  const shouldEndGame = shouldEndGameByFinishCount(
+    state.players.length,
+    finishData.finishOrder.length,
+  )
   if (shouldEndGame) {
     return syncCurrentPlayerIndex({
       ...state,
