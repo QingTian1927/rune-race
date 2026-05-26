@@ -1,5 +1,5 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
-import { rollTurn, resolveTurn, type RollDiceFn } from './engine'
+import { removePlayerFromGame, rollTurn, resolveTurn, type RollDiceFn } from './engine'
 
 export type GameCommandError = {
   code: string
@@ -41,6 +41,24 @@ export function handleRoll(
   } else if (next.turn.phase === 'rolled') {
     next = resolveTurn(next)
   }
+
+  return {
+    success: true,
+    state: next,
+    events: sliceNewEvents(before, next),
+  }
+}
+
+export function handlePlayerLeft(state: GameState, playerId: string): GameCommandResult {
+  if (state.status === 'finished') {
+    return { success: false, error: { code: 'GAME_FINISHED', message: 'Game already finished' }, events: [] }
+  }
+  if (!state.players.some((p) => p.id === playerId)) {
+    return { success: false, error: { code: 'NOT_IN_GAME', message: 'Player not in game' }, events: [] }
+  }
+
+  const before = state
+  const next = removePlayerFromGame(state, playerId)
 
   return {
     success: true,

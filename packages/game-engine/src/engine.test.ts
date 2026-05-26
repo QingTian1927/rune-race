@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PLAYER_COLORS } from '@rune-race/shared'
 import {
   createInitialGameState,
+  removePlayerFromGame,
   resolveTurn,
   rollTurn,
   shouldEndGameByFinishCount,
@@ -89,6 +90,44 @@ describe('shouldEndGameByFinishCount', () => {
     it(`${finished}/${players} finished => ${ends ? 'game over' : 'continue'}`, () => {
       expect(shouldEndGameByFinishCount(players, finished)).toBe(ends)
     })
+  })
+})
+
+describe('removePlayerFromGame', () => {
+  const threePlayers = [
+    { id: 'p-red', name: 'Red', color: 'red' as const },
+    { id: 'p-blue', name: 'Blue', color: 'blue' as const },
+    { id: 'p-green', name: 'Green', color: 'green' as const },
+  ]
+
+  it('advances turn when the leaving player held the turn', () => {
+    const state = createInitialGameState({
+      gameId: 'g1',
+      players: threePlayers,
+      firstPlayerId: 'p-red',
+    })
+
+    const after = removePlayerFromGame(state, 'p-red')
+
+    expect(after.players.map((p) => p.id)).toEqual(['p-blue', 'p-green'])
+    expect(after.tokens.every((t) => t.playerId !== 'p-red')).toBe(true)
+    expect(after.turn.currentPlayerId).not.toBe('p-red')
+    expect(after.turn.phase).toBe('waiting_roll')
+    expect(after.status).toBe('playing')
+  })
+
+  it('ends the game when only one player remains', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players: threePlayers,
+      firstPlayerId: 'p-red',
+    })
+    state = removePlayerFromGame(state, 'p-blue')
+    state = removePlayerFromGame(state, 'p-green')
+
+    expect(state.status).toBe('finished')
+    expect(state.winnerId).toBe('p-red')
+    expect(state.players).toHaveLength(1)
   })
 })
 

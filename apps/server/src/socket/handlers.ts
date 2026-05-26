@@ -12,6 +12,20 @@ function gameError(socket: Socket<ClientToServerEvents, ServerToClientEvents>, m
   socket.emit('game:error', { message, code })
 }
 
+function forfeitPlayerInActiveGame(
+  lobbyStore: LobbyStore,
+  gameStore: GameStore,
+  playerId: string,
+): void {
+  const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
+  if (!lobbyId) return
+
+  const snapshot = lobbyStore.getSnapshot(lobbyId)
+  if (snapshot?.status !== 'in_game' || !snapshot.currentGameId) return
+
+  gameStore.removePlayer(snapshot.currentGameId, playerId)
+}
+
 export function setupSocketHandlers(
   io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
   lobbyStore: LobbyStore,
@@ -132,6 +146,7 @@ export function setupSocketHandlers(
         const cmd = validateCommand('lobby:leave', payload)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) return
+        forfeitPlayerInActiveGame(lobbyStore, gameStore, cmd.playerId)
         lobbyStore.leaveLobby(lobbyId, cmd.playerId)
         socket.leave(`lobby:${lobbyId}`)
         const snapshot = lobbyStore.getSnapshot(lobbyId)
@@ -270,6 +285,7 @@ export function setupSocketHandlers(
     socket.on('disconnect', () => {
       const data = socket.data as { lobbyId?: string; playerId?: string }
       if (data.lobbyId && data.playerId) {
+        forfeitPlayerInActiveGame(lobbyStore, gameStore, data.playerId)
         lobbyStore.markDisconnected(data.lobbyId, data.playerId)
         const snapshot = lobbyStore.getSnapshot(data.lobbyId)
         if (snapshot) {

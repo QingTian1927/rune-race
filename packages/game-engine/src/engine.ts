@@ -469,9 +469,185 @@ function appendFinishEvents(state: GameState, tokens: GameState['tokens'], times
   return { events: nextEvents, finishOrder }
 }
 
+function buildFinishedState(
+  state: GameState,
+  winnerId: string,
+  events: GameEvent[],
+  timestamp: number,
+): GameState {
+  return syncCurrentPlayerIndex({
+    ...state,
+    version: state.version + 1,
+    status: 'finished',
+    winnerId,
+    turn: {
+      id: makeTurnId(state),
+      currentPlayerId: state.turn.currentPlayerId,
+      diceResult: null,
+      phase: 'turn_end',
+      legalMoves: [],
+      startTime: timestamp,
+    },
+    phase: 'turn_end',
+    updatedAt: timestamp,
+    events: [
+      ...events,
+      {
+        type: 'turn_advanced',
+        timestamp,
+        playerId: state.turn.currentPlayerId,
+        details: {
+          nextPlayerId: winnerId,
+          reason: 'game_finished',
+        },
+      },
+    ],
+  })
+}
+
+/** Remove a player who left mid-game; advance turn and drop their pieces from state. */
+export function removePlayerFromGame(state: GameState, playerId: string): GameState {
+  if (state.status === 'finished') {
+    return state
+  }
+
+  const removeIndex = state.players.findIndex((p) => p.id === playerId)
+  if (removeIndex < 0) {
+    return state
+  }
+
+  const timestamp = now()
+  const players = state.players.filter((p) => p.id !== playerId)
+  const tokens = state.tokens.filter((t) => t.playerId !== playerId)
+  let events: GameEvent[] = [
+    ...state.events,
+    {
+      type: 'turn_advanced',
+      timestamp,
+      playerId,
+      details: { leftPlayerId: playerId, reason: 'player_left' },
+    },
+  ]
+
+  if (players.length === 0) {
+    return {
+      ...state,
+      version: state.version + 1,
+      status: 'finished',
+      players: [],
+      tokens: [],
+      phase: 'turn_end',
+      updatedAt: timestamp,
+      events,
+    }
+  }
+
+  if (players.length === 1) {
+    return buildFinishedState(
+      { ...state, players, tokens, events },
+      players[0].id,
+      events,
+      timestamp,
+    )
+  }
+
+  let currentPlayerIndex = state.currentPlayerIndex
+  if (removeIndex < currentPlayerIndex) {
+    currentPlayerIndex -= 1
+  } else if (removeIndex === currentPlayerIndex) {
+    currentPlayerIndex = currentPlayerIndex % players.length
+  }
+
+  const turnHeldByLeaving =
+    state.turn.currentPlayerId === playerId ||
+    !players.some((p) => p.id === state.turn.currentPlayerId)
+
+  let next: GameState = {
+    ...state,
+    version: state.version + 1,
+    players,
+    tokens,
+    currentPlayerIndex,
+    events,
+    updatedAt: timestamp,
+  }
+
+  if (turnHeldByLeaving) {
+    const nextPlayerIndex = getNextPlayerIndex(next, false)
+    const nextPlayer = players[nextPlayerIndex] ?? players[0]
+    events = [
+      ...events,
+      {
+        type: 'turn_advanced',
+        timestamp,
+        playerId,
+        details: {
+          nextPlayerId: nextPlayer.id,
+          reason: 'player_left_advance',
+        },
+      },
+    ]
+    next = {
+      ...next,
+      currentPlayerIndex: nextPlayerIndex,
+      turn: {
+        id: makeTurnId(next),
+        currentPlayerId: nextPlayer.id,
+        diceResult: null,
+        phase: 'waiting_roll',
+        legalMoves: [],
+        startTime: timestamp,
+      },
+      phase: 'waiting_roll',
+      events,
+    }
+  }
+
+  next = syncCurrentPlayerIndex(next)
+
+  const finishOrder = getFinishOrderFromEvents(next.events)
+  if (shouldEndGameByFinishCount(players.length, finishOrder.length)) {
+    return buildFinishedState(next, finishOrder[0], next.events, timestamp)
+  }
+
+  return next
+}
+
 export function rollTurn(state: GameState, rollFn: RollDiceFn = defaultRollDice) {
   if (state.status === 'finished' || state.turn.phase !== 'waiting_roll') {
     return state
+  }
+
+  if (!state.players.some((p) => p.id === state.turn.currentPlayerId)) {
+    const nextPlayerIndex = getNextPlayerIndex(state, false)
+    const nextPlayer = state.players[nextPlayerIndex] ?? state.players[0]
+    return syncCurrentPlayerIndex({
+      ...state,
+      version: state.version + 1,
+      currentPlayerIndex: nextPlayerIndex,
+      turn: {
+        id: makeTurnId(state),
+        currentPlayerId: nextPlayer?.id ?? state.turn.currentPlayerId,
+        diceResult: null,
+        phase: 'waiting_roll',
+        legalMoves: [],
+        startTime: now(),
+      },
+      phase: 'waiting_roll',
+      updatedAt: now(),
+      events: [
+        ...state.events,
+        {
+          type: 'turn_advanced',
+          timestamp: now(),
+          playerId: state.turn.currentPlayerId,
+          details: {
+            nextPlayerId: nextPlayer?.id ?? state.turn.currentPlayerId,
+            reason: 'skip_missing_player',
+          },
+        },
+      ],
+    })
   }
 
   const finishedPlayers = new Set(getFinishOrderFromEvents(state.events))

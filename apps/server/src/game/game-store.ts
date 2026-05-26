@@ -1,5 +1,10 @@
 import type { GameState } from '@rune-race/shared'
-import { createInitialGameState, handleChooseMove, handleRoll } from '@rune-race/game-engine'
+import {
+  createInitialGameState,
+  handleChooseMove,
+  handlePlayerLeft,
+  handleRoll,
+} from '@rune-race/game-engine'
 
 export type GameChangeListener = (gameId: string, state: GameState, events: GameState['events']) => void
 export type GameFinishedListener = (gameId: string, lobbyId: string, state: GameState) => void
@@ -71,6 +76,22 @@ export class GameStore {
     }
 
     session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+
+    if (session.state.status === 'finished') {
+      this.onFinished?.(gameId, session.lobbyId, session.state)
+    }
+  }
+
+  removePlayer(gameId: string, playerId: string): void {
+    const session = this.games.get(gameId)
+    if (!session || session.state.status === 'finished') return
+
+    const result = handlePlayerLeft(session.state, playerId)
+    if (!result.success) return
+
+    session.state = result.state
+    this.playerGameIndex.delete(playerId)
     this.onChange?.(gameId, session.state, result.events)
 
     if (session.state.status === 'finished') {
