@@ -15,6 +15,16 @@ import {
 import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
 import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
+/** Downward-pointing triangle for selectable-token marker (billboard, tip toward pawn). */
+const MOVE_SELECT_TRIANGLE = (() => {
+  const shape = new THREE.Shape()
+  shape.moveTo(0, -0.15)
+  shape.lineTo(0.12, 0.08)
+  shape.lineTo(-0.12, 0.08)
+  shape.closePath()
+  return shape
+})()
+
 interface BoardPiecesProps {
   gameState: GameState
   animationDurationMs?: number
@@ -658,20 +668,8 @@ function PawnInstance({
         ) : null}
         {isSelectable ? (
           <Billboard position={[0, 0.42, 0]} follow lockX={false} lockY={false} lockZ={false}>
-            <mesh ref={arrowRef} rotation={[0, 0, Math.PI]} scale={[arrowBaseScale, arrowBaseScale, arrowBaseScale]}>
-              <shapeGeometry
-                args={[
-                  new THREE.Shape([
-                    new THREE.Vector2(0, 0.12),
-                    new THREE.Vector2(0.09, -0.02),
-                    new THREE.Vector2(0.03, -0.02),
-                    new THREE.Vector2(0.03, -0.12),
-                    new THREE.Vector2(-0.03, -0.12),
-                    new THREE.Vector2(-0.03, -0.02),
-                    new THREE.Vector2(-0.09, -0.02),
-                  ])
-                ]}
-              />
+            <mesh ref={arrowRef} scale={[arrowBaseScale, arrowBaseScale, arrowBaseScale]}>
+              <shapeGeometry args={[MOVE_SELECT_TRIANGLE]} />
               <meshBasicMaterial color={arrowColor} transparent opacity={0.95} depthWrite={false} side={THREE.DoubleSide} />
             </mesh>
           </Billboard>
