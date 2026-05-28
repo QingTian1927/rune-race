@@ -8,6 +8,7 @@ build/
 .idea/
 coverage/
 .pnp.*
+supabase/.temp/
 
 # local assets edits
 **/assets/KayKit_*/
