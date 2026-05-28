@@ -5,6 +5,7 @@ import {
   MATCHMAKING_TIER_4_SECONDS,
 } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
+import { getAuthUser } from '../lib/auth'
 
 interface QueueEntry {
   playerId: string
@@ -118,11 +119,16 @@ export function registerMatchmakingRoutes(
 ): void {
   fastify.post('/api/matchmaking/join', async (request) => {
     const body = request.body as { playerId: string; playerName: string }
-    if (!body.playerId || !body.playerName) {
+    const user = await getAuthUser(request)
+    const playerId = user?.id ?? body.playerId
+    const playerName =
+      body.playerName ?? (user?.user_metadata?.display_name as string | undefined)
+
+    if (!playerId || !playerName) {
       return { error: 'playerId and playerName required' }
     }
-    queue.join(body.playerId, body.playerName)
-    return queue.getStatus(body.playerId)
+    queue.join(playerId, playerName)
+    return queue.getStatus(playerId)
   })
 
   fastify.delete('/api/matchmaking/leave', async (request) => {

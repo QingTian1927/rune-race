@@ -242,11 +242,12 @@ export class LobbyStore {
     if (!record) return
 
     this.removePlayer(record, playerId, 'left')
-    this.emitChange(lobbyId, this.toSnapshot(record))
-
     if (record.players.length === 0) {
       this.destroyLobby(lobbyId)
+      return
     }
+
+    this.emitChange(lobbyId, this.toSnapshot(record))
   }
 
   kickPlayer(lobbyId: string, hostId: string, targetId: string): LobbySnapshot {
@@ -331,9 +332,24 @@ export class LobbyStore {
     const player = record.players.find((p) => p.id === playerId)
     if (!player || !player.connected) return
 
+    if (record.players.length === 1 && record.hostPlayerId === playerId) {
+      this.destroyLobby(lobbyId)
+      return
+    }
+
     player.connected = false
     player.ready = false
     this.cancelCountdown(record, 'disconnect')
+
+    if (record.hostPlayerId === playerId) {
+      const nextHost = record.players.find((p) => p.connected && p.id !== playerId)
+      if (nextHost) {
+        record.hostPlayerId = nextHost.id
+        record.players.forEach((p) => {
+          p.isHost = p.id === nextHost.id
+        })
+      }
+    }
 
     this.clearDisconnectTimer(player)
     player.disconnectTimer = setTimeout(() => {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { LobbyStore } from '../lobby/lobby-store'
+import { getAuthUser } from '../lib/auth'
 
 export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbyStore): void {
   fastify.get('/api/rooms', async () => {
@@ -48,8 +49,13 @@ export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbySt
       visibility?: 'public' | 'private'
     }
 
-    const playerId = body.playerId ?? `anon-${randomUUID()}`
-    const playerName = body.playerName ?? 'Player'
+    const user = await getAuthUser(request)
+
+    const playerId = user?.id ?? body.playerId ?? `anon-${randomUUID()}`
+    const playerName =
+      body.playerName ??
+      (user?.user_metadata?.display_name as string | undefined) ??
+      'Player'
 
     const snapshot = lobbyStore.createLobby({
       hostPlayerId: playerId,

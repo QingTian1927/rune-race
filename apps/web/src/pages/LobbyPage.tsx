@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
 import { useLobbySocket } from '../hooks/useLobbySocket'
-import { getOrCreatePlayerId, getPlayerName } from '../lib/playerSession'
+import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { getSocket } from '../lib/socket'
 
 const COLOR_STYLES: Record<PlayerColor, string> = {
@@ -18,8 +18,7 @@ export default function LobbyPage() {
   const location = useLocation()
   const password = (location.state as { password?: string } | null)?.password
 
-  const playerId = getOrCreatePlayerId()
-  const playerName = getPlayerName()
+  const { playerId, playerName, accessToken } = usePlayerIdentity()
 
   const {
     snapshot,
@@ -32,11 +31,11 @@ export default function LobbyPage() {
     cancelCountdown,
     updateSettings,
     transferHost,
-  } = useLobbySocket(lobbyId ?? '', playerId, playerName, password)
+  } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken)
 
   useEffect(() => {
     if (!lobbyId) return
-    const socket = getSocket()
+    const socket = getSocket(accessToken)
 
     const onGameStarted = (payload: { gameId: string; lobbyId: string }) => {
       sessionStorage.setItem('rune-race-lobby-id', payload.lobbyId)
@@ -47,7 +46,7 @@ export default function LobbyPage() {
     return () => {
       socket.off('lobby:game_started', onGameStarted)
     }
-  }, [lobbyId, navigate])
+  }, [accessToken, lobbyId, navigate])
 
   useEffect(() => {
     if (snapshot?.status === 'in_game' && snapshot.currentGameId) {
@@ -103,7 +102,9 @@ export default function LobbyPage() {
                 className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2"
               >
                 <div>
-                  <span className="font-medium">{player.name}</span>
+                  <Link to={`/profile/${player.id}`} className="font-medium hover:underline">
+                    {player.name}
+                  </Link>
                   {player.isHost ? (
                     <span className="ml-2 text-xs text-amber-400">Host</span>
                   ) : null}

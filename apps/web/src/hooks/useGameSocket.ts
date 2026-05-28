@@ -3,14 +3,14 @@ import type { GameState } from '@rune-race/shared'
 import { getSocket } from '../lib/socket'
 import { usePresentationGameState } from './usePresentationGameState'
 
-export function useGameSocket(gameId: string, playerId: string) {
+export function useGameSocket(gameId: string, playerId: string, authToken?: string | null) {
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const { displayState, isPresentingDice, rollTrigger, applyAuthoritativeState } =
     usePresentationGameState()
 
   useEffect(() => {
-    const socket = getSocket()
+    const socket = getSocket(authToken)
 
     const join = () => {
       socket.emit('game:join', { playerId, gameId })
@@ -45,19 +45,19 @@ export function useGameSocket(gameId: string, playerId: string) {
       socket.off('game:state_snapshot', onSnapshot)
       socket.off('game:error', onGameError)
     }
-  }, [applyAuthoritativeState, gameId, playerId])
+  }, [applyAuthoritativeState, authToken, gameId, playerId])
 
   const roll = useCallback(() => {
     if (isPresentingDice) return
-    getSocket().emit('game:roll', { playerId })
-  }, [isPresentingDice, playerId])
+    getSocket(authToken).emit('game:roll', { playerId })
+  }, [authToken, isPresentingDice, playerId])
 
   const chooseMove = useCallback(
     (moveId: string) => {
       if (isPresentingDice) return
-      getSocket().emit('game:choose_move', { playerId, moveId })
+      getSocket(authToken).emit('game:choose_move', { playerId, moveId })
     },
-    [isPresentingDice, playerId],
+    [authToken, isPresentingDice, playerId],
   )
 
   return {

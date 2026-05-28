@@ -1,15 +1,15 @@
 import { useParams } from 'react-router-dom'
 import GameView from '../components/GameView'
 import { useGameSocket } from '../hooks/useGameSocket'
-import { getOrCreatePlayerId } from '../lib/playerSession'
+import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 
 export default function OnlineGamePage() {
   const { gameId } = useParams<{ gameId: string }>()
-  const playerId = getOrCreatePlayerId()
+  const { playerId, accessToken } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
 
   const { gameState, error, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
-    useGameSocket(gameId ?? '', playerId)
+    useGameSocket(gameId ?? '', playerId, accessToken)
 
   if (!gameId) {
     return <div className="p-8 text-white">Missing game id</div>

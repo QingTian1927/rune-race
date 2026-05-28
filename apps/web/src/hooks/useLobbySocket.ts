@@ -7,13 +7,14 @@ export function useLobbySocket(
   playerId: string,
   playerName: string,
   password?: string,
+  authToken?: string | null,
 ) {
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
-    const socket = getSocket()
+    const socket = getSocket(authToken)
 
     const onConnected = () => {
       socket.emit('lobby:join', { playerId, playerName, lobbyId, password })
@@ -48,49 +49,49 @@ export function useLobbySocket(
       socket.off('lobby:snapshot', onSnapshot)
       socket.off('lobby:error', onLobbyError)
     }
-  }, [lobbyId, playerId, playerName, password])
+  }, [authToken, lobbyId, playerId, playerName, password])
 
   const setColor = useCallback(
     (color: PlayerColor) => {
-      getSocket().emit('lobby:set_color', { playerId, color })
+      getSocket(authToken).emit('lobby:set_color', { playerId, color })
     },
-    [playerId],
+    [authToken, playerId],
   )
 
   const setReady = useCallback(
     (ready: boolean) => {
-      getSocket().emit(ready ? 'lobby:ready' : 'lobby:unready', { playerId })
+      getSocket(authToken).emit(ready ? 'lobby:ready' : 'lobby:unready', { playerId })
     },
-    [playerId],
+    [authToken, playerId],
   )
 
   const leave = useCallback(() => {
-    getSocket().emit('lobby:leave', { playerId })
-  }, [playerId])
+    getSocket(authToken).emit('lobby:leave', { playerId })
+  }, [authToken, playerId])
 
   const kick = useCallback(
     (targetPlayerId: string) => {
-      getSocket().emit('lobby:kick', { playerId, targetPlayerId })
+      getSocket(authToken).emit('lobby:kick', { playerId, targetPlayerId })
     },
-    [playerId],
+    [authToken, playerId],
   )
 
   const cancelCountdown = useCallback(() => {
-    getSocket().emit('lobby:cancel_countdown', { playerId })
-  }, [playerId])
+    getSocket(authToken).emit('lobby:cancel_countdown', { playerId })
+  }, [authToken, playerId])
 
   const updateSettings = useCallback(
     (patch: { name?: string; password?: string; clearPassword?: boolean }) => {
-      getSocket().emit('lobby:update_settings', { playerId, ...patch })
+      getSocket(authToken).emit('lobby:update_settings', { playerId, ...patch })
     },
-    [playerId],
+    [authToken, playerId],
   )
 
   const transferHost = useCallback(
     (newHostPlayerId: string) => {
-      getSocket().emit('lobby:transfer_host', { playerId, newHostPlayerId })
+      getSocket(authToken).emit('lobby:transfer_host', { playerId, newHostPlayerId })
     },
-    [playerId],
+    [authToken, playerId],
   )
 
   return {

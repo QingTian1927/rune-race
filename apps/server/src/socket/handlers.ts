@@ -3,6 +3,11 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@rune-race/shar
 import { validateCommand } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
+import { getUserFromAccessToken } from '../lib/supabase-server'
+
+type AuthSocketData = {
+  userId?: string
+}
 
 function lobbyError(socket: Socket<ClientToServerEvents, ServerToClientEvents>, message: string, code: string) {
   socket.emit('lobby:error', { message, code })
@@ -10,6 +15,16 @@ function lobbyError(socket: Socket<ClientToServerEvents, ServerToClientEvents>, 
 
 function gameError(socket: Socket<ClientToServerEvents, ServerToClientEvents>, message: string, code: string) {
   socket.emit('game:error', { message, code })
+}
+
+function assertPlayerIdMatchesAuth(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
+  playerId: string,
+): void {
+  const { userId } = socket.data as AuthSocketData
+  if (userId && userId !== playerId) {
+    throw new Error('Auth mismatch')
+  }
 }
 
 function forfeitPlayerInActiveGame(
@@ -31,6 +46,15 @@ export function setupSocketHandlers(
   lobbyStore: LobbyStore,
   gameStore: GameStore,
 ): void {
+  io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token
+    if (!token) return next()
+    const user = await getUserFromAccessToken(String(token))
+    if (!user) return next(new Error('AUTH_INVALID'))
+    ;(socket.data as AuthSocketData).userId = user.id
+    return next()
+  })
+
   lobbyStore.setListeners({
     onChange: (lobbyId, snapshot) => {
       io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
@@ -85,6 +109,7 @@ export function setupSocketHandlers(
     socket.on('lobby:join', (payload) => {
       try {
         const cmd = validateCommand('lobby:join', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const snapshot = lobbyStore.joinLobby({
           lobbyId: cmd.lobbyId,
           joinCode: cmd.joinCode,
@@ -103,6 +128,7 @@ export function setupSocketHandlers(
     socket.on('lobby:set_color', (payload) => {
       try {
         const cmd = validateCommand('lobby:set_color', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.setColor(lobbyId, cmd.playerId, cmd.color)
@@ -115,6 +141,7 @@ export function setupSocketHandlers(
     socket.on('lobby:ready', (payload) => {
       try {
         const cmd = validateCommand('lobby:ready', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const wasCountdown = lobbyStore.getSnapshot(lobbyId)?.status === 'countdown'
@@ -131,6 +158,7 @@ export function setupSocketHandlers(
     socket.on('lobby:unready', (payload) => {
       try {
         const cmd = validateCommand('lobby:unready', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.setReady(lobbyId, cmd.playerId, false)
@@ -144,6 +172,7 @@ export function setupSocketHandlers(
     socket.on('lobby:leave', (payload) => {
       try {
         const cmd = validateCommand('lobby:leave', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) return
         forfeitPlayerInActiveGame(lobbyStore, gameStore, cmd.playerId)
@@ -159,6 +188,7 @@ export function setupSocketHandlers(
     socket.on('lobby:kick', (payload) => {
       try {
         const cmd = validateCommand('lobby:kick', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.kickPlayer(lobbyId, cmd.playerId, cmd.targetPlayerId)
@@ -171,6 +201,7 @@ export function setupSocketHandlers(
     socket.on('lobby:cancel_countdown', (payload) => {
       try {
         const cmd = validateCommand('lobby:cancel_countdown', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.cancelCountdownByHost(lobbyId, cmd.playerId)
@@ -184,6 +215,7 @@ export function setupSocketHandlers(
     socket.on('lobby:update_settings', (payload) => {
       try {
         const cmd = validateCommand('lobby:update_settings', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.updateSettings(lobbyId, cmd.playerId, {
@@ -200,6 +232,7 @@ export function setupSocketHandlers(
     socket.on('lobby:transfer_host', (payload) => {
       try {
         const cmd = validateCommand('lobby:transfer_host', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.transferHost(lobbyId, cmd.playerId, cmd.newHostPlayerId)
@@ -212,6 +245,7 @@ export function setupSocketHandlers(
     socket.on('lobby:sync_request', (payload) => {
       try {
         const cmd = validateCommand('lobby:sync_request', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.getSnapshot(lobbyId)
@@ -224,6 +258,7 @@ export function setupSocketHandlers(
     socket.on('game:join', (payload) => {
       try {
         const cmd = validateCommand('game:join', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const state = gameStore.getState(cmd.gameId)
         if (!state) throw new Error('Game not found')
         if (!state.players.some((p) => p.id === cmd.playerId)) {
@@ -241,6 +276,7 @@ export function setupSocketHandlers(
     socket.on('game:roll', (payload) => {
       try {
         const cmd = validateCommand('game:roll', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const gameId = gameStore.getGameIdForPlayer(cmd.playerId)
         if (!gameId) throw new Error('Not in a game')
         gameStore.roll(gameId, cmd.playerId)
@@ -252,6 +288,7 @@ export function setupSocketHandlers(
     socket.on('game:choose_move', (payload) => {
       try {
         const cmd = validateCommand('game:choose_move', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const gameId = gameStore.getGameIdForPlayer(cmd.playerId)
         if (!gameId) throw new Error('Not in a game')
         gameStore.chooseMove(gameId, cmd.playerId, cmd.moveId)
@@ -263,6 +300,7 @@ export function setupSocketHandlers(
     socket.on('game:sync_request', (payload) => {
       try {
         const cmd = validateCommand('game:sync_request', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const data = socket.data as { gameId?: string }
         const gameId = gameStore.getGameIdForPlayer(cmd.playerId) ?? data.gameId
         if (!gameId) throw new Error('Not in a game')
