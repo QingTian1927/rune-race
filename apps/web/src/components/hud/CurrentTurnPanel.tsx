@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import type { Player } from '@rune-race/shared'
-import { PLAYER_COLOR_MAP } from './playerColorStyles'
+import { HUD_PANEL_LABEL_CLASS, HUD_PLAYER_NAME_CLASS, PLAYER_COLOR_MAP } from './playerColorStyles'
 import { PlayerBadge } from './PlayerBadge'
 import { PanelCollapseButton } from './PanelCollapseButton'
 
 type CurrentTurnPanelProps = {
   player: Player | null
   isLocalTurn: boolean
+  avatarEmoji?: string | null
 }
 
-export function CurrentTurnPanel({ player, isLocalTurn }: CurrentTurnPanelProps) {
+export function CurrentTurnPanel({ player, isLocalTurn, avatarEmoji }: CurrentTurnPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   if (!player) return null
@@ -19,7 +20,7 @@ export function CurrentTurnPanel({ player, isLocalTurn }: CurrentTurnPanelProps)
   if (collapsed) {
     return (
       <div className="pointer-events-auto absolute left-4 top-14 z-10 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/85 px-2.5 py-2 backdrop-blur-sm shadow-sm">
-        <PlayerBadge color={player.color} isActive={isLocalTurn} />
+        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
         <PanelCollapseButton
           collapsed={collapsed}
           expandDirection="right"
@@ -37,10 +38,10 @@ export function CurrentTurnPanel({ player, isLocalTurn }: CurrentTurnPanelProps)
       ].join(' ')}
     >
       <div className="flex items-center gap-2">
-        <PlayerBadge color={player.color} isActive={isLocalTurn} />
-        <div className="min-w-[160px]">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">LƯỢT HIỆN TẠI</p>
-          <p className={['text-sm font-bold leading-tight', colorStyles.text].join(' ')}>{player.name}</p>
+        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
+        <div className="min-w-[172px]">
+          <p className={HUD_PANEL_LABEL_CLASS}>LƯỢT HIỆN TẠI</p>
+          <p className={[HUD_PLAYER_NAME_CLASS, colorStyles.text].join(' ')}>{player.name}</p>
         </div>
         <PanelCollapseButton
           collapsed={collapsed}

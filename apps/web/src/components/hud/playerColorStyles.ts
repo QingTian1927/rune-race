@@ -1,5 +1,12 @@
 import type { PlayerColor } from '@rune-race/shared'
 
+/** HUD panel section label (BẠN, LƯỢT HIỆN TẠI, VỀ ĐÍCH). */
+export const HUD_PANEL_LABEL_CLASS =
+  'text-xs font-semibold uppercase tracking-wider text-gray-400'
+
+/** HUD player display name. */
+export const HUD_PLAYER_NAME_CLASS = 'text-base font-bold leading-snug'
+
 export const PLAYER_COLOR_MAP: Record<
   PlayerColor,
   { border: string; text: string; bg: string; ring: string }

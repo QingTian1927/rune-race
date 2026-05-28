@@ -11,6 +11,7 @@ import { MyPlayerPanel } from './hud/MyPlayerPanel'
 import { FinishOrderPanel } from './hud/FinishOrderPanel'
 import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
+import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -87,6 +88,8 @@ export type GameViewProps = {
   isPresentingDice?: boolean
   /** When set, move-selection arrows only show for this player (online). */
   localPlayerId?: string
+  /** Profile avatar emoji for the local player HUD. */
+  localAvatarEmoji?: string | null
 }
 
 export default function GameView({
@@ -99,6 +102,7 @@ export default function GameView({
   autoResolveRolled = false,
   isPresentingDice = false,
   localPlayerId,
+  localAvatarEmoji,
 }: GameViewProps) {
   const { active, progress } = useProgress()
   const [showDevMenu, setShowDevMenu] = useState(false)
@@ -196,6 +200,20 @@ export default function GameView({
   const localPlayer: Player | null = localPlayerId
     ? gameState.players.find((p) => p.id === localPlayerId) ?? null
     : gameState.players[0] ?? displayedTurnPlayer
+
+  const playerIds = useMemo(() => gameState.players.map((p) => p.id), [gameState.players])
+  const fetchedAvatars = usePlayerAvatars(playerIds)
+  const avatarsByPlayerId = useMemo(() => {
+    const merged = { ...fetchedAvatars }
+    if (localPlayerId && localAvatarEmoji?.trim()) {
+      merged[localPlayerId] = localAvatarEmoji.trim()
+    }
+    return merged
+  }, [fetchedAvatars, localAvatarEmoji, localPlayerId])
+
+  const avatarFor = (playerId: string | undefined) =>
+    playerId ? (avatarsByPlayerId[playerId] ?? null) : null
+
   const isMyTurn = localPlayer
     ? gameState.turn.currentPlayerId === localPlayer.id
     : isLocalPlayersTurn
@@ -476,9 +494,13 @@ export default function GameView({
             {gameState.status === 'finished' ? 'Ve lobby' : 'Back'}
           </Link>
         </div>
-        <CurrentTurnPanel player={displayedTurnPlayer} isLocalTurn={isMyTurn} />
-        <MyPlayerPanel player={localPlayer} />
-        <FinishOrderPanel players={displayedFinishOrder} />
+        <CurrentTurnPanel
+          player={displayedTurnPlayer}
+          isLocalTurn={isMyTurn}
+          avatarEmoji={avatarFor(displayedTurnPlayer?.id)}
+        />
+        <MyPlayerPanel player={localPlayer} avatarEmoji={avatarFor(localPlayer?.id)} />
+        <FinishOrderPanel players={displayedFinishOrder} avatarsByPlayerId={avatarsByPlayerId} />
         <YourTurnBanner
           visible={showYourTurnBanner}
           color={localPlayer?.color ?? 'red'}

@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import type { Player } from '@rune-race/shared'
-import { PLAYER_COLOR_MAP } from './playerColorStyles'
+import { HUD_PANEL_LABEL_CLASS, HUD_PLAYER_NAME_CLASS, PLAYER_COLOR_MAP } from './playerColorStyles'
 import { PlayerBadge } from './PlayerBadge'
 import { PanelCollapseButton } from './PanelCollapseButton'
 
 type MyPlayerPanelProps = {
   player: Player | null
+  avatarEmoji?: string | null
 }
 
-export function MyPlayerPanel({ player }: MyPlayerPanelProps) {
+export function MyPlayerPanel({ player, avatarEmoji }: MyPlayerPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   if (!player) return null
@@ -23,7 +24,7 @@ export function MyPlayerPanel({ player }: MyPlayerPanelProps) {
           expandDirection="left"
           onClick={() => setCollapsed(false)}
         />
-        <PlayerBadge color={player.color} />
+        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} />
       </div>
     )
   }
@@ -36,11 +37,11 @@ export function MyPlayerPanel({ player }: MyPlayerPanelProps) {
       ].join(' ')}
     >
       <div className="flex items-center gap-2">
-        <div className="min-w-[128px] text-right">
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">BẠN</p>
-          <p className={['text-sm font-bold leading-tight', colorStyles.text].join(' ')}>{player.name}</p>
+        <div className="min-w-[140px] text-right">
+          <p className={HUD_PANEL_LABEL_CLASS}>BẠN</p>
+          <p className={[HUD_PLAYER_NAME_CLASS, colorStyles.text].join(' ')}>{player.name}</p>
         </div>
-        <PlayerBadge color={player.color} />
+        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} />
         <PanelCollapseButton
           collapsed={collapsed}
           expandDirection="left"
