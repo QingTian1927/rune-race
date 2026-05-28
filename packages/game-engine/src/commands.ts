@@ -1,5 +1,5 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
-import { removePlayerFromGame, rollTurn, resolveTurn, type RollDiceFn } from './engine'
+import { removePlayerFromGame, rollTurn, resolveTurn, type RollDiceFn } from './engine.js'
 
 export type GameCommandError = {
   code: string

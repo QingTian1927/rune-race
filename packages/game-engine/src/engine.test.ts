@@ -7,7 +7,7 @@ import {
   rollTurn,
   shouldEndGameByFinishCount,
   sortPlayersByColor,
-} from './engine'
+} from './engine.js'
 
 describe('createInitialGameState', () => {
   it('sorts players by color order and sets first player', () => {
