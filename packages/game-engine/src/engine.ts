@@ -1,6 +1,6 @@
 import type { GameEvent, GameState, LegalMove, Player, TokenState } from '@rune-race/shared'
 import { PLAYER_COLORS } from '@rune-race/shared'
-import boardLayout from '../data/board-layout.json'
+import boardLayout from '../data/board-layout.json' assert { type: 'json' }
 
 export const MOCK_PLAYER_COUNT = 4
 export const BOARD_TRACK_LENGTH = boardLayout.meta.mainTrackSteps

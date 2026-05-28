@@ -34,6 +34,7 @@ services:
       corepack prepare pnpm@latest --activate &&
       corepack pnpm install --frozen-lockfile &&
       corepack pnpm build:shared &&
+      corepack pnpm build:game-engine &&
       corepack pnpm build:web
     staticPublishPath: apps/web/dist
     routes:
