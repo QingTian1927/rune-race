@@ -6,7 +6,7 @@ services:
   - type: web
     name: rune-race-api
     runtime: node
-    plan: starter
+    plan: free
     region: singapore
     buildCommand: >-
       corepack enable &&
