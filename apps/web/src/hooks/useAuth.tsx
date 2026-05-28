@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { AuthResponse, Session, User } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { clearStoredPlayerId } from '../lib/playerSession'
 
 const ANON_USER_ID_KEY = 'rune-race-anon-user-id'
 
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
       signOut: async () => {
         await supabase.auth.signOut()
+        clearStoredPlayerId()
       },
     }
   }, [anonUserId, loading, session])

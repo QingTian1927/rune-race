@@ -5,7 +5,7 @@ import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 
 export default function OnlineGamePage() {
   const { gameId } = useParams<{ gameId: string }>()
-  const { playerId, accessToken } = usePlayerIdentity()
+  const { playerId, accessToken, avatarEmoji } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
 
   const { gameState, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
@@ -40,6 +40,7 @@ export default function OnlineGamePage() {
       canRoll={canRoll}
       isPresentingDice={isPresentingDice}
       localPlayerId={playerId}
+      localAvatarEmoji={avatarEmoji}
     />
   )
 }
