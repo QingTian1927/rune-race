@@ -34,7 +34,6 @@ export default function LocalGamePage() {
       onRoll={handleRoll}
       onSelectMove={handleSelectMove}
       backHref="/"
-      banner="Local test — khong ket noi server"
       autoResolveRolled
       isPresentingDice={isPresentingDice}
     />

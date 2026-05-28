@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
+import type { Player } from '@rune-race/shared'
 import BoardScene, { type CameraDebugInfo } from '../scenes/BoardScene'
 import { BoardLayoutData, createInitialEditorState, EditorMode } from '../utils/boardEditorState'
 import { BoardEditorControls } from '../components/BoardEditor'
 import type { GameState, LegalMove } from '@rune-race/shared'
-import { extractDiceResultFromEvents } from '../lib/dicePresentation'
+import { CurrentTurnPanel } from './hud/CurrentTurnPanel'
+import { MyPlayerPanel } from './hud/MyPlayerPanel'
+import { FinishOrderPanel } from './hud/FinishOrderPanel'
+import { YourTurnBanner } from './hud/YourTurnBanner'
+import { RollDiceButton } from './hud/RollDiceButton'
+import { MoveSelectionPanel } from './hud/MoveSelectionPanel'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -76,8 +82,6 @@ export type GameViewProps = {
   onRoll: () => void
   onSelectMove: (moveId: string) => void
   backHref?: string
-  error?: string | null
-  banner?: string | null
   canRoll?: boolean
   /** Local mock: auto-resolve after dice animation */
   autoResolveRolled?: boolean
@@ -92,8 +96,6 @@ export default function GameView({
   onRoll,
   onSelectMove,
   backHref = '/',
-  error,
-  banner,
   canRoll = true,
   autoResolveRolled = false,
   isPresentingDice = false,
@@ -110,6 +112,24 @@ export default function GameView({
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
   const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
   const resolveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const bannerHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const rollShowTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const moveBannerTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const hudCommitTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const wasPresentingRef = useRef(isPresentingDice)
+  const canRollRef = useRef(canRoll)
+  const seenTurnAdvanceRef = useRef<string>('')
+  const currentTurnPlayerIdRef = useRef(gameState.turn.currentPlayerId)
+  const localPlayerIdRef = useRef(localPlayerId ?? '')
+  const hudCursorRef = useRef({ version: -1, eventCount: 0 })
+  const hudSkipHistoryRef = useRef(true)
+  const [isSequencingRoll, setIsSequencingRoll] = useState(false)
+  const [showYourTurnBanner, setShowYourTurnBanner] = useState(false)
+  const [bannerText, setBannerText] = useState('✦ ĐẾN LƯỢT CỦA BẠN ✦')
+  const [showRollButton, setShowRollButton] = useState(canRoll)
+  const [hoveredMoveTokenId, setHoveredMoveTokenId] = useState<string | null>(null)
+  const [displayedTurnPlayerId, setDisplayedTurnPlayerId] = useState(gameState.turn.currentPlayerId)
+  const [displayedFinishOrderIds, setDisplayedFinishOrderIds] = useState<string[]>([])
 
   const finishOrder = useMemo(() => {
     const seen = new Set<string>()
@@ -126,6 +146,8 @@ export default function GameView({
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
   }, [gameState.events, gameState.players])
 
+  const finishOrderIds = useMemo(() => finishOrder.map((player) => player.id), [finishOrder])
+
   const legalMoveLabel = (move: LegalMove) => {
     const tokenIndex = Number(move.tokenId.split(':').pop() ?? '0') + 1
     if (move.moveType === 'spawn') return `Xuat quan #${tokenIndex}`
@@ -141,6 +163,12 @@ export default function GameView({
     !isPresentingDice &&
     gameState.turn.phase === 'waiting_choice' &&
     gameState.turn.legalMoves.length > 1
+
+  useEffect(() => {
+    if (!isWaitingChoice) {
+      setHoveredMoveTokenId(null)
+    }
+  }, [isWaitingChoice])
 
   const selectableTokenIds = useMemo(() => {
     if (!isWaitingChoice) return []
@@ -167,9 +195,98 @@ export default function GameView({
     [gameState.turn.legalMoves],
   )
 
-  const myPlayer = gameState.players.find((p) => p.id === gameState.turn.currentPlayerId)
-  const displayDice =
-    extractDiceResultFromEvents(gameState.events) ?? gameState.turn.diceResult
+  const currentTurnPlayer = gameState.players.find((p) => p.id === gameState.turn.currentPlayerId) ?? null
+  const displayedTurnPlayer =
+    gameState.players.find((p) => p.id === displayedTurnPlayerId) ?? currentTurnPlayer
+  const displayedFinishOrder = displayedFinishOrderIds
+    .map((id) => gameState.players.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+  const localPlayer: Player | null = localPlayerId
+    ? gameState.players.find((p) => p.id === localPlayerId) ?? null
+    : gameState.players[0] ?? displayedTurnPlayer
+  const isMyTurn = localPlayer ? displayedTurnPlayerId === localPlayer.id : isLocalPlayersTurn
+
+  useEffect(() => {
+    currentTurnPlayerIdRef.current = gameState.turn.currentPlayerId
+    localPlayerIdRef.current = localPlayer?.id ?? ''
+  }, [gameState.turn.currentPlayerId, localPlayer])
+
+  useEffect(() => {
+    if (hudSkipHistoryRef.current) {
+      hudSkipHistoryRef.current = false
+      hudCursorRef.current = { version: gameState.version, eventCount: gameState.events.length }
+      setDisplayedTurnPlayerId(gameState.turn.currentPlayerId)
+      setDisplayedFinishOrderIds(finishOrderIds)
+      return
+    }
+
+    const hasVersionAdvanced = gameState.version !== hudCursorRef.current.version
+    const deltaEvents = hasVersionAdvanced
+      ? gameState.events.slice(hudCursorRef.current.eventCount)
+      : []
+
+    hudCursorRef.current = { version: gameState.version, eventCount: gameState.events.length }
+
+    const hasMotionAnimation = deltaEvents.some(
+      (event) => event.type === 'token_moved' || event.type === 'token_captured',
+    )
+
+    if (isPresentingDice) {
+      return
+    }
+
+    if (!hasMotionAnimation) {
+      if (hudCommitTimerRef.current) {
+        window.clearTimeout(hudCommitTimerRef.current)
+        hudCommitTimerRef.current = null
+      }
+      setDisplayedTurnPlayerId(gameState.turn.currentPlayerId)
+      setDisplayedFinishOrderIds(finishOrderIds)
+      return
+    }
+
+    const latestMoveEvent = [...deltaEvents]
+      .reverse()
+      .find((event) => event.type === 'token_moved')
+    const pathLength = Array.isArray(latestMoveEvent?.details?.path)
+      ? latestMoveEvent.details.path.length
+      : 0
+    const hasCapture = deltaEvents.some((event) => event.type === 'token_captured')
+    const movementDelayMs = Math.max(Math.max(1, pathLength) * 300, hasCapture ? 800 : 0) + 150
+
+    if (hudCommitTimerRef.current) {
+      window.clearTimeout(hudCommitTimerRef.current)
+      hudCommitTimerRef.current = null
+    }
+
+    const nextTurnPlayerId = gameState.turn.currentPlayerId
+    const nextFinishOrderIds = [...finishOrderIds]
+    hudCommitTimerRef.current = window.setTimeout(() => {
+      setDisplayedTurnPlayerId(nextTurnPlayerId)
+      setDisplayedFinishOrderIds(nextFinishOrderIds)
+      hudCommitTimerRef.current = null
+    }, movementDelayMs)
+  }, [finishOrderIds, gameState.events, gameState.turn.currentPlayerId, gameState.version, isPresentingDice])
+
+  const showBannerOnce = (text: string) => {
+    if (bannerHideTimerRef.current) {
+      window.clearTimeout(bannerHideTimerRef.current)
+      bannerHideTimerRef.current = null
+    }
+    setBannerText(text)
+    setShowYourTurnBanner(true)
+    bannerHideTimerRef.current = window.setTimeout(() => {
+      setShowYourTurnBanner(false)
+      bannerHideTimerRef.current = null
+    }, 1000)
+  }
+
+  const showTurnBannerAndRollSync = (text: string) => {
+    showBannerOnce(text)
+    if (canRollRef.current) {
+      setShowRollButton(true)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -227,10 +344,115 @@ export default function GameView({
     onSelectMove,
   ])
 
+  useEffect(() => {
+    canRollRef.current = canRoll
+    if (!canRoll) {
+      setShowRollButton(false)
+      return
+    }
+    if (!isSequencingRoll) {
+      setShowRollButton(true)
+    }
+  }, [canRoll, isSequencingRoll])
+
+  useEffect(() => {
+    const presentationJustFinished = wasPresentingRef.current && !isPresentingDice
+    wasPresentingRef.current = isPresentingDice
+    if (!presentationJustFinished) return
+
+    if (bannerHideTimerRef.current) {
+      window.clearTimeout(bannerHideTimerRef.current)
+      bannerHideTimerRef.current = null
+    }
+    if (rollShowTimerRef.current) {
+      window.clearTimeout(rollShowTimerRef.current)
+      rollShowTimerRef.current = null
+    }
+
+    const shouldShowBanner = isMyTurn && gameState.status === 'playing'
+    if (shouldShowBanner) {
+      const isChoosingMove =
+        gameState.turn.phase === 'waiting_choice' && gameState.turn.legalMoves.length > 1
+      showTurnBannerAndRollSync(isChoosingMove ? '✦ HÃY CHỌN NƯỚC ĐI ✦' : '✦ ĐẾN LƯỢT CỦA BẠN ✦')
+    }
+
+    if (isSequencingRoll) {
+      const revealDelay = 1000
+      rollShowTimerRef.current = window.setTimeout(() => {
+        if (canRollRef.current) {
+          setShowRollButton(true)
+        }
+        setIsSequencingRoll(false)
+        rollShowTimerRef.current = null
+      }, revealDelay)
+    }
+  }, [
+    gameState.status,
+    gameState.turn.legalMoves.length,
+    gameState.turn.phase,
+    isMyTurn,
+    isPresentingDice,
+    isSequencingRoll,
+  ])
+
+  useEffect(() => {
+    if (!localPlayer || gameState.status !== 'playing') return
+
+    const latestTurnAdvanced = [...gameState.events]
+      .reverse()
+      .find((event) => event.type === 'turn_advanced')
+    if (!latestTurnAdvanced) return
+
+    const marker = `${latestTurnAdvanced.timestamp}:${gameState.version}`
+    if (marker === seenTurnAdvanceRef.current) return
+    seenTurnAdvanceRef.current = marker
+
+    const nextPlayerId =
+      typeof latestTurnAdvanced.details?.nextPlayerId === 'string'
+        ? latestTurnAdvanced.details.nextPlayerId
+        : null
+    if (nextPlayerId !== localPlayer.id) return
+    if (isPresentingDice) return
+
+    const latestMoveEvent = [...gameState.events]
+      .reverse()
+      .find((event) => event.type === 'token_moved')
+    const pathLength = Array.isArray(latestMoveEvent?.details?.path)
+      ? latestMoveEvent.details.path.length
+      : 0
+    const movementDelayMs = Math.max(1, pathLength) * 300 + 150
+
+    if (moveBannerTimerRef.current) {
+      window.clearTimeout(moveBannerTimerRef.current)
+      moveBannerTimerRef.current = null
+    }
+    moveBannerTimerRef.current = window.setTimeout(() => {
+      if (currentTurnPlayerIdRef.current !== localPlayerIdRef.current) return
+      showTurnBannerAndRollSync('✦ ĐẾN LƯỢT CỦA BẠN ✦')
+      moveBannerTimerRef.current = null
+    }, movementDelayMs)
+  }, [gameState.events, gameState.status, gameState.turn.currentPlayerId, gameState.version, isPresentingDice, localPlayer])
+
+  useEffect(
+    () => () => {
+      if (bannerHideTimerRef.current) window.clearTimeout(bannerHideTimerRef.current)
+      if (rollShowTimerRef.current) window.clearTimeout(rollShowTimerRef.current)
+      if (moveBannerTimerRef.current) window.clearTimeout(moveBannerTimerRef.current)
+      if (hudCommitTimerRef.current) window.clearTimeout(hudCommitTimerRef.current)
+    },
+    [],
+  )
+
   const handleSelectToken = (tokenId: string) => {
     if (isPresentingDice || !isWaitingChoice) return
     const moveId = moveIdByTokenId.get(tokenId)
     if (moveId) onSelectMove(moveId)
+  }
+
+  const handleRollClick = () => {
+    setShowRollButton(false)
+    setIsSequencingRoll(true)
+    onRoll()
   }
 
   return (
@@ -241,6 +463,7 @@ export default function GameView({
         gameState={gameState}
         rollTrigger={rollTrigger}
         selectableTokenIds={selectableTokenIds}
+        hoveredTokenId={hoveredMoveTokenId}
         onSelectToken={handleSelectToken}
         freezeTokenAnimations={isPresentingDice}
         editorData={editorData}
@@ -251,66 +474,35 @@ export default function GameView({
         setEditorMouseMode={setEditorMouseMode}
       />
 
-      <div className="absolute left-4 top-4 z-30 flex flex-col gap-2">
-        <Link
-          to={backHref}
-          className="inline-flex items-center rounded-lg border border-white/20 bg-black/35 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-black/50"
-        >
-          {gameState.status === 'finished' ? 'Ve lobby' : 'Back'}
-        </Link>
-        {banner ? (
-          <div className="rounded-lg border border-cyan-500/30 bg-cyan-950/50 px-3 py-1 text-xs text-cyan-100">
-            {banner}
-          </div>
-        ) : null}
-        {error ? (
-          <div className="rounded-lg border border-red-500/40 bg-red-950/60 px-3 py-1 text-xs text-red-200">
-            {error}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="absolute left-4 top-28 z-30">
-        <button
-          type="button"
-          disabled={
-            !canRoll ||
-            isPresentingDice ||
-            gameState.turn.phase !== 'waiting_roll' ||
-            gameState.status === 'finished'
-          }
-          onClick={onRoll}
-          className="inline-flex items-center rounded-lg border border-amber-300/35 bg-amber-400/20 px-4 py-2 text-sm font-semibold text-amber-50 backdrop-blur-sm hover:bg-amber-300/30 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Tung xuc xac
-        </button>
-        <div className="mt-2 rounded-lg border border-white/10 bg-slate-950/65 px-3 py-2 text-xs text-slate-200 backdrop-blur-sm">
-          <div>Lượt: {myPlayer?.name ?? 'n/a'}</div>
-          <div>Phase: {gameState.turn.phase}</div>
-          <div>Dice: {displayDice ?? '-'}</div>
-          {gameState.status === 'finished' ? (
-            <div className="mt-1 text-emerald-300">Game ket thuc</div>
-          ) : null}
+      <div className="pointer-events-none absolute inset-0 z-10">
+        <div className="pointer-events-auto absolute left-4 top-4">
+          <Link
+            to={backHref}
+            className="rounded-xl bg-white/70 px-3 py-1 text-sm font-semibold text-gray-700 shadow backdrop-blur-sm transition-all hover:bg-white/90"
+          >
+            {gameState.status === 'finished' ? 'Ve lobby' : 'Back'}
+          </Link>
         </div>
-      </div>
-
-      <div className="absolute left-4 top-[240px] z-30 w-[240px] rounded-lg border border-white/15 bg-slate-900/80 px-3 py-3 text-xs text-slate-100 backdrop-blur-sm">
-        <div className="mb-2 text-sm font-semibold text-emerald-200">Thu tu ve dich</div>
-        {finishOrder.length === 0 ? (
-          <div className="text-slate-300">Chua co nguoi ve dich</div>
-        ) : (
-          <div className="space-y-1">
-            {finishOrder.map((player, index) => (
-              <div
-                key={player.id}
-                className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 px-2 py-1"
-              >
-                <span>#{index + 1}</span>
-                <span>{player.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <CurrentTurnPanel player={displayedTurnPlayer} isLocalTurn={isMyTurn} />
+        <MyPlayerPanel player={localPlayer} />
+        <FinishOrderPanel players={displayedFinishOrder} />
+        <YourTurnBanner
+          visible={showYourTurnBanner}
+          color={localPlayer?.color ?? 'red'}
+          text={bannerText}
+        />
+        <RollDiceButton
+          visible={showRollButton && canRoll && gameState.status !== 'finished'}
+          color={localPlayer?.color ?? 'red'}
+          onClick={handleRollClick}
+        />
+        <MoveSelectionPanel
+          visible={isWaitingChoice && gameState.status === 'playing'}
+          moves={gameState.turn.legalMoves}
+          hoveredTokenId={hoveredMoveTokenId}
+          onHoverToken={setHoveredMoveTokenId}
+          onSelectMove={onSelectMove}
+        />
       </div>
 
       {showDevMenu ? (

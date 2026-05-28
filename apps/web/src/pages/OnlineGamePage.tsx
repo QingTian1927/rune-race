@@ -8,7 +8,7 @@ export default function OnlineGamePage() {
   const { playerId, accessToken } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
 
-  const { gameState, error, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
+  const { gameState, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
     useGameSocket(gameId ?? '', playerId, accessToken)
 
   if (!gameId) {
@@ -23,7 +23,6 @@ export default function OnlineGamePage() {
     )
   }
 
-  const me = gameState.players.find((p) => p.id === playerId)
   const isMyTurn = gameState.turn.currentPlayerId === playerId
   const canRoll =
     isMyTurn &&
@@ -38,8 +37,6 @@ export default function OnlineGamePage() {
       onRoll={roll}
       onSelectMove={chooseMove}
       backHref={lobbyId ? `/lobby/${lobbyId}` : '/'}
-      error={error}
-      banner={me ? (isMyTurn ? 'Luot cua ban' : 'Cho luot doi thu') : undefined}
       canRoll={canRoll}
       isPresentingDice={isPresentingDice}
       localPlayerId={playerId}
