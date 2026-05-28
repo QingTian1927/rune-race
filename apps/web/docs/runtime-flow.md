@@ -23,8 +23,8 @@
 4. Server snapshot with delta `dice_roll` (+ maybe `token_moved` if auto-resolved):
    - Increment `rollTrigger` → `DiceShaker` animates.
    - Tokens frozen until animation completes.
-5. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on my pawns only → `game:choose_move`.
-6. **Finished:** `GameState.status === 'finished'`; show winner / finish order.
+5. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only (no HUD move list) → `game:choose_move`.
+6. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
 
 ## Local game flow (`LocalGamePage`)
 
@@ -64,9 +64,42 @@ Aligned with `@rune-race/game-engine`:
 - Game ends when **all but one** player have finished
 - Finished players skipped in turn order
 
+## HUD timing
+
+The HUD separates **authoritative** game state (rolls, banners, `canRoll`) from **displayed** profile panels (current turn, finish order).
+
+### Authoritative (immediate)
+
+- `isMyTurn` for banner eligibility uses `gameState.turn.currentPlayerId === localPlayer.id`.
+- Roll button hides as soon as the player clicks roll.
+- `isPresentingDice` blocks roll/choose emits via `useGameSocket`.
+
+### Delayed display (current turn + finish order)
+
+`GameView` keeps `displayedTurnPlayerId` and `displayedFinishOrderIds`:
+
+1. On snapshot version bump, inspect **delta** events (same cursor pattern as `tokenMotion.ts`).
+2. While `isPresentingDice` is true (dice shaker gate), **do not** update these panels.
+3. If delta includes `token_moved` / `token_captured`, wait ~`pathLength × 300ms` (+ capture buffer) then commit UI.
+4. Otherwise commit immediately.
+
+This prevents the “current turn” chip and finish list from jumping ahead of pawn animations.
+
+### Banner + roll button after roll
+
+Rough sequence when the local player rolls:
+
+1. Click roll → roll button hidden.
+2. `isPresentingDice` true → dice animation (~2.96s); tokens frozen.
+3. Full snapshot applied → token motion runs from delta.
+4. If still local turn: `YourTurnBanner` may show (e.g. `HÃY CHỌN NƯỚC ĐI` when multiple legal moves, or `ĐẾN LƯỢT CỦA BẠN` when turn starts).
+5. After presentation, roll button can reappear after a **1s** buffer if `canRoll` is still true.
+
+When turn advances to the local player via `turn_advanced`, banner timing waits for the last move animation duration before showing.
+
 ## Camera / editor
 
-- Default: `OrbitControls` on gameplay viewport.
+- Default: `OrbitControls` on gameplay viewport; FOV **28**, orbit distance **5.0–7.2** (see `BoardScene` `CAMERA_CONFIG`).
 - Editor active + mouse mode `draw`: controls locked for layout editing.
 - Editor data loaded from `data/board-layout.json` in `GameView` (does not override server board).
 

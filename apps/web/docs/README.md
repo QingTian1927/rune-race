@@ -32,10 +32,11 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, profile/
 ## Rendering capabilities
 
 - 3D board, houses, pawns with path animation
-- Move selection: camera-facing arrows on **local player's** pawns only (online)
+- **Gameplay HUD** (warm glass-style overlay): current turn, local player, finish order, turn banner, roll button — see [Architecture → GameView](./architecture.md#gameview)
+- Move selection: camera-facing arrows on pawns only (**no** move list UI); online restricts selection to **local player**
 - Dice shaker (bucket + die) with presentation gate before token moves
+- HUD profile panels delayed until dice/token animations complete
 - Board editor (layout JSON export)
-- Finish-order panel from `token_finished` events
 - Profile pages with public view and owner-only edit
 - Anonymous sign-in flow with guest profile support
 
@@ -55,9 +56,12 @@ apps/web/src/
 │   ├── OnlineGamePage.tsx
 │   └── LocalGamePage.tsx
 ├── components/
-│   ├── GameView.tsx        # HUD + BoardScene shell
+│   ├── GameView.tsx        # HUD shell + presentation timing
+│   ├── hud/                # CurrentTurnPanel, MyPlayerPanel, FinishOrderPanel, …
 │   ├── BoardPieces.tsx
 │   └── DiceShaker.tsx
+├── scenes/
+│   └── BoardScene.tsx      # Canvas, camera, OrbitControls
 ├── hooks/
 │   ├── useLobbySocket.ts
 │   ├── useGameSocket.ts

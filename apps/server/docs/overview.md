@@ -34,6 +34,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 - **Game end:** when **all but one** player have finished (`finishedCount >= playerCount - 1`). The last player does not need to keep playing.
 - **Auth:** when present, the socket handshake token is verified against Supabase and used to bind the socket to that user id.
 - Clients must **not** mutate authoritative state; use snapshots + delta `events` for animation only.
+- **Client HUD** (turn panels, banners, roll button) is derived locally; see [Client integration](./client-integration.md#client-hud-reference).
 
 ## Shared contracts
 

@@ -46,8 +46,9 @@ How the **web app** (`apps/web`) connects to this server today.
 4. `sessionStorage.setItem('rune-race-lobby-id', lobbyId)`; navigate to `/game/:gameId`.
 5. `game:join`; render from `game:state_snapshot`.
 6. On roll snapshot with `dice_roll` in delta: run dice animation (~3s), then apply full state (see web `lib/dicePresentation.ts`).
-7. If `waiting_choice` and multiple moves: show arrows **only for `localPlayerId`** (current client).
+7. If `waiting_choice` and multiple moves: show 3D selection arrows **only for `localPlayerId`** (current client). There is no separate move-list HUD; the client sends `game:choose_move` with the chosen `moveId`.
 8. `game:roll` / `game:choose_move` only when it is this player's turn.
+9. **HUD timing (client-only):** current-turn and finish-order panels should update after dice/token animations, not on the raw snapshot tick. Banner/roll visibility uses authoritative turn id + `isPresentingDice` gate (~3s on roll).
 
 ## Profile flow
 
@@ -75,7 +76,12 @@ How the **web app** (`apps/web`) connects to this server today.
 - Do not treat client-derived legal moves as truth online.
 - Do not animate token moves from full `events` history on every snapshot — use delta + `tokenMotion.ts` version cursor.
 - Do not show opponent move-selection arrows to all clients — pass `localPlayerId` into `GameView`.
+- Do not add server events for HUD-only concerns (finish-order panel collapse, banner text, etc.) unless the gameplay contract changes.
 - Do not assume profile ownership from `playerId` alone when a Supabase session is present; use the access token and server-side auth.
+
+## Client HUD (reference)
+
+The web client documents the overlay in [Web architecture — GameView](../../web/docs/architecture.md#gameview) and [Runtime flow — HUD timing](../../web/docs/runtime-flow.md#hud-timing). Server behavior is unchanged; snapshots + delta `events` remain the only inputs.
 
 ## Related web docs
 

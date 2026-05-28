@@ -28,7 +28,20 @@ Pages (Home, Lobby, Online, Local)
             → DiceShaker (roll presentation)
 ```
 
-**Editor** (optional F3 / panel): `BoardEditor`, `BoardEditorInputHandler`, `BoardEditorVisualization` — local layout state, not sent to server in MVP.
+**Editor** (optional F3 dev menu): `BoardEditor`, `BoardEditorInputHandler`, `BoardEditorVisualization` — local layout state, not sent to server in MVP.
+
+### `BoardScene` (camera)
+
+Gameplay camera is configured in `CAMERA_CONFIG` inside `BoardScene.tsx`:
+
+| Setting | Value (current) | Notes |
+|---------|-----------------|--------|
+| FOV | 28 | Lower = more zoomed in |
+| Orbit distance | 5.0 – 7.2 | Scroll zoom range |
+| Default position | ~7.2 from target | Closer default than earlier builds |
+| Pan bounds | Clamped X/Y/Z box | `AdaptiveControlsBehavior` enforces limits while playing |
+
+Editor mode unlocks wider orbit distance and disables gameplay pan clamps.
 
 ## Rendering components
 
@@ -49,12 +62,40 @@ Phases: `appearing → shaking → lifting → revealing → finished`. Timings 
 
 ### `GameView`
 
-Shared shell for local and online:
+Shared shell for local and online: 3D viewport + warm glass HUD overlay + optional dev/editor chrome.
 
-- Roll button, phase/dice HUD, finish-order list
-- Props: `canRoll`, `localPlayerId`, `isPresentingDice`, `autoResolveRolled` (local only)
-- Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`
-- Receives the current player identity from `usePlayerIdentity()` through the page layer, not directly from localStorage anymore.
+**Props**
+
+| Prop | Role |
+|------|------|
+| `canRoll` | Page computes: my turn + `waiting_roll` + not presenting dice + game playing |
+| `localPlayerId` | Online: restricts move-selection arrows to this client |
+| `isPresentingDice` | From `usePresentationGameState`; gates token motion and parts of HUD timing |
+| `autoResolveRolled` | Local only: auto-pick sole legal move after dice gate |
+
+Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`. Player identity comes from the page layer (`usePlayerIdentity()`), not from `localStorage` directly.
+
+**HUD overlay** (`components/hud/`)
+
+All panels sit in `absolute inset-0 pointer-events-none`; buttons and links use `pointer-events-auto`.
+
+| Component | Position | Behavior |
+|-----------|----------|----------|
+| `CurrentTurnPanel` | Top-left (below back link) | Whose turn it is; collapsible (SVG chevron). Highlights local player with color ring when `isLocalTurn`. **Display** uses delayed state so the label does not change until dice/token animations finish. |
+| `MyPlayerPanel` | Bottom-right | Local client identity (`BẠN`); collapsible. |
+| `FinishOrderPanel` | Top-right | Ranked finishers from `token_finished` events; hidden until ≥1 finisher; collapsible. **Display** list is delayed like current-turn panel. |
+| `YourTurnBanner` | Center (~30% from top) | Short auto-dismiss (~1s). Shown after presentation completes when it is the local player's turn, or after turn advances to local player. Synced with roll button reveal when applicable. Uses authoritative `gameState.turn.currentPlayerId` for ownership (not delayed HUD state). |
+| `RollDiceButton` | Bottom-center | Visible when `canRoll`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. |
+
+Shared helpers: `PlayerBadge`, `playerColorStyles` (static Tailwind color map for `PlayerColor`), `PanelCollapseButton` (SVG chevron, no text labels).
+
+**Move selection**
+
+There is **no** on-screen list of legal moves. When `waiting_choice` with multiple `legalMoves`, `BoardPieces` shows arrows on selectable pawns; click resolves via `onSelectMove`. Online: only tokens belonging to `localPlayerId` are selectable.
+
+**Dev (F3)**
+
+Camera / game debug / editor toggle — separate from gameplay HUD.
 
 ## Hooks
 

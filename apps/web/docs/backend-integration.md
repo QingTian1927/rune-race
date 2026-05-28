@@ -82,10 +82,23 @@ Do not defer turn separately from tokens (causes desync); use `createGatedDispla
 
 `OnlineGamePage` passes to `GameView`:
 
-- `canRoll` — my turn + `waiting_roll` + not presenting dice
-- `localPlayerId={playerId}` — move arrows only for current client when choosing
+| Input | Rule |
+|-------|------|
+| `canRoll` | `turn.currentPlayerId === playerId` + `waiting_roll` + `!isPresentingDice` + `status === 'playing'` |
+| `localPlayerId` | Move-selection arrows only for this client's pawns when `waiting_choice` with multiple moves |
+| `isPresentingDice` | From `useGameSocket` / `usePresentationGameState`; freezes tokens and delays HUD turn/finish panels |
 
-Opponents see the board update after snapshots but not selection chrome.
+Opponents see board updates from snapshots but not selection arrows or roll button.
+
+**HUD vs server**
+
+The server does not drive HUD text or layout. Clients derive:
+
+- Finish order from `token_finished` events in snapshot history
+- Current turn label from `turn.currentPlayerId` (display delayed after animations)
+- Turn banner from local turn ownership + phase (`waiting_choice` vs `waiting_roll`)
+
+There is no socket field for “show move list”; multiple moves are chosen via `game:choose_move` after the player picks a pawn on the board.
 
 ## Environment
 
