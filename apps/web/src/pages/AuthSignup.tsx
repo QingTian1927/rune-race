@@ -2,6 +2,20 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { linkAnonProfile } from '../lib/api'
+import {
+  gameAlertError,
+  gameAlertSuccess,
+  gameAuthFooter,
+  gameBtnPrimary,
+  gameContainerForm,
+  gameInput,
+  gameLabel,
+  gameNavLink,
+  gamePage,
+  gamePanel,
+  gameTagline,
+  gameTitle,
+} from '../lib/gameUiStyles'
 
 export default function AuthSignupPage() {
   const navigate = useNavigate()
@@ -41,7 +55,7 @@ export default function AuthSignupPage() {
         return
       }
 
-      setInfo('Please check your email to confirm and then log in.')
+      setInfo('Vui lòng kiểm tra email để xác nhận, sau đó đăng nhập.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
@@ -50,68 +64,82 @@ export default function AuthSignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-md px-6 py-12">
-        <Link to="/" className="text-xs text-slate-400 hover:text-white">
-          ← Trang chu
+    <div className={gamePage}>
+      <div className={gameContainerForm}>
+        <Link to="/" className={gameNavLink}>
+          ← Trang chủ
         </Link>
 
-        <h1 className="mt-4 text-3xl font-bold">Sign up</h1>
-        <p className="mt-1 text-sm text-slate-400">Tao tai khoan de luu tien trinh</p>
+        <section className={`mt-6 ${gamePanel}`}>
+          <h1 className={gameTitle}>Đăng ký</h1>
+          <p className={`mt-1 ${gameTagline}`}>Tạo tài khoản để lưu tiến trình</p>
 
-        {error ? (
-          <div className="mt-4 rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-2 text-sm text-red-200">
-            {error}
+          {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
+          {info ? <div className={`mt-4 ${gameAlertSuccess}`}>{info}</div> : null}
+
+          <div className="mt-5 space-y-4">
+            <div>
+              <label htmlFor="signup-name" className={gameLabel}>
+                Tên hiển thị
+              </label>
+              <input
+                id="signup-name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className={`mt-1.5 ${gameInput}`}
+              />
+            </div>
+            <div>
+              <label htmlFor="signup-email" className={gameLabel}>
+                Email
+              </label>
+              <input
+                id="signup-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`mt-1.5 ${gameInput}`}
+              />
+            </div>
+            <div>
+              <label htmlFor="signup-phone" className={gameLabel}>
+                Số điện thoại (tùy chọn)
+              </label>
+              <input
+                id="signup-phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className={`mt-1.5 ${gameInput}`}
+              />
+            </div>
+            <div>
+              <label htmlFor="signup-password" className={gameLabel}>
+                Mật khẩu
+              </label>
+              <input
+                id="signup-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`mt-1.5 ${gameInput}`}
+              />
+            </div>
           </div>
-        ) : null}
 
-        {info ? (
-          <div className="mt-4 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-4 py-2 text-sm text-emerald-200">
-            {info}
-          </div>
-        ) : null}
-
-        <div className="mt-6 space-y-3">
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Display name"
-            className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-          />
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-          />
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="Phone (optional)"
-            className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-          />
           <button
             type="button"
             disabled={busy || !email || !password || !displayName.trim()}
             onClick={handleSignup}
-            className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold disabled:opacity-50"
+            className={`mt-5 ${gameBtnPrimary}`}
           >
-            Create account
+            Tạo tài khoản
           </button>
-        </div>
+        </section>
 
-        <p className="mt-6 text-xs text-slate-400">
-          Da co tai khoan?{' '}
-          <Link to="/auth/login" className="underline">
-            Login
+        <p className={`mt-6 text-center ${gameAuthFooter}`}>
+          Đã có tài khoản?{' '}
+          <Link to="/auth/login" className="font-semibold text-stone-700 hover:text-stone-900">
+            Đăng nhập
           </Link>
         </p>
       </div>

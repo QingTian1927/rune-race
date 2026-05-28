@@ -1,15 +1,45 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
+import { PlayerBadge } from '../components/hud/PlayerBadge'
 import { useLobbySocket } from '../hooks/useLobbySocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { getSocket } from '../lib/socket'
+import {
+  gameAlertError,
+  gameBtnDestructive,
+  gameBtnGhost,
+  gameBtnGhostFull,
+  gameBtnPrimary,
+  gameContainerWide,
+  gameEmptySlot,
+  gameInput,
+  gameLabel,
+  gameListRow,
+  gameMeta,
+  gameNavLink,
+  gamePage,
+  gamePanel,
+  gameRoomCodeBadge,
+  gameSectionTitle,
+  gameTagline,
+  gameTitle,
+} from '../lib/gameUiStyles'
 
-const COLOR_STYLES: Record<PlayerColor, string> = {
-  red: 'bg-red-600 ring-red-300',
-  blue: 'bg-blue-600 ring-blue-300',
-  green: 'bg-green-600 ring-green-300',
-  yellow: 'bg-yellow-500 ring-yellow-300 text-slate-900',
+const COLOR_PICKER: Record<PlayerColor, string> = {
+  red: 'bg-red-600 ring-red-400',
+  blue: 'bg-blue-600 ring-blue-400',
+  green: 'bg-green-600 ring-green-400',
+  yellow: 'bg-yellow-500 ring-yellow-400',
+}
+
+function CopyIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
 }
 
 export default function LobbyPage() {
@@ -17,6 +47,7 @@ export default function LobbyPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const password = (location.state as { password?: string } | null)?.password
+  const [copied, setCopied] = useState(false)
 
   const { playerId, playerName, accessToken } = usePlayerIdentity()
 
@@ -55,12 +86,30 @@ export default function LobbyPage() {
     }
   }, [snapshot?.status, snapshot?.currentGameId, snapshot?.lobbyId, navigate])
 
+  const copyJoinCode = async () => {
+    if (!snapshot?.joinCode) return
+    try {
+      await navigator.clipboard.writeText(snapshot.joinCode)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // ignore
+    }
+  }
+
   if (!lobbyId) {
-    return <div className="p-8 text-white">Invalid lobby</div>
+    return (
+      <div className={`${gamePage} p-8`}>
+        <p className={gameTagline}>Invalid lobby</p>
+      </div>
+    )
   }
 
   const me = snapshot?.players.find((p) => p.id === playerId)
   const isHost = me?.isHost ?? false
+  const maxPlayers = snapshot?.settings.maxPlayers ?? 4
+  const players = snapshot?.players ?? []
+  const emptySlotCount = Math.max(0, maxPlayers - players.length)
 
   const handleLeave = () => {
     leave()
@@ -68,18 +117,30 @@ export default function LobbyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-lg px-6 py-10">
-        <Link to="/" className="text-sm text-slate-400 hover:text-white">
+    <div className={gamePage}>
+      <div className={gameContainerWide}>
+        <Link to="/" className={gameNavLink}>
           ← Trang chủ
         </Link>
 
         <header className="mt-4">
-          <h1 className="text-2xl font-bold">{snapshot?.settings.name ?? 'Lobby'}</h1>
-          <p className="mt-1 font-mono text-sm text-cyan-400">
-            Mã phòng: {snapshot?.joinCode ?? '...'}
-          </p>
-          <p className="text-xs text-slate-500">
+          <h1 className={gameTitle}>{snapshot?.settings.name ?? 'Lobby'}</h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className={gameRoomCodeBadge}>{snapshot?.joinCode ?? '...'}</span>
+            <button
+              type="button"
+              onClick={copyJoinCode}
+              className={`${gameBtnGhost} px-3 py-1.5`}
+              aria-label="Sao chép mã phòng"
+              title={copied ? 'Đã sao chép' : 'Sao chép'}
+            >
+              <span className="flex items-center gap-1.5">
+                <CopyIcon />
+                {copied ? 'Đã copy' : 'Copy'}
+              </span>
+            </button>
+          </div>
+          <p className={`mt-2 ${gameMeta}`}>
             {connected ? 'Đã kết nối' : 'Đang kết nối...'}
             {snapshot?.status === 'countdown' && snapshot.countdownSeconds !== null
               ? ` · Bắt đầu sau ${snapshot.countdownSeconds}s`
@@ -87,47 +148,51 @@ export default function LobbyPage() {
           </p>
         </header>
 
-        {error ? (
-          <div className="mt-4 rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-2 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
+        {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
 
-        <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">Người chơi</h2>
+        <section className={`mt-6 ${gamePanel}`}>
+          <h2 className={`mb-3 ${gameSectionTitle}`}>Người chơi</h2>
           <ul className="space-y-2">
-            {(snapshot?.players ?? []).map((player) => (
-              <li
-                key={player.id}
-                className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2"
-              >
-                <div>
-                  <Link to={`/profile/${player.id}`} className="font-medium hover:underline">
-                    {player.name}
-                  </Link>
-                  {player.isHost ? (
-                    <span className="ml-2 text-xs text-amber-400">Host</span>
-                  ) : null}
-                  {!player.connected ? (
-                    <span className="ml-2 text-xs text-slate-500">Offline</span>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-2">
+            {players.map((player) => (
+              <li key={player.id} className={gameListRow}>
+                <div className="flex min-w-0 items-center gap-3">
                   {player.color ? (
-                    <span
-                      className={`h-4 w-4 rounded-full ${COLOR_STYLES[player.color].split(' ')[0]}`}
-                    />
+                    <PlayerBadge color={player.color} />
                   ) : (
-                    <span className="text-xs text-slate-500">Chưa chọn màu</span>
+                    <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300 bg-white/40" />
                   )}
+                  <div className="min-w-0">
+                    <Link
+                      to={`/profile/${player.id}`}
+                      className="truncate text-sm font-bold text-stone-800 hover:underline"
+                    >
+                      {player.name}
+                    </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {player.isHost ? (
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                          Host
+                        </span>
+                      ) : null}
+                      {!player.connected ? (
+                        <span className={gameMeta}>Offline</span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
                   {player.ready ? (
-                    <span className="text-xs text-emerald-400">Ready</span>
-                  ) : null}
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+                      Sẵn sàng
+                    </span>
+                  ) : (
+                    <span className={gameMeta}>Chờ...</span>
+                  )}
                   {isHost && player.id !== playerId && snapshot?.status === 'lobby' ? (
                     <button
                       type="button"
                       onClick={() => kick(player.id)}
-                      className="text-xs text-red-400 hover:underline"
+                      className={gameBtnDestructive}
                     >
                       Kick
                     </button>
@@ -135,13 +200,19 @@ export default function LobbyPage() {
                 </div>
               </li>
             ))}
+            {Array.from({ length: emptySlotCount }, (_, i) => (
+              <li key={`empty-${i}`} className={gameEmptySlot}>
+                <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300/80" />
+                <span>Chỗ trống</span>
+              </li>
+            ))}
           </ul>
         </section>
 
         {snapshot?.status === 'lobby' || snapshot?.status === 'countdown' ? (
           <>
-            <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-              <h2 className="mb-3 text-sm font-semibold text-slate-300">Chọn màu</h2>
+            <section className={`mt-4 ${gamePanel}`}>
+              <h2 className={`mb-3 ${gameSectionTitle}`}>Chọn màu</h2>
               <div className="flex flex-wrap gap-3">
                 {PLAYER_COLORS.map((color) => {
                   const taken = snapshot?.takenColors.includes(color)
@@ -152,8 +223,8 @@ export default function LobbyPage() {
                       type="button"
                       disabled={taken && !selected}
                       onClick={() => setColor(color)}
-                      className={`h-12 w-12 rounded-full ring-2 ring-offset-2 ring-offset-slate-900 ${COLOR_STYLES[color]} ${
-                        selected ? 'ring-white' : 'ring-transparent opacity-80'
+                      className={`h-12 w-12 rounded-full ring-2 ring-offset-1 ring-offset-amber-50 ${COLOR_PICKER[color]} ${
+                        selected ? 'ring-stone-700' : 'ring-transparent opacity-80'
                       } disabled:cursor-not-allowed disabled:opacity-30`}
                       title={color}
                     />
@@ -162,45 +233,38 @@ export default function LobbyPage() {
               </div>
             </section>
 
-            <section className="mt-6 flex gap-3">
-              <button
-                type="button"
-                disabled={!me?.color}
-                onClick={() => setReady(!me?.ready)}
-                className="flex-1 rounded-lg bg-emerald-600 py-3 font-semibold hover:bg-emerald-500 disabled:opacity-40"
-              >
-                {me?.ready ? 'Hủy ready' : 'Sẵn sàng'}
-              </button>
-              <button
-                type="button"
-                onClick={handleLeave}
-                className="rounded-lg border border-slate-600 px-4 py-3 text-sm hover:bg-slate-800"
-              >
-                Rời phòng
-              </button>
-            </section>
-
-            {isHost && snapshot?.status === 'countdown' ? (
-              <button
-                type="button"
-                onClick={cancelCountdown}
-                className="mt-4 w-full rounded-lg border border-amber-500/50 py-2 text-sm text-amber-200 hover:bg-amber-950/40"
-              >
-                Hủy đếm ngược (host)
-              </button>
-            ) : null}
-
             {isHost ? (
               <HostPanel
                 onUpdateSettings={updateSettings}
                 onTransferHost={transferHost}
-                players={snapshot?.players ?? []}
+                players={players}
                 currentName={snapshot?.settings.name ?? ''}
               />
             ) : null}
+
+            <div className="mt-6 space-y-2">
+              <button
+                type="button"
+                disabled={!me?.color}
+                onClick={() => setReady(!me?.ready)}
+                className={gameBtnPrimary}
+              >
+                {me?.ready ? 'Hủy sẵn sàng' : 'Sẵn sàng'}
+              </button>
+
+              {isHost && snapshot?.status === 'countdown' ? (
+                <button type="button" onClick={cancelCountdown} className={gameBtnPrimary}>
+                  Hủy đếm ngược
+                </button>
+              ) : null}
+
+              <button type="button" onClick={handleLeave} className={gameBtnGhostFull}>
+                Rời phòng
+              </button>
+            </div>
           </>
         ) : (
-          <p className="mt-6 text-center text-slate-400">Đang chuyển vào game...</p>
+          <p className={`mt-6 text-center ${gameTagline}`}>Đang chuyển vào game...</p>
         )}
       </div>
     </div>
@@ -219,42 +283,51 @@ function HostPanel({
   currentName: string
 }) {
   return (
-    <section className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-950/20 p-5">
-      <h2 className="text-sm font-semibold text-amber-200">Host</h2>
+    <section className={`mt-4 ${gamePanel}`}>
+      <h2 className={gameSectionTitle}>Cài đặt host</h2>
       <div className="mt-3 space-y-2">
-        <input
-          id="host-room-name"
-          defaultValue={currentName}
-          placeholder="Tên phòng"
-          className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-          onBlur={(e) => {
-            if (e.target.value.trim()) onUpdateSettings({ name: e.target.value.trim() })
-          }}
-        />
-        <input
-          id="host-room-password"
-          type="password"
-          placeholder="Mật khẩu mới"
-          className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-          onBlur={(e) => {
-            if (e.target.value) onUpdateSettings({ password: e.target.value })
-          }}
-        />
+        <div>
+          <label htmlFor="host-room-name" className={gameLabel}>
+            Tên phòng
+          </label>
+          <input
+            id="host-room-name"
+            defaultValue={currentName}
+            className={`mt-1.5 ${gameInput}`}
+            onBlur={(e) => {
+              if (e.target.value.trim()) onUpdateSettings({ name: e.target.value.trim() })
+            }}
+          />
+        </div>
+        <div>
+          <label htmlFor="host-room-password" className={gameLabel}>
+            Mật khẩu mới
+          </label>
+          <input
+            id="host-room-password"
+            type="password"
+            placeholder="Để trống nếu không đổi"
+            className={`mt-1.5 ${gameInput}`}
+            onBlur={(e) => {
+              if (e.target.value) onUpdateSettings({ password: e.target.value })
+            }}
+          />
+        </div>
         <button
           type="button"
           onClick={() => onUpdateSettings({ clearPassword: true })}
-          className="text-xs text-slate-400 underline"
+          className="text-sm text-stone-500 underline hover:text-stone-800"
         >
           Xóa mật khẩu
         </button>
       </div>
       <div className="mt-4">
-        <label className="text-xs text-slate-400" htmlFor="host-transfer">
+        <label className={gameLabel} htmlFor="host-transfer">
           Chuyển host
         </label>
         <select
           id="host-transfer"
-          className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
+          className={`mt-1.5 ${gameInput}`}
           defaultValue=""
           onChange={(e) => {
             if (e.target.value) onTransferHost(e.target.value)

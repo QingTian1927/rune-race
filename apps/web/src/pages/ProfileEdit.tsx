@@ -3,12 +3,36 @@ import { Link, useNavigate } from 'react-router-dom'
 import { fetchProfile, updateProfile } from '../lib/api'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
 import { useAuth } from '../hooks/useAuth'
+import { usePlayerProfile } from '../hooks/usePlayerProfile'
+import { setPlayerName } from '../lib/playerSession'
+import {
+  gameAlertError,
+  gameAvatarCircle,
+  gameBtnGhostFull,
+  gameBtnPrimary,
+  gameContainerForm,
+  gameInput,
+  gameLabel,
+  gameMeta,
+  gameNavLink,
+  gamePage,
+  gamePanel,
+  gameTagline,
+  gameTitle,
+} from '../lib/gameUiStyles'
 
 const MAX_BIO_LENGTH = 240
+
+const AVATAR_BTN_BASE =
+  'flex h-10 w-10 items-center justify-center rounded-xl border text-xl backdrop-blur-sm transition-all'
+const AVATAR_BTN_SELECTED =
+  'border-amber-400 bg-amber-50 ring-2 ring-amber-200 shadow-sm'
+const AVATAR_BTN_DEFAULT = 'border-stone-200 bg-white/70 hover:bg-white'
 
 export default function ProfileEditPage() {
   const navigate = useNavigate()
   const { accessToken, user, loading: authLoading, signInAnonymously } = useAuth()
+  const { refetch: refetchProfile } = usePlayerProfile()
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [avatarEmoji, setAvatarEmoji] = useState('')
@@ -41,7 +65,7 @@ export default function ProfileEditPage() {
       .then((profile) => {
         setDisplayName(profile.display_name ?? '')
         setBio(profile.bio ?? '')
-        setAvatarEmoji(profile.avatar_emoji ?? '')
+        setAvatarEmoji(profile.avatar_emoji ?? PROFILE_EMOJIS[0])
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load profile'))
       .finally(() => setLoading(false))
@@ -64,11 +88,15 @@ export default function ProfileEditPage() {
     setSaving(true)
     setError(null)
     try {
-      await updateProfile(accessToken, {
+      const updated = await updateProfile(accessToken, {
         displayName: displayName.trim(),
         bio: bio.trim(),
         avatarEmoji,
       })
+      if (updated.display_name?.trim()) {
+        setPlayerName(updated.display_name.trim())
+      }
+      await refetchProfile()
       navigate(`/profile/${user?.id ?? ''}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile')
@@ -77,102 +105,128 @@ export default function ProfileEditPage() {
     }
   }
 
+  const cancelHref = user ? `/profile/${user.id}` : '/'
+  const displayEmoji = avatarEmoji || PROFILE_EMOJIS[0]
+
   if (!accessToken && !loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
-        <div className="mx-auto max-w-md px-6 py-12">
-          <h1 className="text-2xl font-bold">Can dang nhap</h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Ban co the dung che do khach de chinh sua profile.
-          </p>
-          {error ? (
-            <div className="mt-4 rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-2 text-sm text-red-200">
-              {error}
+      <div className={gamePage}>
+        <div className={gameContainerForm}>
+          <section className={gamePanel}>
+            <h1 className={gameTitle}>Cần đăng nhập</h1>
+            <p className={`mt-2 ${gameTagline}`}>
+              Bạn có thể dùng chế độ khách để chỉnh sửa profile.
+            </p>
+            {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
+            <div className="mt-4 space-y-2">
+              <button type="button" onClick={handleGuestLogin} className={gameBtnPrimary}>
+                Tiếp tục với khách
+              </button>
+              <Link to="/auth/login" className={`block text-center ${gameBtnGhostFull}`}>
+                Đến trang đăng nhập
+              </Link>
             </div>
-          ) : null}
-          <div className="mt-4 flex gap-3">
-            <button
-              type="button"
-              onClick={handleGuestLogin}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold"
-            >
-              Tiep tuc voi guest
-            </button>
-            <Link to="/auth/login" className="rounded-lg border border-slate-600 px-4 py-2 text-sm">
-              Den trang login
-            </Link>
-          </div>
+          </section>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-xl px-6 py-10">
-        <Link to={user ? `/profile/${user.id}` : '/'} className="text-sm text-slate-400">
-          ← Quay lai
+    <div className={gamePage}>
+      <div className={gameContainerForm}>
+        <Link to={cancelHref} className={gameNavLink}>
+          ← Quay lại
         </Link>
 
-        <h1 className="mt-4 text-2xl font-bold">Chinh sua profile</h1>
-
         {loading ? (
-          <div className="mt-6 text-slate-300">Loading...</div>
+          <div className={`mt-8 text-center ${gameTagline}`}>Đang tải...</div>
         ) : (
-          <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-6">
-            {error ? (
-              <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-2 text-sm text-red-200">
-                {error}
-              </div>
-            ) : null}
-
-            <label className="text-sm text-slate-300">Username</label>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-            />
-
-            <label className="mt-4 block text-sm text-slate-300">Bio</label>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LENGTH))}
-              rows={4}
-              className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-            />
-            <div className="mt-1 text-right text-xs text-slate-500">
-              {bio.length}/{MAX_BIO_LENGTH}
-            </div>
-
-            <label className="mt-4 block text-sm text-slate-300">Avatar</label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {PROFILE_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => setAvatarEmoji(emoji)}
-                  className={`flex h-10 w-10 items-center justify-center rounded-lg border text-xl ${
-                    avatarEmoji === emoji
-                      ? 'border-emerald-400 bg-emerald-500/20'
-                      : 'border-slate-700 bg-slate-800'
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-6 flex gap-3">
+          <>
+            <div className="mt-8 flex flex-col items-center">
               <button
                 type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                className={`${gameAvatarCircle} transition-transform hover:scale-105`}
+                onClick={() => {
+                  const idx = PROFILE_EMOJIS.indexOf(displayEmoji as (typeof PROFILE_EMOJIS)[number])
+                  const next = PROFILE_EMOJIS[(idx + 1) % PROFILE_EMOJIS.length]
+                  setAvatarEmoji(next)
+                }}
+                aria-label="Đổi avatar"
               >
-                Luu thay doi
+                {displayEmoji}
               </button>
+              <p className={`mt-2 ${gameMeta}`}>Chạm avatar để đổi nhanh</p>
             </div>
-          </div>
+
+            <section className={`mt-6 ${gamePanel}`}>
+              <h1 className={gameTitle}>Chỉnh sửa profile</h1>
+
+              {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label htmlFor="profile-name" className={gameLabel}>
+                    Tên hiển thị
+                  </label>
+                  <input
+                    id="profile-name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className={`mt-1.5 ${gameInput}`}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="profile-bio" className={gameLabel}>
+                    Bio
+                  </label>
+                  <textarea
+                    id="profile-bio"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LENGTH))}
+                    rows={4}
+                    className={`mt-1.5 ${gameInput}`}
+                  />
+                  <div className={`mt-1 text-right ${gameMeta}`}>
+                    {bio.length}/{MAX_BIO_LENGTH}
+                  </div>
+                </div>
+
+                <div>
+                  <span className={gameLabel}>Avatar</span>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {PROFILE_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setAvatarEmoji(emoji)}
+                        className={`${AVATAR_BTN_BASE} ${
+                          avatarEmoji === emoji ? AVATAR_BTN_SELECTED : AVATAR_BTN_DEFAULT
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className={gameBtnPrimary}
+                >
+                  Lưu thay đổi
+                </button>
+                <Link to={cancelHref} className={`block text-center ${gameBtnGhostFull}`}>
+                  Hủy
+                </Link>
+              </div>
+            </section>
+          </>
         )}
       </div>
     </div>

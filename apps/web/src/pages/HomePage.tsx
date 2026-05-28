@@ -9,14 +9,50 @@ import {
   resolveRoomByCode,
   type PublicRoom,
 } from '../lib/api'
+import {
+  gameAlertError,
+  gameBtnGhost,
+  gameBtnGhostFull,
+  gameBtnPrimary,
+  gameContainerWide,
+  gameIdentityInput,
+  gameInput,
+  gameListRow,
+  gameMeta,
+  gameNavLink,
+  gameNavRow,
+  gamePage,
+  gamePanel,
+  gamePanelStack,
+  gameSectionTitle,
+  gameTagline,
+  gameTitle,
+} from '../lib/gameUiStyles'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
 import { useAuth } from '../hooks/useAuth'
-import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { useMyProfilePath, usePlayerIdentity } from '../hooks/usePlayerIdentity'
+
+function PersonIcon() {
+  return (
+    <svg
+      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
 
 export default function HomePage() {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
-  const { playerId, playerName } = usePlayerIdentity()
+  const { playerId, playerName, avatarEmoji } = usePlayerIdentity()
+  const profilePath = useMyProfilePath()
   const [name, setName] = useState(playerName || getPlayerName())
   const [joinCode, setJoinCode] = useState('')
   const [roomPassword, setRoomPassword] = useState('')
@@ -121,185 +157,178 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-3xl px-6 py-10">
-        <header className="mb-8 text-center">
-          <h1 className="text-4xl font-bold tracking-tight">Rune Race</h1>
-          <p className="mt-2 text-slate-400">Cá ngựa online — chơi ẩn danh</p>
-          <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
-            {user ? (
-              <>
-                <span>Signed in: {user.email ?? user.id.slice(0, 8)}</span>
-                <Link to="/profile/edit" className="underline">
-                  Profile
-                </Link>
-                <button type="button" onClick={signOut} className="underline">
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <>
-                <Link to="/auth/login" className="underline">
-                  Login
-                </Link>
-                <Link to="/auth/signup" className="underline">
-                  Sign up
-                </Link>
-                <Link to="/profile/edit" className="underline">
-                  Profile
-                </Link>
-              </>
-            )}
-          </div>
+    <div className={gamePage}>
+      <div className={gameContainerWide}>
+        <nav className={gameNavRow}>
+          {user ? (
+            <>
+              <Link to="/profile/edit" className={gameNavLink}>
+                Profile
+              </Link>
+              <button type="button" onClick={signOut} className={gameNavLink}>
+                Đăng xuất
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/auth/login" className={gameNavLink}>
+                Đăng nhập
+              </Link>
+              <Link to="/auth/signup" className={gameNavLink}>
+                Đăng ký
+              </Link>
+              <Link to={profilePath} className={gameNavLink}>
+                Profile
+              </Link>
+            </>
+          )}
+        </nav>
+
+        <header className="mb-6 text-center">
+          <h1 className={gameTitle}>Rune Race</h1>
+          <p className={`mt-1 ${gameTagline}`}>Cá ngựa online — chơi ẩn danh</p>
         </header>
 
-        <section className="mb-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-          <label className="block text-sm font-medium text-slate-300">Tên hiển thị</label>
+        <div className="relative mb-6">
+          {avatarEmoji ? (
+            <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-base leading-none">
+              {avatarEmoji}
+            </span>
+          ) : (
+            <PersonIcon />
+          )}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={saveName}
-            className="mt-1 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white"
+            placeholder="Tên hiển thị"
+            className={avatarEmoji ? `${gameIdentityInput} pl-9` : gameIdentityInput}
             maxLength={50}
+            aria-label="Tên hiển thị"
           />
-        </section>
+        </div>
 
-        {error ? (
-          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/50 px-4 py-2 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
+        {error ? <div className={`mb-4 ${gameAlertError}`}>{error}</div> : null}
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <section className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-            <h2 className="text-lg font-semibold">Vào phòng</h2>
-            <p className="mt-1 text-xs text-slate-400">Mã 8 ký tự, phân biệt hoa thường</p>
-            <input
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              placeholder="joinCode"
-              className="mt-3 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 font-mono text-sm"
-              maxLength={8}
-            />
-            <input
-              type="password"
-              value={roomPassword}
-              onChange={(e) => setRoomPassword(e.target.value)}
-              placeholder="Mật khẩu phòng (nếu có)"
-              className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-            />
+        <div className={gamePanelStack}>
+          <section className={gamePanel}>
+            <h2 className={gameSectionTitle}>Vào phòng</h2>
+            <p className={`mt-1 ${gameMeta}`}>Mã 8 ký tự, phân biệt hoa thường</p>
+            <div className="mt-3 space-y-2">
+              <input
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                placeholder="joinCode"
+                className={`font-mono ${gameInput}`}
+                maxLength={8}
+              />
+              <input
+                type="password"
+                value={roomPassword}
+                onChange={(e) => setRoomPassword(e.target.value)}
+                placeholder="Mật khẩu phòng (nếu có)"
+                className={gameInput}
+              />
+            </div>
             <button
               type="button"
               disabled={loading || !joinCode.trim()}
               onClick={handleJoinCode}
-              className="mt-3 w-full rounded-lg bg-cyan-600 py-2.5 font-semibold hover:bg-cyan-500 disabled:opacity-50"
+              className={`mt-3 ${gameBtnGhostFull}`}
             >
               Vào bằng mã
             </button>
           </section>
 
-          <section className="rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-            <h2 className="text-lg font-semibold">Tạo phòng</h2>
-            <input
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-              placeholder="Tên phòng"
-              className="mt-3 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-            />
-            <input
-              type="password"
-              value={createPassword}
-              onChange={(e) => setCreatePassword(e.target.value)}
-              placeholder="Mật khẩu (tùy chọn)"
-              className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm"
-            />
+          <section className={gamePanel}>
+            <h2 className={gameSectionTitle}>Tạo phòng</h2>
+            <div className="mt-3 space-y-2">
+              <input
+                value={roomName}
+                onChange={(e) => setRoomName(e.target.value)}
+                placeholder="Tên phòng"
+                className={gameInput}
+              />
+              <input
+                type="password"
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                placeholder="Mật khẩu (tùy chọn)"
+                className={gameInput}
+              />
+            </div>
             <button
               type="button"
               disabled={loading}
               onClick={handleCreateRoom}
-              className="mt-3 w-full rounded-lg bg-emerald-600 py-2.5 font-semibold hover:bg-emerald-500 disabled:opacity-50"
+              className={`mt-3 ${gameBtnPrimary}`}
             >
               Tạo phòng mới
             </button>
           </section>
-        </div>
 
-        <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Chơi ngay</h2>
+          <section className={gamePanel}>
+            <div className="flex items-center justify-between">
+              <h2 className={gameSectionTitle}>Chơi ngay</h2>
+              {matchStatus ? (
+                <button type="button" onClick={handleCancelMatch} className={gameNavLink}>
+                  Hủy
+                </button>
+              ) : null}
+            </div>
+            <p className={`mt-1 ${gameMeta}`}>
+              Ghép 4 người sau 20s, 3 người sau 40s, 2 người sau 60s
+            </p>
             {matchStatus ? (
+              <p className="mt-3 text-sm font-semibold text-amber-800">{matchStatus}</p>
+            ) : (
               <button
                 type="button"
-                onClick={handleCancelMatch}
-                className="text-xs text-slate-400 underline hover:text-white"
+                disabled={loading}
+                onClick={handleQuickMatch}
+                className={`mt-3 ${gameBtnPrimary}`}
               >
-                Hủy
+                Tìm trận
               </button>
-            ) : null}
-          </div>
-          <p className="mt-1 text-xs text-slate-400">
-            Ghép 4 người sau 20s, 3 người sau 40s, 2 người sau 60s
-          </p>
-          {matchStatus ? (
-            <p className="mt-3 text-sm text-amber-200">{matchStatus}</p>
-          ) : (
-            <button
-              type="button"
-              disabled={loading}
-              onClick={handleQuickMatch}
-              className="mt-3 w-full rounded-lg bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-50"
-            >
-              Tìm trận
-            </button>
-          )}
-        </section>
+            )}
+          </section>
 
-        <section className="mt-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Phòng công khai</h2>
-            <button
-              type="button"
-              onClick={refreshRooms}
-              className="text-xs text-cyan-400 hover:underline"
-            >
-              Làm mới
-            </button>
-          </div>
-          {rooms.length === 0 ? (
-            <p className="text-sm text-slate-400">Chưa có phòng nào</p>
-          ) : (
-            <ul className="space-y-2">
-              {rooms.map((room) => (
-                <li
-                  key={room.lobbyId}
-                  className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2"
-                >
-                  <div>
-                    <div className="font-medium">{room.name}</div>
-                    <div className="text-xs text-slate-400">
-                      {room.playerCount}/{room.maxPlayers}
-                      {room.hasPassword ? ' · có mật khẩu' : ''} ·{' '}
-                      <span className="font-mono">{room.joinCode}</span>
+          <section className={gamePanel}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className={gameSectionTitle}>Phòng công khai</h2>
+              <button type="button" onClick={refreshRooms} className={gameNavLink}>
+                Làm mới
+              </button>
+            </div>
+            {rooms.length === 0 ? (
+              <p className={gameTagline}>Chưa có phòng nào</p>
+            ) : (
+              <ul className="space-y-2">
+                {rooms.map((room) => (
+                  <li key={room.lobbyId} className={gameListRow}>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-stone-800">{room.name}</div>
+                      <div className={gameMeta}>
+                        {room.playerCount}/{room.maxPlayers}
+                        {room.hasPassword ? ' · có mật khẩu' : ''}
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleJoinLobby(room.lobbyId)}
-                    className="rounded-md bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600"
-                  >
-                    Vào
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    <button
+                      type="button"
+                      onClick={() => handleJoinLobby(room.lobbyId)}
+                      className={`shrink-0 ${gameBtnGhost}`}
+                    >
+                      Vào
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
 
         <div className="mt-8 text-center">
-          <Link
-            to="/play/local"
-            className="text-sm text-slate-500 underline hover:text-slate-300"
-          >
+          <Link to="/play/local" className={gameNavLink}>
             Chế độ test local (không server)
           </Link>
         </div>
