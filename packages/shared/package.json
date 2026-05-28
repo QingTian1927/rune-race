@@ -5,11 +5,26 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./types/game": "./src/types/game.ts",
-    "./protocol/events": "./src/protocol/events.ts",
-    "./schemas/events": "./src/schemas/events.ts",
-    "./schemas/game": "./src/schemas/game.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types/game": {
+      "types": "./dist/types/game.d.ts",
+      "default": "./dist/types/game.js"
+    },
+    "./protocol/events": {
+      "types": "./dist/protocol/events.d.ts",
+      "default": "./dist/protocol/events.js"
+    },
+    "./schemas/events": {
+      "types": "./dist/schemas/events.d.ts",
+      "default": "./dist/schemas/events.js"
+    },
+    "./schemas/game": {
+      "types": "./dist/schemas/game.d.ts",
+      "default": "./dist/schemas/game.js"
+    }
   },
   "scripts": {
     "build": "tsc"

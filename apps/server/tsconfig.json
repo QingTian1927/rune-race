@@ -1,15 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "lib": ["ES2020"],
+    "rootDir": "./src",
     "outDir": "./dist",
-    "baseUrl": ".",
-    "paths": {
-      "@rune-race/shared": ["../../packages/shared/src/index.ts"],
-      "@rune-race/shared/*": ["../../packages/shared/src/*"],
-      "@rune-race/game-engine": ["../../packages/game-engine/src/index.ts"]
-    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -20,17 +16,10 @@
     "sourceMap": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "moduleResolution": "bundler",
-    "ignoreDeprecations": "5.0"
+    "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]

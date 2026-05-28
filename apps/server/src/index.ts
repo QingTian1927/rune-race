@@ -11,9 +11,12 @@ import { MatchmakingQueue, registerMatchmakingRoutes } from './http/matchmaking'
 import { registerProfileRoutes } from './http/profile'
 import { registerAuthRoutes } from './http/auth'
 
+const port = Number(process.env.PORT) || 3000
+const corsOrigins = process.env.CLIENT_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean)
+
 const fastify = Fastify({ logger: true })
 const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(fastify.server, {
-  cors: { origin: '*' },
+  cors: { origin: corsOrigins?.length ? corsOrigins : '*' },
 })
 
 const lobbyStore = new LobbyStore()
@@ -50,9 +53,9 @@ fastify.post('/dev/create-room', async (request) => {
 
 const start = async () => {
   try {
-    await fastify.listen({ port: 3000, host: '0.0.0.0' })
-    console.log('Server running on http://localhost:3000')
-    console.log('Socket.IO: ws://localhost:3000')
+    await fastify.listen({ port, host: '0.0.0.0' })
+    console.log(`Server running on port ${port}`)
+    console.log('Socket.IO attached to same host')
     console.log('API: GET/POST /api/rooms, POST /api/matchmaking/join')
   } catch (err) {
     fastify.log.error(err)

@@ -92,4 +92,4 @@ pnpm type-check
 - **Server**: Deploy to [Render](https://render.com)
 - **Database**: Supabase PostgreSQL + Auth
 
-See [DEPLOY.md](./DEPLOY.md) for detailed deployment instructions.
+See [DEPLOY.md](./DEPLOY.md) for deploying the API and static client on **Render** (Blueprint in [`render.yaml`](./render.yaml)).
