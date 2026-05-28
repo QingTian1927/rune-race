@@ -9,12 +9,15 @@ import {
   resolveRoomByCode,
   type PublicRoom,
 } from '../lib/api'
-import { getOrCreatePlayerId, getPlayerName, setPlayerName } from '../lib/playerSession'
+import { getPlayerName, setPlayerName } from '../lib/playerSession'
+import { useAuth } from '../hooks/useAuth'
+import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const playerId = getOrCreatePlayerId()
-  const [name, setName] = useState(getPlayerName())
+  const { user, signOut } = useAuth()
+  const { playerId, playerName } = usePlayerIdentity()
+  const [name, setName] = useState(playerName || getPlayerName())
   const [joinCode, setJoinCode] = useState('')
   const [roomPassword, setRoomPassword] = useState('')
   const [createPassword, setCreatePassword] = useState('')
@@ -23,6 +26,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [matchStatus, setMatchStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (playerName) setName(playerName)
+  }, [playerName])
 
   const refreshRooms = useCallback(async () => {
     try {
@@ -119,6 +126,31 @@ export default function HomePage() {
         <header className="mb-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight">Rune Race</h1>
           <p className="mt-2 text-slate-400">Cá ngựa online — chơi ẩn danh</p>
+          <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
+            {user ? (
+              <>
+                <span>Signed in: {user.email ?? user.id.slice(0, 8)}</span>
+                <Link to="/profile/edit" className="underline">
+                  Profile
+                </Link>
+                <button type="button" onClick={signOut} className="underline">
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/auth/login" className="underline">
+                  Login
+                </Link>
+                <Link to="/auth/signup" className="underline">
+                  Sign up
+                </Link>
+                <Link to="/profile/edit" className="underline">
+                  Profile
+                </Link>
+              </>
+            )}
+          </div>
         </header>
 
         <section className="mb-6 rounded-2xl border border-slate-700 bg-slate-900/80 p-5">

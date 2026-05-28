@@ -13,6 +13,7 @@
     "@react-three/fiber": "^8.0.27",
     "@rune-race/game-engine": "workspace:*",
     "@rune-race/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.48.1",
     "socket.io-client": "^4.7.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "fastify": "^4.25.0",
+    "dotenv": "^16.4.7",
+    "@supabase/supabase-js": "^2.48.1",
     "@rune-race/game-engine": "workspace:*",
     "@rune-race/shared": "workspace:*",
     "socket.io": "^4.7.2",

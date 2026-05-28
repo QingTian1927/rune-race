@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { randomUUID } from 'node:crypto'
 import Fastify from 'fastify'
 import { Server as SocketIOServer } from 'socket.io'
@@ -7,6 +8,8 @@ import { GameStore } from './game/game-store'
 import { setupSocketHandlers } from './socket/handlers'
 import { registerRoomRoutes } from './http/rooms'
 import { MatchmakingQueue, registerMatchmakingRoutes } from './http/matchmaking'
+import { registerProfileRoutes } from './http/profile'
+import { registerAuthRoutes } from './http/auth'
 
 const fastify = Fastify({ logger: true })
 const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(fastify.server, {
@@ -22,6 +25,8 @@ const matchmaking = new MatchmakingQueue(lobbyStore)
 
 registerRoomRoutes(fastify, lobbyStore)
 registerMatchmakingRoutes(fastify, matchmaking)
+registerProfileRoutes(fastify)
+registerAuthRoutes(fastify)
 
 fastify.get('/', async () => ({
   message: 'Rune Race Server',
