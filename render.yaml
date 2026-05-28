@@ -28,7 +28,7 @@ services:
 
   # Vite static client (React + R3F)
   - type: web
-    name: rune-race-web
+    name: rune-race
     runtime: static
     buildCommand: >-
       corepack prepare pnpm@latest --activate &&
