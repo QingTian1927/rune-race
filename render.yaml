@@ -9,12 +9,11 @@ services:
     plan: free
     region: singapore
     buildCommand: >-
-      corepack enable &&
       corepack prepare pnpm@latest --activate &&
-      pnpm install --frozen-lockfile &&
-      pnpm build:shared &&
-      pnpm build:game-engine &&
-      pnpm build:server
+      corepack pnpm install --frozen-lockfile &&
+      corepack pnpm build:shared &&
+      corepack pnpm build:game-engine &&
+      corepack pnpm build:server
     startCommand: cd apps/server && node dist/index.js
     healthCheckPath: /health
     envVars:
@@ -32,11 +31,10 @@ services:
     name: rune-race-web
     runtime: static
     buildCommand: >-
-      corepack enable &&
       corepack prepare pnpm@latest --activate &&
-      pnpm install --frozen-lockfile &&
-      pnpm build:shared &&
-      pnpm build:web
+      corepack pnpm install --frozen-lockfile &&
+      corepack pnpm build:shared &&
+      corepack pnpm build:web
     staticPublishPath: apps/web/dist
     routes:
       - type: rewrite
