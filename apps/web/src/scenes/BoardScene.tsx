@@ -31,7 +31,6 @@ interface BoardSceneProps {
   gameState?: GameState
   rollTrigger?: number
   selectableTokenIds?: string[]
-  hoveredTokenId?: string | null
   onSelectToken?: (tokenId: string) => void
   freezeTokenAnimations?: boolean
   editorData?: BoardLayoutData
@@ -262,7 +261,6 @@ export default function BoardScene({
   gameState,
   rollTrigger = 0,
   selectableTokenIds,
-  hoveredTokenId,
   onSelectToken,
   freezeTokenAnimations,
   editorData,
@@ -296,7 +294,6 @@ export default function BoardScene({
         <BoardPieces
           gameState={activeGameState}
           selectableTokenIds={selectableTokenIds}
-          externallyHoveredTokenId={hoveredTokenId}
           onSelectToken={onSelectToken}
           freezeTokenAnimations={freezeTokenAnimations}
         />

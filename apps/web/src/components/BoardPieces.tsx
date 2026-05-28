@@ -19,7 +19,6 @@ interface BoardPiecesProps {
   gameState: GameState
   animationDurationMs?: number
   selectableTokenIds?: string[]
-  externallyHoveredTokenId?: string | null
   onSelectToken?: (tokenId: string) => void
   /** Hold token motion until dice presentation finishes. */
   freezeTokenAnimations?: boolean
@@ -696,7 +695,6 @@ export default function BoardPieces({
   gameState,
   animationDurationMs = 300,
   selectableTokenIds,
-  externallyHoveredTokenId = null,
   onSelectToken,
   freezeTokenAnimations = false,
 }: BoardPiecesProps) {
@@ -761,9 +759,7 @@ export default function BoardPieces({
         ? captureMotionFromEvent(captureMoveByCapturedTokenId.get(token.id), playerIndexById, token)
         : null
       const isSelectable = selectableTokenSet.has(token.id)
-      const isHovered =
-        isSelectable &&
-        (hoveredTokenId === token.id || externallyHoveredTokenId === token.id)
+      const isHovered = isSelectable && hoveredTokenId === token.id
       const arrowColor = isHovered ? '#22d3ee' : '#f8fafc'
 
       return {
@@ -787,7 +783,6 @@ export default function BoardPieces({
     moveEventByTokenId,
     playerIndexById,
     selectableTokenSet,
-    externallyHoveredTokenId,
   ])
 
   return (
@@ -813,7 +808,7 @@ export default function BoardPieces({
             captureMotion={captureMotion}
             isSelectable={isSelectable}
             arrowColor={arrowColor}
-            isHovered={isSelectable && (hoveredTokenId === token.id || externallyHoveredTokenId === token.id)}
+            isHovered={isSelectable && hoveredTokenId === token.id}
             onPointerDown={(event) => {
               if (!isSelectable || !onSelectToken) {
                 return

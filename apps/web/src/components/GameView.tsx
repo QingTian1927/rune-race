@@ -11,7 +11,6 @@ import { MyPlayerPanel } from './hud/MyPlayerPanel'
 import { FinishOrderPanel } from './hud/FinishOrderPanel'
 import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
-import { MoveSelectionPanel } from './hud/MoveSelectionPanel'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -127,7 +126,6 @@ export default function GameView({
   const [showYourTurnBanner, setShowYourTurnBanner] = useState(false)
   const [bannerText, setBannerText] = useState('✦ ĐẾN LƯỢT CỦA BẠN ✦')
   const [showRollButton, setShowRollButton] = useState(canRoll)
-  const [hoveredMoveTokenId, setHoveredMoveTokenId] = useState<string | null>(null)
   const [displayedTurnPlayerId, setDisplayedTurnPlayerId] = useState(gameState.turn.currentPlayerId)
   const [displayedFinishOrderIds, setDisplayedFinishOrderIds] = useState<string[]>([])
 
@@ -163,12 +161,6 @@ export default function GameView({
     !isPresentingDice &&
     gameState.turn.phase === 'waiting_choice' &&
     gameState.turn.legalMoves.length > 1
-
-  useEffect(() => {
-    if (!isWaitingChoice) {
-      setHoveredMoveTokenId(null)
-    }
-  }, [isWaitingChoice])
 
   const selectableTokenIds = useMemo(() => {
     if (!isWaitingChoice) return []
@@ -465,7 +457,6 @@ export default function GameView({
         gameState={gameState}
         rollTrigger={rollTrigger}
         selectableTokenIds={selectableTokenIds}
-        hoveredTokenId={hoveredMoveTokenId}
         onSelectToken={handleSelectToken}
         freezeTokenAnimations={isPresentingDice}
         editorData={editorData}
@@ -497,13 +488,6 @@ export default function GameView({
           visible={showRollButton && canRoll && gameState.status !== 'finished'}
           color={localPlayer?.color ?? 'red'}
           onClick={handleRollClick}
-        />
-        <MoveSelectionPanel
-          visible={isWaitingChoice && gameState.status === 'playing'}
-          moves={gameState.turn.legalMoves}
-          hoveredTokenId={hoveredMoveTokenId}
-          onHoverToken={setHoveredMoveTokenId}
-          onSelectMove={onSelectMove}
         />
       </div>
 
