@@ -31,7 +31,6 @@ services:
   - type: web
     name: rune-race-web
     runtime: static
-    plan: free
     buildCommand: >-
       corepack enable &&
       corepack prepare pnpm@latest --activate &&
