@@ -2,7 +2,7 @@
  * Lobby domain types (pre-game room).
  */
 
-import type { PlayerColor } from './game'
+import type { PlayerColor } from './game.js'
 
 export type LobbyStatus = 'lobby' | 'countdown' | 'in_game'
 
