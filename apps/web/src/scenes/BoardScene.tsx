@@ -42,14 +42,14 @@ interface BoardSceneProps {
 }
 
 const CAMERA_CONFIG = {
-  position: [-0.857, 4.265, 8.462] as [number, number, number],
+  position: [-0.83, 3.1, 6.56] as [number, number, number],
   target: [-0.741, -0.904, 0.582] as [number, number, number],
-  fov: 34,
+  fov: 28,
   near: 0.1,
   far: 200,
-  minDistance: 7,
-  maxDistance: 9.425,
-  nearInteractionDistance: 9.425,
+  minDistance: 5.0,
+  maxDistance: 7.2,
+  nearInteractionDistance: 7.2,
   rotateSpeed: 0.45,
   zoomSpeed: 0.45,
   panSpeed: 0.55,
