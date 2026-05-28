@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { randomUUID } from 'node:crypto'
 import Fastify from 'fastify'
+import cors from '@fastify/cors'
 import { Server as SocketIOServer } from 'socket.io'
 import type { ClientToServerEvents, ServerToClientEvents } from '@rune-race/shared'
 import { LobbyStore } from './lobby/lobby-store'
@@ -53,6 +54,10 @@ fastify.post('/dev/create-room', async (request) => {
 
 const start = async () => {
   try {
+    await fastify.register(cors, {
+      origin: corsOrigins?.length ? corsOrigins : true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    })
     await fastify.listen({ port, host: '0.0.0.0' })
     console.log(`Server running on port ${port}`)
     console.log('Socket.IO attached to same host')
