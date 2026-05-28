@@ -17,24 +17,24 @@ export function MyPlayerPanel({ player }: MyPlayerPanelProps) {
   return (
     <div
       className={[
-        'pointer-events-auto absolute bottom-6 right-4 z-10 rounded-2xl border-2 bg-stone-100/75 p-3 backdrop-blur-sm shadow-lg transition-all duration-200',
+        'pointer-events-auto absolute bottom-6 right-4 z-10 rounded-xl border bg-stone-100/80 px-3 py-2 backdrop-blur-sm shadow-sm transition-all duration-200',
         colorStyles.border,
       ].join(' ')}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {!collapsed ? (
-          <div className="min-w-[140px] text-right">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-gray-500">BẠN</p>
-            <p className={['text-base font-black', colorStyles.text].join(' ')}>{player.name}</p>
+          <div className="min-w-[128px] text-right">
+            <p className="text-[10px] uppercase tracking-wider text-gray-400">BẠN</p>
+            <p className={['text-sm font-bold leading-tight', colorStyles.text].join(' ')}>{player.name}</p>
           </div>
         ) : null}
         <PlayerBadge color={player.color} />
         <button
           type="button"
           onClick={() => setCollapsed((prev) => !prev)}
-          className="rounded-full border border-amber-200 bg-white/80 px-2 py-1 text-xs font-semibold text-gray-700 transition-all hover:bg-white"
+          className="rounded-lg border border-amber-200/80 bg-white/80 px-2 py-1 text-[11px] font-semibold text-gray-600 transition-all hover:bg-white"
         >
-          {collapsed ? '<' : '>'}
+          {collapsed ? 'Mở' : 'Thu'}
         </button>
       </div>
     </div>

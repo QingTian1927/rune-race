@@ -204,7 +204,9 @@ export default function GameView({
   const localPlayer: Player | null = localPlayerId
     ? gameState.players.find((p) => p.id === localPlayerId) ?? null
     : gameState.players[0] ?? displayedTurnPlayer
-  const isMyTurn = localPlayer ? displayedTurnPlayerId === localPlayer.id : isLocalPlayersTurn
+  const isMyTurn = localPlayer
+    ? gameState.turn.currentPlayerId === localPlayer.id
+    : isLocalPlayersTurn
 
   useEffect(() => {
     currentTurnPlayerIdRef.current = gameState.turn.currentPlayerId
