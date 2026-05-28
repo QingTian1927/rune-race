@@ -5,14 +5,19 @@
 ```
 apps/server/src/
 ├── index.ts              # Fastify + Socket.IO bootstrap
+├── http/
+│   ├── auth.ts           # Link anon profile into signed-in account
+│   ├── matchmaking.ts    # Matchmaking queue + routes
+│   ├── profile.ts        # Public profile fetch + owner update
+│   └── rooms.ts          # GET/POST /api/rooms
 ├── socket/handlers.ts    # All lobby:* and game:* socket handlers
 ├── lobby/lobby-store.ts  # Lobby lifecycle, ready/countdown, host actions
 ├── game/game-store.ts    # Game sessions; delegates to game-engine
-├── http/rooms.ts         # GET/POST /api/rooms
-├── http/matchmaking.ts   # Matchmaking queue + routes
 └── lib/
+  ├── auth.ts           # Bearer token parsing + Supabase user lookup
     ├── join-code.ts      # 8-char case-sensitive codes
-    └── password.ts       # Lobby password hashing
+  ├── password.ts       # Lobby password hashing
+  └── supabase-server.ts # Admin client for auth/profile routes
 ```
 
 ## Data flow
@@ -24,6 +29,7 @@ sequenceDiagram
   participant L as LobbyStore
   participant G as GameStore
   participant E as game-engine
+  participant A as Supabase Auth/Profiles
 
   C->>S: lobby:join / lobby:ready
   S->>L: joinLobby / setReady
@@ -32,6 +38,9 @@ sequenceDiagram
   L->>G: onGameStart
   G->>E: createInitialGameState
   G-->>C: game:state_snapshot
+
+  C->>A: GET/PATCH /api/profile + auth token
+  A-->>C: profile row / merge result
 
   C->>S: game:roll / game:choose_move
   S->>G: roll / chooseMove
@@ -62,6 +71,7 @@ On `game:join`, the socket also joins `game:{gameId}`.
 - **Start:** when every connected player is **ready** and has a color, status → `countdown` (5 seconds), then game starts automatically.
 - **Host** can cancel countdown, kick, update settings (name/password), transfer host.
 - **Disconnect:** marks player disconnected; cancels countdown; 90s grace (`LOBBY_DISCONNECT_GRACE_MS`) before removal (see store implementation).
+- **Auth-aware joins:** if a Supabase access token is present, room creation and matchmaking prefer the authenticated Supabase user id over the client-generated guest id.
 
 ## Matchmaking
 

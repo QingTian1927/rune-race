@@ -1,6 +1,6 @@
 # Server documentation
 
-Backend contract for **Rune Race** — lobby, matchmaking, and authoritative multiplayer gameplay.
+Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile, and authoritative multiplayer gameplay.
 
 ## Read first
 
@@ -20,7 +20,7 @@ Backend contract for **Rune Race** — lobby, matchmaking, and authoritative mul
 
 - **Package:** `apps/server`
 - **CORS:** `*` (development)
-- **Persistence:** in-memory only (MVP; no database)
+- **Persistence:** lobby/game state is in-memory; user profiles and auth live in Supabase
 - **Authority:** server owns lobby and game state; clients send intents only
 
 ## Monorepo dependencies

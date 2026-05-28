@@ -1,6 +1,6 @@
 # Web client documentation
 
-Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, and online multiplayer.
+Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, profile/auth, and online multiplayer.
 
 ## Read first
 
@@ -15,6 +15,8 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, and onli
 | Mode | Route | Authority |
 |------|-------|-----------|
 | Home / rooms | `/` | HTTP + socket lobby |
+| Auth | `/auth/login`, `/auth/signup` | Supabase sessions |
+| Profile | `/profile/:profileId`, `/profile/edit` | Supabase profile API |
 | Lobby | `/lobby/:lobbyId` | Server `lobby:snapshot` |
 | Online game | `/game/:gameId` | Server `game:state_snapshot` |
 | Local test | `/play/local` | `@rune-race/game-engine` (same rules as server) |
@@ -22,6 +24,7 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, and onli
 ## Stack
 
 - **3D:** React Three Fiber, drei, Three.js
+- **Auth:** Supabase client + anonymous/email/password/Google sessions
 - **Rules:** `@rune-race/game-engine` (re-exported from `mock/mockGameEngine.ts`)
 - **Protocol:** `@rune-race/shared`
 - **Dev proxy:** `/api` and `/socket.io` → `localhost:3000` (`vite.config.ts`)
@@ -33,6 +36,8 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, and onli
 - Dice shaker (bucket + die) with presentation gate before token moves
 - Board editor (layout JSON export)
 - Finish-order panel from `token_finished` events
+- Profile pages with public view and owner-only edit
+- Anonymous sign-in flow with guest profile support
 
 ## Server docs
 

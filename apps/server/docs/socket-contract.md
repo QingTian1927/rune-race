@@ -11,6 +11,8 @@ Canonical types: `packages/shared/src/protocol/events.ts` and `packages/shared/s
 | CORS | `*` |
 | Validation | `validateCommand(eventName, payload)` before handler logic |
 
+If the client has a Supabase session, it sends `auth: { token }` in the socket handshake. The server verifies that token and binds the socket to that user id.
+
 ## Lifecycle overview
 
 ### Lobby
@@ -58,6 +60,8 @@ Canonical types: `packages/shared/src/protocol/events.ts` and `packages/shared/s
 }
 ```
 
+When the handshake contains a valid Supabase access token, the server checks that `playerId` matches the authenticated user id.
+
 ### Game
 
 | Event | Payload | Semantics |
@@ -67,6 +71,8 @@ Canonical types: `packages/shared/src/protocol/events.ts` and `packages/shared/s
 | `game:choose_move` | `{ playerId, moveId }` | Phase `waiting_choice`; `moveId` from `legalMoves` |
 | `game:sync_request` | `{ playerId }` | Full state resync |
 | `game:ping` | `{ playerId }` | Validated; no-op |
+
+For authenticated users, `playerId` must match the Supabase user id attached to the socket.
 
 ---
 

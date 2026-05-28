@@ -7,6 +7,10 @@ Defined in `apps/web/src/App.tsx`:
 | Path | Component | Description |
 |------|-----------|-------------|
 | `/` | `HomePage` | Create/join room, public list, matchmaking |
+| `/auth/login` | `AuthLoginPage` | Supabase login + guest sign-in |
+| `/auth/signup` | `AuthSignupPage` | Supabase registration |
+| `/profile/edit` | `ProfileEditPage` | Own profile editor |
+| `/profile/:profileId` | `ProfileViewPage` | Public profile view |
 | `/lobby/:lobbyId` | `LobbyPage` | Colors, ready, host controls |
 | `/game/:gameId` | `OnlineGamePage` | Live multiplayer viewport |
 | `/play/local` | `LocalGamePage` | Offline test with same engine as server |
@@ -15,6 +19,7 @@ Defined in `apps/web/src/App.tsx`:
 
 ```
 Pages (Home, Lobby, Online, Local)
+    → auth hooks (useAuth, usePlayerIdentity)
     → hooks (useLobbySocket, useGameSocket, usePresentationGameState)
     → GameView (HUD, dev menu, editor controls)
         → BoardScene (Canvas, OrbitControls)
@@ -49,6 +54,7 @@ Shared shell for local and online:
 - Roll button, phase/dice HUD, finish-order list
 - Props: `canRoll`, `localPlayerId`, `isPresentingDice`, `autoResolveRolled` (local only)
 - Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`
+- Receives the current player identity from `usePlayerIdentity()` through the page layer, not directly from localStorage anymore.
 
 ## Hooks
 
@@ -56,9 +62,13 @@ Shared shell for local and online:
 
 Subscribes to `lobby:snapshot`, emits lobby commands. Handles join on connect.
 
+When a Supabase access token is available, the hook passes it to `lib/socket.ts` so the server can validate the authenticated user.
+
 ### `useGameSocket(gameId, playerId)`
 
 Subscribes to `game:state_snapshot`; uses `usePresentationGameState` for display state and dice gate. Blocks `roll` / `chooseMove` while presenting dice.
+
+The hook also accepts the optional Supabase access token so authenticated and anonymous sessions stay aligned with the socket handshake.
 
 ### `usePresentationGameState`
 
@@ -80,6 +90,7 @@ Skips dice gate on **first** snapshot (full event history on join).
 
 - `config.ts`: `API_BASE = import.meta.env.VITE_API_URL ?? ''`
 - Empty `API_BASE` → same-origin; Vite proxies `/api` and `/socket.io` to port 3000.
+- `lib/supabase.ts`: browser auth client configured with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
 ## Dev-only features
 

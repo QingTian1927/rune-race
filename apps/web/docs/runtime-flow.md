@@ -3,8 +3,9 @@
 ## Boot
 
 1. `main.tsx` → `App` router.
-2. `HomePage` calls `getOrCreatePlayerId()` (persisted in `localStorage`).
-3. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
+2. `AuthProvider` restores the Supabase session and guest id.
+3. `HomePage` uses `usePlayerIdentity()` to derive the active player id and display name.
+4. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
 
 ## Lobby flow (`LobbyPage`)
 
@@ -16,7 +17,7 @@
 
 ## Online game flow (`OnlineGamePage`)
 
-1. `useGameSocket(gameId, playerId)` → `game:join` on connect.
+1. `useGameSocket(gameId, playerId, accessToken)` → `game:join` on connect.
 2. `GameView` receives display state from presentation hook.
 3. **Roll:** if `canRoll` (my turn, `waiting_roll`, not presenting dice) → `game:roll`.
 4. Server snapshot with delta `dice_roll` (+ maybe `token_moved` if auto-resolved):
@@ -73,3 +74,10 @@ Aligned with `@rune-race/game-engine`:
 
 - Refresh on lobby: re-emit `lobby:join` or `lobby:sync_request`.
 - Refresh in game: `game:join` + `game:sync_request` if needed.
+
+## Auth / profile flow
+
+1. `AuthLoginPage` can start a Supabase anonymous session with the guest button.
+2. `ProfileEditPage` auto-starts a guest session if the user opens it without an access token.
+3. `ProfileViewPage` loads public profile data by id.
+4. `AuthSignupPage` can merge the current anon profile into a new registered account.

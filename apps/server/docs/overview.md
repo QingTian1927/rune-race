@@ -9,7 +9,8 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 3. Players pick **color**, toggle **ready**. When all ready → **5s countdown** → game starts.
 4. Server emits `lobby:game_started` with `gameId`; clients navigate to `/game/:gameId` and emit `game:join`.
 5. **Gameplay:** `game:roll` and `game:choose_move`; each accepted action broadcasts `game:state_snapshot`.
-6. Game ends when `status === 'finished'`; lobby resets for a new match.
+6. **Auth/profile:** the web client can sign in with Supabase email/password, Google, or anonymous auth. Profile data is stored in Supabase and can be viewed publicly; profile edits are tied to the active Supabase session.
+7. Game ends when `status === 'finished'`; lobby resets for a new match.
 
 ## HTTP vs Socket
 
@@ -18,6 +19,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 | List/create rooms | `GET/POST /api/rooms` | — |
 | Resolve join code | `GET /api/rooms/by-code/:joinCode` | — |
 | Matchmaking queue | `POST/GET/DELETE /api/matchmaking/*` | — |
+| Auth/profile | `GET /api/profile`, `PATCH /api/profile`, `GET /api/profile/:id`, `POST /api/auth/link-anon` | `auth` token in handshake |
 | Lobby state & ready | — | `lobby:*` |
 | Gameplay | — | `game:*` |
 
@@ -30,6 +32,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 - **Multiple legal moves:** turn stays in `waiting_choice` until `game:choose_move`.
 - **Finish:** a player is ranked when all 4 tokens are in the final zone (`in_home_lane` or `finished`).
 - **Game end:** when **all but one** player have finished (`finishedCount >= playerCount - 1`). The last player does not need to keep playing.
+- **Auth:** when present, the socket handshake token is verified against Supabase and used to bind the socket to that user id.
 - Clients must **not** mutate authoritative state; use snapshots + delta `events` for animation only.
 
 ## Shared contracts

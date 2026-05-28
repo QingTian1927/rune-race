@@ -2,12 +2,15 @@
 
 The web client is **wired to the live server** for lobby and online play. Local mode uses the same rules package without sockets.
 
+Auth/profile uses Supabase sessions and profile endpoints in the same server.
+
 ## Source of truth
 
 | Data | Authority |
 |------|-----------|
 | Lobby membership, ready, countdown | Server `lobby:snapshot` |
 | Game state, dice, moves | Server `game:state_snapshot` |
+| User profile fields | Supabase `profiles` row via `/api/profile` |
 | Board layout in editor | Client JSON (export only in MVP) |
 | Dice animation timing | Client `dicePresentation.ts` |
 
@@ -21,10 +24,16 @@ The web client is **wired to the live server** for lobby and online play. Local 
 | `joinMatchmaking` | `POST /api/matchmaking/join` |
 | `leaveMatchmaking` | `DELETE /api/matchmaking/leave` |
 | `getMatchmakingStatus` | `GET /api/matchmaking/status?playerId=` |
+| `fetchProfile` | `GET /api/profile` |
+| `fetchProfileById` | `GET /api/profile/:id` |
+| `updateProfile` | `PATCH /api/profile` |
+| `linkAnonProfile` | `POST /api/auth/link-anon` |
 
 ## Socket (`lib/socket.ts`)
 
 Singleton `io(API_BASE || undefined)` with websocket + polling.
+
+If `useAuth` has a Supabase session, `lib/socket.ts` sends `auth: { token }` in the socket handshake.
 
 ### Lobby (`useLobbySocket`)
 
@@ -32,11 +41,15 @@ Emit: `lobby:join`, `lobby:set_color`, `lobby:ready`, `lobby:unready`, `lobby:le
 
 Listen: `lobby:snapshot`, `lobby:start_countdown`, `lobby:start_countdown_cancelled`, `lobby:game_started`, `lobby:error`.
 
+The hook now accepts an optional Supabase access token and reuses it for the socket handshake.
+
 ### Game (`useGameSocket`)
 
 Emit: `game:join`, `game:roll`, `game:choose_move`, `game:sync_request`.
 
 Listen: `game:connected`, `game:state_snapshot`, `game:error`.
+
+The hook also accepts the optional Supabase access token so authenticated users keep the same identity across HTTP and socket requests.
 
 **Snapshots:** `applyAuthoritativeState(state, { deltaEvents: payload.events })`. Treat `events` as **delta** during play; full list on join/sync.
 
@@ -44,8 +57,16 @@ Listen: `game:connected`, `game:state_snapshot`, `game:error`.
 
 - `rune-race-player-id` — stable anonymous id (`anon-{uuid}`).
 - `rune-race-player-name` — display name for lobby.
+- `usePlayerIdentity()` prefers the Supabase user id when signed in, otherwise falls back to the guest player id.
 
 UUID generation uses `randomUUID` → `getRandomValues` → `Math.random` fallback for **HTTP LAN** (non-secure context).
+
+## Auth and profile
+
+- `useAuth` wraps Supabase auth state and exposes `signIn`, `signUp`, `signInWithGoogle`, `signInAnonymously`, and `signOut`.
+- Anonymous users can open `/profile/edit`; the page will start a guest session if needed.
+- Public profiles are routed through `/profile/:profileId` and are readable without a token.
+- Registered sign-up can link an existing anon profile before the old anon account is removed.
 
 ## Presentation vs authority
 
@@ -71,6 +92,8 @@ Opponents see the board update after snapshots but not selection chrome.
 | Variable | Meaning |
 |----------|---------|
 | `VITE_API_URL` | API + socket base (e.g. `http://192.168.1.10:3000`). Empty = same origin + Vite proxy. |
+| `VITE_SUPABASE_URL` | Supabase project URL for the web auth client. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key used by the browser client. |
 
 ### LAN checklist
 
