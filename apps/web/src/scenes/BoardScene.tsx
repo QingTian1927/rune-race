@@ -10,6 +10,7 @@ import { BoardEditorVisualization } from '../components/BoardEditorVisualization
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
 import type { GameState } from '@rune-race/shared'
+import type { BoardImpactFeedback } from '../lib/boardImpact'
 
 export interface CameraDebugInfo {
   position: { x: number; y: number; z: number }
@@ -33,6 +34,7 @@ interface BoardSceneProps {
   selectableTokenIds?: string[]
   onSelectToken?: (tokenId: string) => void
   freezeTokenAnimations?: boolean
+  boardImpactFeedback?: BoardImpactFeedback
   editorData?: BoardLayoutData
   editorMode?: EditorMode
   editorSelectedPlayer?: number
@@ -263,6 +265,7 @@ export default function BoardScene({
   selectableTokenIds,
   onSelectToken,
   freezeTokenAnimations,
+  boardImpactFeedback,
   editorData,
   editorMode = 'main-track',
   editorSelectedPlayer = 0,
@@ -296,6 +299,7 @@ export default function BoardScene({
           selectableTokenIds={selectableTokenIds}
           onSelectToken={onSelectToken}
           freezeTokenAnimations={freezeTokenAnimations}
+          boardImpactFeedback={boardImpactFeedback}
         />
         <DiceShaker gameState={activeGameState} rollTrigger={rollTrigger} />
       </Suspense>

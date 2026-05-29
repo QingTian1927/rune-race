@@ -12,6 +12,9 @@ import {
   updateVersionCursor,
   type CaptureEventDetails,
 } from '../lib/tokenMotion'
+import type { ImpactPuffKind } from '../lib/boardImpact'
+import ImpactPuffPool, { type SpawnImpactPuff } from './board/ImpactPuffPool'
+import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
 import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
@@ -32,6 +35,8 @@ interface BoardPiecesProps {
   onSelectToken?: (tokenId: string) => void
   /** Hold token motion until dice presentation finishes. */
   freezeTokenAnimations?: boolean
+  /** SFX / reduced-motion hooks (see lib/boardImpact.ts). */
+  boardImpactFeedback?: BoardImpactFeedback
 }
 
 type CaptureMotion = {
@@ -438,6 +443,8 @@ function PawnInstance({
   onPointerOver,
   onPointerOut,
   animationDurationMs = 300,
+  spawnImpact,
+  moveFromState,
 }: {
   token: Token
   playerIndex: number
@@ -454,6 +461,8 @@ function PawnInstance({
   onPointerOver?: (event: any) => void
   onPointerOut?: (event: any) => void
   animationDurationMs?: number
+  spawnImpact?: SpawnImpactPuff | null
+  moveFromState?: MockPathStep['state']
 }) {
   const modelRef = useRef<THREE.Group | null>(null)
   const effectRef = useRef<THREE.Group | null>(null)
@@ -468,6 +477,8 @@ function PawnInstance({
   const captureKeyRef = useRef<string>('')
   const captureStartTimeRef = useRef<number>(-1)
   const capturePhaseRef = useRef<'idle' | 'hit' | 'return' | 'done'>('idle')
+  const segmentsLandedRef = useRef(0)
+  const captureImpactFiredRef = useRef(false)
   const pawnModelPath = getPawnModelPath(playerIndex)
   const pawnScene = useGLTF(pawnModelPath).scene
 
@@ -505,6 +516,7 @@ function PawnInstance({
     captureKeyRef.current = captureMotion.key
     captureStartTimeRef.current = -1
     capturePhaseRef.current = 'hit'
+    captureImpactFiredRef.current = false
     setOpacity(effectRef.current, 1)
   }, [captureMotion])
 
@@ -536,6 +548,7 @@ function PawnInstance({
     }
 
     motionKeyRef.current = motionPlanKey
+    segmentsLandedRef.current = 0
 
     queueRef.current = motionPlan.map((waypoint) => ({
       step: waypoint.step,
@@ -556,6 +569,13 @@ function PawnInstance({
 
       if (captureStartTimeRef.current < 0 && capturePhaseRef.current !== 'done') {
         captureStartTimeRef.current = state.clock.elapsedTime
+        if (!captureImpactFiredRef.current && spawnImpact) {
+          captureImpactFiredRef.current = true
+          spawnImpact(captureMotion.sourcePosition, 'capture_hit', {
+            tokenId: token.id,
+            playerIndex,
+          })
+        }
       }
 
       const elapsed = state.clock.elapsedTime - captureStartTimeRef.current
@@ -629,6 +649,16 @@ function PawnInstance({
     }
 
     if (progress >= 1) {
+      if (spawnImpact) {
+        const landKind: ImpactPuffKind =
+          segmentsLandedRef.current === 0 && moveFromState === 'in_base' ? 'spawn_exit' : 'step_land'
+        spawnImpact(segmentTargetRef.current, landKind, {
+          tokenId: token.id,
+          playerIndex,
+        })
+        segmentsLandedRef.current += 1
+      }
+
       queueRef.current.shift()
 
       if (queueRef.current.length === 0) {
@@ -695,9 +725,11 @@ export default function BoardPieces({
   selectableTokenIds,
   onSelectToken,
   freezeTokenAnimations = false,
+  boardImpactFeedback,
 }: BoardPiecesProps) {
   const layout = boardLayout as any
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null)
+  const spawnImpactRef = useRef<SpawnImpactPuff | null>(null)
   const selectableTokenSet = useMemo(() => new Set(selectableTokenIds ?? []), [selectableTokenIds])
   const versionCursorRef = useRef({ version: -1, eventCount: 0 })
   const skipHistoryAnimationRef = useRef(true)
@@ -753,6 +785,7 @@ export default function BoardPieces({
       const motionPlanKey = movePayload
         ? `${token.id}:move:${gameState.version}:${movePayload.timestamp}:${movePayload.details.path.length}`
         : null
+      const moveFromState = movePayload?.details.from.state
       const captureMotion = token.state === 'in_base'
         ? captureMotionFromEvent(captureMoveByCapturedTokenId.get(token.id), playerIndexById, token)
         : null
@@ -768,6 +801,7 @@ export default function BoardPieces({
         targetZ: targetPosition.z,
         motionPlan,
         motionPlanKey,
+        moveFromState,
         captureMotion,
         isSelectable,
         arrowColor,
@@ -785,6 +819,13 @@ export default function BoardPieces({
 
   return (
     <group>
+      <ImpactPuffPool
+        feedback={boardImpactFeedback}
+        onSpawnReady={(spawn) => {
+          spawnImpactRef.current = spawn
+        }}
+      />
+
       {/* Houses */}
       {gameState.players.map((p) => {
         const slot = boardSlotForPlayer(gameState.players, p.id)
@@ -793,7 +834,7 @@ export default function BoardPieces({
       })}
 
       {/* Pawns */}
-      {tokensWithTargets.map(({ token, playerIndex, targetX, targetY, targetZ, motionPlan, motionPlanKey, captureMotion, isSelectable, arrowColor }) => (
+      {tokensWithTargets.map(({ token, playerIndex, targetX, targetY, targetZ, motionPlan, motionPlanKey, moveFromState, captureMotion, isSelectable, arrowColor }) => (
         <group key={token.id}>
           <PawnInstance
             token={token}
@@ -807,6 +848,8 @@ export default function BoardPieces({
             isSelectable={isSelectable}
             arrowColor={arrowColor}
             isHovered={isSelectable && hoveredTokenId === token.id}
+            spawnImpact={freezeTokenAnimations ? null : spawnImpactRef.current}
+            moveFromState={moveFromState}
             onPointerDown={(event) => {
               if (!isSelectable || !onSelectToken) {
                 return

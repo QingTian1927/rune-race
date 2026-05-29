@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
-import type { Player } from '@rune-race/shared'
+import type { Player, GameState, LegalMove } from '@rune-race/shared'
+import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
 import BoardScene, { type CameraDebugInfo } from '../scenes/BoardScene'
 import { BoardLayoutData, createInitialEditorState, EditorMode } from '../utils/boardEditorState'
 import { BoardEditorControls } from '../components/BoardEditor'
-import type { GameState, LegalMove } from '@rune-race/shared'
+import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { CurrentTurnPanel } from './hud/CurrentTurnPanel'
 import { MyPlayerPanel } from './hud/MyPlayerPanel'
 import { FinishOrderPanel } from './hud/FinishOrderPanel'
@@ -92,6 +93,8 @@ export type GameViewProps = {
   localAvatarEmoji?: string | null
   /** Active leave from online game (also leaves lobby). */
   onLeave?: () => void
+  /** Board land/spawn SFX + reduced motion (optional override). */
+  boardImpactFeedback?: BoardImpactFeedback
 }
 
 export default function GameView({
@@ -106,8 +109,11 @@ export default function GameView({
   localPlayerId,
   localAvatarEmoji,
   onLeave,
+  boardImpactFeedback: boardImpactFeedbackProp,
 }: GameViewProps) {
   const { active, progress } = useProgress()
+  const defaultBoardImpactFeedback = useBoardImpactFeedback()
+  const boardImpactFeedback = boardImpactFeedbackProp ?? defaultBoardImpactFeedback
   const [showDevMenu, setShowDevMenu] = useState(false)
   const [devMenuTab, setDevMenuTab] = useState('camera')
   const [cameraDebugInfo, setCameraDebugInfo] = useState<CameraDebugInfo | null>(null)
@@ -480,6 +486,7 @@ export default function GameView({
         selectableTokenIds={selectableTokenIds}
         onSelectToken={handleSelectToken}
         freezeTokenAnimations={isPresentingDice}
+        boardImpactFeedback={boardImpactFeedback}
         editorData={editorData}
         editorMode={editorMode}
         editorSelectedPlayer={editorSelectedPlayer}
