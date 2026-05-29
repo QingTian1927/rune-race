@@ -21,6 +21,9 @@ export interface ServerToClientEvents {
     firstPlayerId: string
   }) => void
   'lobby:error': (payload: { message: string; code: string }) => void
+  'lobby:closed': (payload: { lobbyId: string; reason: 'empty' }) => void
+  'lobby:kicked': (payload: { lobbyId: string; reason: 'kicked' }) => void
+  'lobby:removed': (payload: { lobbyId: string; reason: 'left' | 'disconnect_timeout' }) => void
 
   // --- Game ---
   'game:connected': (payload: { playerId: string; gameId: string }) => void

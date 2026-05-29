@@ -58,6 +58,6 @@ export const MATCHMAKING_TIER_4_SECONDS = 0
 export const MATCHMAKING_TIER_3_SECONDS = 5
 export const MATCHMAKING_TIER_2_SECONDS = 3
 
-/** Disconnect grace (milliseconds). */
-export const LOBBY_DISCONNECT_GRACE_MS = 90_000
+/** Disconnect grace (milliseconds) — accidental disconnect only; active leave is immediate. */
+export const LOBBY_DISCONNECT_GRACE_MS = 30_000
 export const GAME_DISCONNECT_GRACE_MS = 120_000
