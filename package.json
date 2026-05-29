@@ -16,7 +16,7 @@
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "build:web": "pnpm --filter @rune-race/web build",
-    "build:server": "pnpm --filter @rune-race/server build",
+    "build:server": "pnpm build:shared && pnpm build:game-engine && pnpm --filter @rune-race/server build",
     "build:render": "pnpm build:shared && pnpm build:game-engine && pnpm build:server && pnpm build:web",
     "build:shared": "pnpm --filter @rune-race/shared build",
     "build:game-engine": "pnpm --filter @rune-race/game-engine build",
