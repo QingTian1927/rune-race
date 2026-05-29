@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import type { Player, GameState } from '@rune-race/shared'
 import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
@@ -15,6 +15,7 @@ import { FinishOrderPanel } from './hud/FinishOrderPanel'
 import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
 import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -33,6 +34,7 @@ export type GameViewProps = {
   rollTrigger: number
   onRoll: () => void
   onSelectMove: (moveId: string) => void
+  /** Navigate here after confirm when `onLeave` is not set (local mock). */
   backHref?: string
   canRoll?: boolean
   /** Local mock: auto-resolve after dice animation */
@@ -42,7 +44,7 @@ export type GameViewProps = {
   localPlayerId?: string
   /** Profile avatar emoji for the local player HUD. */
   localAvatarEmoji?: string | null
-  /** Active leave from online game (also leaves lobby). */
+  /** Online: leave game + lobby after user confirms exit. */
   onLeave?: () => void
   /** Board land/spawn SFX + reduced motion (optional override). */
   boardImpactFeedback?: BoardImpactFeedback
@@ -62,9 +64,11 @@ export default function GameView({
   onLeave,
   boardImpactFeedback: boardImpactFeedbackProp,
 }: GameViewProps) {
+  const navigate = useNavigate()
   const { active, progress } = useProgress()
   const defaultBoardImpactFeedback = useBoardImpactFeedback()
   const boardImpactFeedback = boardImpactFeedbackProp ?? defaultBoardImpactFeedback
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [showDevMenu, setShowDevMenu] = useState(false)
   const [cameraDebugInfo, setCameraDebugInfo] = useState<CameraDebugInfo | null>(null)
   const [isEditorActive, setIsEditorActive] = useState(false)
@@ -412,6 +416,30 @@ export default function GameView({
     onRoll()
   }
 
+  const closeExitConfirm = useCallback(() => setExitConfirmOpen(false), [])
+
+  const handleExitClick = () => setExitConfirmOpen(true)
+
+  const handleExitConfirm = () => {
+    setExitConfirmOpen(false)
+    if (onLeave) {
+      onLeave()
+    } else {
+      navigate(backHref)
+    }
+  }
+
+  const finished = gameState.status === 'finished'
+  const exitConfirmTitle = onLeave ? 'Rời game?' : 'Thoát game?'
+  const exitConfirmMessage = onLeave
+    ? finished
+      ? 'Bạn sẽ rời game và quay về trang chủ.'
+      : 'Bạn sẽ bỏ cuộc, rời phòng và quay về trang chủ. Đối thủ có thể thắng nếu bạn thoát giữa chừng.'
+    : finished
+      ? 'Quay về trang chủ?'
+      : 'Rời game thử nghiệm và quay về trang chủ.'
+  const exitConfirmLabel = onLeave ? 'Rời game' : 'Thoát'
+
   return (
     <div className="relative h-screen w-full overflow-hidden bg-slate-950">
       <BoardScene
@@ -432,22 +460,14 @@ export default function GameView({
       />
 
       <div className="pointer-events-none absolute inset-0 z-10">
-        <div className="pointer-events-auto absolute left-4 top-4 flex flex-col gap-2">
-          <Link
-            to={backHref}
+        <div className="pointer-events-auto absolute left-4 top-4">
+          <button
+            type="button"
+            onClick={handleExitClick}
             className="rounded-xl bg-white/70 px-3 py-1 text-sm font-semibold text-gray-700 shadow backdrop-blur-sm transition-all hover:bg-white/90"
           >
-            {gameState.status === 'finished' ? 'Ve lobby' : 'Back'}
-          </Link>
-          {onLeave ? (
-            <button
-              type="button"
-              onClick={onLeave}
-              className="rounded-xl bg-red-600/90 px-3 py-1 text-sm font-semibold text-white shadow backdrop-blur-sm transition-all hover:bg-red-700"
-            >
-              Rời game
-            </button>
-          ) : null}
+            {onLeave ? 'Rời game' : 'Thoát'}
+          </button>
         </div>
         <CurrentTurnPanel
           player={displayedTurnPlayer}
@@ -498,6 +518,17 @@ export default function GameView({
       />
 
       <LoadingOverlay active={active} progress={progress} />
+
+      <ConfirmDialog
+        open={exitConfirmOpen}
+        title={exitConfirmTitle}
+        message={exitConfirmMessage}
+        confirmLabel={exitConfirmLabel}
+        cancelLabel="Ở lại"
+        destructive={Boolean(onLeave)}
+        onConfirm={handleExitConfirm}
+        onCancel={closeExitConfirm}
+      />
     </div>
   )
 }

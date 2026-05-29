@@ -75,7 +75,6 @@ export default function OnlineGamePage() {
       rollTrigger={rollTrigger}
       onRoll={roll}
       onSelectMove={chooseMove}
-      backHref={lobbyId ? `/lobby/${lobbyId}` : '/'}
       canRoll={canRoll}
       isPresentingDice={isPresentingDice}
       localPlayerId={playerId}
