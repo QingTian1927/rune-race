@@ -11,20 +11,9 @@ import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
 import type { GameState } from '@rune-race/shared'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
+import { CAMERA_CONFIG, type CameraDebugInfo } from '../config/cameraConfig'
 
-export interface CameraDebugInfo {
-  position: { x: number; y: number; z: number }
-  rotationDeg: { x: number; y: number; z: number }
-  target: { x: number; y: number; z: number }
-  fov: number | null
-  zoom: number
-  near: number
-  far: number
-  distanceToTarget: number
-  polarAngleDeg: number | null
-  azimuthAngleDeg: number | null
-  dpr: number
-}
+export type { CameraDebugInfo }
 
 interface BoardSceneProps {
   onDebugInfoChange?: (info: CameraDebugInfo) => void
@@ -41,34 +30,6 @@ interface BoardSceneProps {
   onEditorDataChange?: (data: BoardLayoutData) => void
   editorMouseMode?: 'draw' | 'camera'
   setEditorMouseMode?: (v: 'draw' | 'camera') => void
-}
-
-const CAMERA_CONFIG = {
-  position: [-0.83, 3.1, 6.56] as [number, number, number],
-  target: [-0.741, -0.904, 0.582] as [number, number, number],
-  fov: 28,
-  near: 0.1,
-  far: 200,
-  minDistance: 5.0,
-  maxDistance: 7.2,
-  nearInteractionDistance: 7.2,
-  rotateSpeed: 0.45,
-  zoomSpeed: 0.45,
-  panSpeed: 0.55,
-  panBounds: {
-    minX: -1.849,
-    maxX: 0.515,
-    minY: -1.481,
-    maxY: 0.81,
-    minZ: -0.537,
-    maxZ: 0.96,
-  },
-  // when tilt is maximized (top pan), do not allow target.y below this value
-  panWhenMaxTiltMinY: -0.653,
-  // safe global tilt bounds (radians)
-  globalMinPolar: 0.6,
-  globalMaxPolar: 1.1,
-  topPanMaxPolarDeg: 86.9,
 }
 
 function toFixedNumber(value: number, digits = 3): number {

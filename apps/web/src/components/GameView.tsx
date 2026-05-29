@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
-import type { Player, GameState, LegalMove } from '@rune-race/shared'
+import type { Player, GameState } from '@rune-race/shared'
 import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
-import BoardScene, { type CameraDebugInfo } from '../scenes/BoardScene'
+import BoardScene from '../scenes/BoardScene'
+import type { CameraDebugInfo } from '../config/cameraConfig'
+import CameraDevMenu from './dev/CameraDevMenu'
 import { BoardLayoutData, createInitialEditorState, EditorMode } from '../utils/boardEditorState'
 import { BoardEditorControls } from '../components/BoardEditor'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
@@ -22,57 +24,6 @@ function LoadingOverlay({ active, progress }: { active: boolean; progress: numbe
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-400 border-t-cyan-300" />
         <p className="text-sm font-medium">Loading board... {Math.round(progress)}%</p>
       </div>
-    </div>
-  )
-}
-
-function DevMenu({
-  info,
-  tab,
-  isEditorActive,
-  onToggleEditor,
-  gameState,
-  debugMoves,
-}: {
-  info: CameraDebugInfo | null
-  tab: string
-  onTabChange: (tab: string) => void
-  isEditorActive: boolean
-  onToggleEditor: () => void
-  cursorPos: { x: number; y: number } | null
-  gameState: GameState
-  selectableTokenIds: string[]
-  debugMoves: Array<{ id: string; tokenId: string; label: string }>
-}) {
-  if (tab === 'camera') {
-    if (!info) {
-      return <div className="rounded-xl border border-white/15 bg-slate-950/80 px-4 py-3 text-xs text-slate-200">Waiting for camera...</div>
-    }
-    return (
-      <div className="w-[300px] rounded-xl border border-white/15 bg-slate-950/85 p-4 text-xs text-slate-100 shadow-2xl backdrop-blur-sm font-mono space-y-1">
-        <p className="text-cyan-300 font-semibold">Camera (F3)</p>
-        <p>Pos: [{info.position.x}, {info.position.y}, {info.position.z}]</p>
-      </div>
-    )
-  }
-
-  if (tab === 'game') {
-    return (
-      <div className="w-[320px] rounded-xl border border-white/15 bg-slate-950/85 p-4 text-xs text-slate-100">
-        <p>Phase: {gameState.turn.phase}</p>
-        <p>Dice: {gameState.turn.diceResult ?? '-'}</p>
-        {debugMoves.map((m) => (
-          <div key={m.id}>{m.label}</div>
-        ))}
-      </div>
-    )
-  }
-
-  return (
-    <div className="w-[320px] rounded-xl border border-white/15 bg-slate-950/85 p-4 text-xs text-slate-100">
-      <button type="button" onClick={onToggleEditor} className="rounded-lg bg-green-700 px-3 py-1">
-        {isEditorActive ? 'Editor ON' : 'Editor OFF'}
-      </button>
     </div>
   )
 }
@@ -115,10 +66,8 @@ export default function GameView({
   const defaultBoardImpactFeedback = useBoardImpactFeedback()
   const boardImpactFeedback = boardImpactFeedbackProp ?? defaultBoardImpactFeedback
   const [showDevMenu, setShowDevMenu] = useState(false)
-  const [devMenuTab, setDevMenuTab] = useState('camera')
   const [cameraDebugInfo, setCameraDebugInfo] = useState<CameraDebugInfo | null>(null)
   const [isEditorActive, setIsEditorActive] = useState(false)
-  const [cursorPos] = useState<{ x: number; y: number } | null>(null)
   const [editorData, setEditorData] = useState<BoardLayoutData>(createInitialEditorState().data)
   const [editorMode, setEditorMode] = useState<EditorMode>('main-track')
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
@@ -159,13 +108,6 @@ export default function GameView({
 
   const finishOrderIds = useMemo(() => finishOrder.map((player) => player.id), [finishOrder])
 
-  const legalMoveLabel = (move: LegalMove) => {
-    const tokenIndex = Number(move.tokenId.split(':').pop() ?? '0') + 1
-    if (move.moveType === 'spawn') return `Xuat quan #${tokenIndex}`
-    if (move.moveType === 'capture') return `Di quan #${tokenIndex} va an quan`
-    return `Di quan #${tokenIndex}`
-  }
-
   const isLocalPlayersTurn =
     localPlayerId === undefined || gameState.turn.currentPlayerId === localPlayerId
 
@@ -189,16 +131,6 @@ export default function GameView({
     })
     return map
   }, [gameState.turn.legalMoves])
-
-  const debugMoves = useMemo(
-    () =>
-      gameState.turn.legalMoves.map((move) => ({
-        id: move.id,
-        tokenId: move.tokenId,
-        label: legalMoveLabel(move),
-      })),
-    [gameState.turn.legalMoves],
-  )
 
   const currentTurnPlayer = gameState.players.find((p) => p.id === gameState.turn.currentPlayerId) ?? null
   const displayedTurnPlayer =
@@ -330,6 +262,10 @@ export default function GameView({
       if (e.key === 'F3') {
         e.preventDefault()
         setShowDevMenu((c) => !c)
+      }
+      if (e.key === 'F4') {
+        e.preventDefault()
+        setIsEditorActive((c) => !c)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -479,7 +415,7 @@ export default function GameView({
   return (
     <div className="relative h-screen w-full overflow-hidden bg-slate-950">
       <BoardScene
-        onDebugInfoChange={setCameraDebugInfo}
+        onDebugInfoChange={showDevMenu ? setCameraDebugInfo : undefined}
         isEditorActive={isEditorActive}
         gameState={gameState}
         rollTrigger={rollTrigger}
@@ -533,18 +469,8 @@ export default function GameView({
       </div>
 
       {showDevMenu ? (
-        <div className="absolute right-4 top-4 z-30">
-          <DevMenu
-            info={cameraDebugInfo}
-            tab={devMenuTab}
-            onTabChange={setDevMenuTab}
-            isEditorActive={isEditorActive}
-            onToggleEditor={() => setIsEditorActive((v) => !v)}
-            cursorPos={cursorPos}
-            gameState={gameState}
-            selectableTokenIds={selectableTokenIds}
-            debugMoves={debugMoves}
-          />
+        <div className="pointer-events-none absolute right-4 top-4 z-30">
+          <CameraDevMenu info={cameraDebugInfo} onClose={() => setShowDevMenu(false)} />
         </div>
       ) : null}
 
