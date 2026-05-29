@@ -98,7 +98,7 @@ export class MatchmakingQueue {
     const snapshot = this.lobbyStore.createLobby({
       hostPlayerId: host.playerId,
       hostName: host.playerName,
-      visibility: 'private',
+      visibility: 'public',
       name: `Match ${snapshotJoinSuffix()}`,
     })
 

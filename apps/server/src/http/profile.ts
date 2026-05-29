@@ -40,7 +40,9 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
     if (!user) return
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
-      return reply.status(500).send({ error: 'Supabase not configured' })
+      return reply.status(503).send({
+        error: 'Supabase not configured on server (set SUPABASE_URL and SUPABASE_SECRET_KEY in .env)',
+      })
     }
 
     const { data, error } = await supabase
@@ -83,7 +85,9 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
     const { id } = request.params as { id: string }
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
-      return reply.status(500).send({ error: 'Supabase not configured' })
+      return reply.status(503).send({
+        error: 'Supabase not configured on server (set SUPABASE_URL and SUPABASE_SECRET_KEY in .env)',
+      })
     }
 
     const { data, error } = await supabase
@@ -106,7 +110,9 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
     if (!user) return
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
-      return reply.status(500).send({ error: 'Supabase not configured' })
+      return reply.status(503).send({
+        error: 'Supabase not configured on server (set SUPABASE_URL and SUPABASE_SECRET_KEY in .env)',
+      })
     }
 
     const body = (request.body ?? {}) as {

@@ -4,23 +4,23 @@ import { validateCommand } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
 import { getUserFromAccessToken } from '../lib/supabase-server'
+import { PlayerSocketRegistry } from './player-socket-registry'
 
 type AuthSocketData = {
   userId?: string
 }
 
-function lobbyError(socket: Socket<ClientToServerEvents, ServerToClientEvents>, message: string, code: string) {
+type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents>
+
+function lobbyError(socket: AppSocket, message: string, code: string) {
   socket.emit('lobby:error', { message, code })
 }
 
-function gameError(socket: Socket<ClientToServerEvents, ServerToClientEvents>, message: string, code: string) {
+function gameError(socket: AppSocket, message: string, code: string) {
   socket.emit('game:error', { message, code })
 }
 
-function assertPlayerIdMatchesAuth(
-  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
-  playerId: string,
-): void {
+function assertPlayerIdMatchesAuth(socket: AppSocket, playerId: string): void {
   const { userId } = socket.data as AuthSocketData
   if (userId && userId !== playerId) {
     throw new Error('Auth mismatch')
@@ -41,11 +41,66 @@ function forfeitPlayerInActiveGame(
   gameStore.removePlayer(snapshot.currentGameId, playerId)
 }
 
+function notifyPlayerRemoved(
+  registry: PlayerSocketRegistry,
+  lobbyId: string,
+  playerId: string,
+  reason: 'kicked' | 'disconnect_timeout',
+): void {
+  for (const socket of registry.getSockets(playerId)) {
+    if (reason === 'kicked') {
+      socket.emit('lobby:kicked', { lobbyId, reason: 'kicked' })
+    } else {
+      socket.emit('lobby:removed', { lobbyId, reason: 'disconnect_timeout' })
+    }
+    socket.leave(`lobby:${lobbyId}`)
+    const data = socket.data as { lobbyId?: string }
+    if (data.lobbyId === lobbyId) {
+      delete data.lobbyId
+    }
+  }
+}
+
+function removePlayerImmediately(
+  registry: PlayerSocketRegistry,
+  lobbyStore: LobbyStore,
+  gameStore: GameStore,
+  lobbyId: string,
+  playerId: string,
+  options: {
+    forfeitGame: boolean
+    notify?: { reason: 'kicked' | 'disconnect_timeout' }
+    leavingSocket?: AppSocket
+  },
+): void {
+  if (options.forfeitGame) {
+    forfeitPlayerInActiveGame(lobbyStore, gameStore, playerId)
+  }
+
+  if (options.notify) {
+    notifyPlayerRemoved(registry, lobbyId, playerId, options.notify.reason)
+  }
+
+  const removed = lobbyStore.leaveLobby(lobbyId, playerId)
+
+  if (options.leavingSocket) {
+    options.leavingSocket.leave(`lobby:${lobbyId}`)
+    const data = options.leavingSocket.data as { lobbyId?: string }
+    if (data.lobbyId === lobbyId) {
+      delete data.lobbyId
+    }
+  }
+
+  if (!removed) return
+}
+
 export function setupSocketHandlers(
   io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
   lobbyStore: LobbyStore,
   gameStore: GameStore,
 ): void {
+  const socketRegistry = new PlayerSocketRegistry()
+
   io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token
     if (!token) return next()
@@ -58,6 +113,12 @@ export function setupSocketHandlers(
   lobbyStore.setListeners({
     onChange: (lobbyId, snapshot) => {
       io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+    },
+    onDestroy: (lobbyId) => {
+      io.to(`lobby:${lobbyId}`).emit('lobby:closed', { lobbyId, reason: 'empty' })
+    },
+    onPlayerTimedOut: (lobbyId, playerId) => {
+      notifyPlayerRemoved(socketRegistry, lobbyId, playerId, 'disconnect_timeout')
     },
     onGameStart: ({ lobbyId, gameId, players, firstPlayerId }) => {
       lobbyStore.setInGame(lobbyId, gameId)
@@ -103,6 +164,7 @@ export function setupSocketHandlers(
       const data = socket.data as { lobbyId?: string; playerId?: string; gameId?: string }
       data.lobbyId = lobbyId
       data.playerId = playerId
+      socketRegistry.track(socket, playerId)
       lobbyStore.markConnected(lobbyId, playerId)
     }
 
@@ -175,11 +237,10 @@ export function setupSocketHandlers(
         assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) return
-        forfeitPlayerInActiveGame(lobbyStore, gameStore, cmd.playerId)
-        lobbyStore.leaveLobby(lobbyId, cmd.playerId)
-        socket.leave(`lobby:${lobbyId}`)
-        const snapshot = lobbyStore.getSnapshot(lobbyId)
-        if (snapshot) io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        removePlayerImmediately(socketRegistry, lobbyStore, gameStore, lobbyId, cmd.playerId, {
+          forfeitGame: true,
+          leavingSocket: socket,
+        })
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'LEAVE_FAILED')
       }
@@ -191,8 +252,8 @@ export function setupSocketHandlers(
         assertPlayerIdMatchesAuth(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
-        const snapshot = lobbyStore.kickPlayer(lobbyId, cmd.playerId, cmd.targetPlayerId)
-        io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        notifyPlayerRemoved(socketRegistry, lobbyId, cmd.targetPlayerId, 'kicked')
+        lobbyStore.kickPlayer(lobbyId, cmd.playerId, cmd.targetPlayerId)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'KICK_FAILED')
       }
@@ -265,7 +326,9 @@ export function setupSocketHandlers(
           throw new Error('Player not in this game')
         }
         socket.join(`game:${cmd.gameId}`)
-        ;(socket.data as { gameId?: string }).gameId = cmd.gameId
+        socketRegistry.track(socket, cmd.playerId)
+        ;(socket.data as { gameId?: string; playerId?: string }).gameId = cmd.gameId
+        ;(socket.data as { playerId?: string }).playerId = cmd.playerId
         socket.emit('game:connected', { playerId: cmd.playerId, gameId: cmd.gameId })
         socket.emit('game:state_snapshot', { version: state.version, state, events: state.events })
       } catch (error) {
@@ -321,17 +384,21 @@ export function setupSocketHandlers(
     })
 
     socket.on('disconnect', () => {
+      socketRegistry.untrack(socket)
+
       const data = socket.data as { lobbyId?: string; playerId?: string }
-      if (data.lobbyId && data.playerId) {
-        forfeitPlayerInActiveGame(lobbyStore, gameStore, data.playerId)
-        lobbyStore.markDisconnected(data.lobbyId, data.playerId)
-        const snapshot = lobbyStore.getSnapshot(data.lobbyId)
-        if (snapshot) {
-          io.to(`lobby:${data.lobbyId}`).emit('lobby:snapshot', snapshot)
-          io.to(`lobby:${data.lobbyId}`).emit('lobby:start_countdown_cancelled', {
-            reason: 'disconnect',
-          })
-        }
+      if (!data.lobbyId || !data.playerId) return
+
+      const { lobbyId, playerId } = data
+      forfeitPlayerInActiveGame(lobbyStore, gameStore, playerId)
+      lobbyStore.markDisconnected(lobbyId, playerId)
+
+      const snapshot = lobbyStore.getSnapshot(lobbyId)
+      if (snapshot) {
+        io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        io.to(`lobby:${lobbyId}`).emit('lobby:start_countdown_cancelled', {
+          reason: 'disconnect',
+        })
       }
     })
   })

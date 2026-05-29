@@ -34,6 +34,8 @@ export interface LobbyRecord {
 }
 
 export type LobbyChangeListener = (lobbyId: string, snapshot: LobbySnapshot) => void
+export type LobbyDestroyListener = (lobbyId: string) => void
+export type LobbyPlayerTimedOutListener = (lobbyId: string, playerId: string) => void
 export type GameStartListener = (payload: {
   lobbyId: string
   gameId: string
@@ -55,13 +57,19 @@ export class LobbyStore {
   private joinCodeIndex = new Map<string, string>()
   private playerLobbyIndex = new Map<string, string>()
   private onChange: LobbyChangeListener | null = null
+  private onDestroy: LobbyDestroyListener | null = null
+  private onPlayerTimedOut: LobbyPlayerTimedOutListener | null = null
   private onGameStart: GameStartListener | null = null
 
   setListeners(listeners: {
     onChange?: LobbyChangeListener
+    onDestroy?: LobbyDestroyListener
+    onPlayerTimedOut?: LobbyPlayerTimedOutListener
     onGameStart?: GameStartListener
   }): void {
     this.onChange = listeners.onChange ?? null
+    this.onDestroy = listeners.onDestroy ?? null
+    this.onPlayerTimedOut = listeners.onPlayerTimedOut ?? null
     this.onGameStart = listeners.onGameStart ?? null
   }
 
@@ -237,20 +245,22 @@ export class LobbyStore {
     return snapshot
   }
 
-  leaveLobby(lobbyId: string, playerId: string): void {
+  leaveLobby(lobbyId: string, playerId: string): boolean {
     const record = this.lobbies.get(lobbyId)
-    if (!record) return
+    if (!record) return false
+    if (!record.players.some((p) => p.id === playerId)) return false
 
     this.removePlayer(record, playerId, 'left')
     if (record.players.length === 0) {
       this.destroyLobby(lobbyId)
-      return
+      return true
     }
 
     this.emitChange(lobbyId, this.toSnapshot(record))
+    return true
   }
 
-  kickPlayer(lobbyId: string, hostId: string, targetId: string): LobbySnapshot {
+  kickPlayer(lobbyId: string, hostId: string, targetId: string): LobbySnapshot | null {
     const record = this.getLobbyOrThrow(lobbyId, hostId)
     if (record.hostPlayerId !== hostId) {
       throw new Error('Only host can kick')
@@ -263,6 +273,11 @@ export class LobbyStore {
     }
 
     this.removePlayer(record, targetId, 'kicked')
+    if (record.players.length === 0) {
+      this.destroyLobby(lobbyId)
+      return null
+    }
+
     const snapshot = this.toSnapshot(record)
     this.emitChange(lobbyId, snapshot)
     return snapshot
@@ -332,16 +347,11 @@ export class LobbyStore {
     const player = record.players.find((p) => p.id === playerId)
     if (!player || !player.connected) return
 
-    if (record.players.length === 1 && record.hostPlayerId === playerId) {
-      this.destroyLobby(lobbyId)
-      return
-    }
-
     player.connected = false
     player.ready = false
     this.cancelCountdown(record, 'disconnect')
 
-    if (record.hostPlayerId === playerId) {
+    if (record.hostPlayerId === playerId && record.players.length > 1) {
       const nextHost = record.players.find((p) => p.connected && p.id !== playerId)
       if (nextHost) {
         record.hostPlayerId = nextHost.id
@@ -353,10 +363,23 @@ export class LobbyStore {
 
     this.clearDisconnectTimer(player)
     player.disconnectTimer = setTimeout(() => {
-      this.leaveLobby(lobbyId, playerId)
+      if (!this.leaveLobbyAfterDisconnectTimeout(lobbyId, playerId)) return
+      this.onPlayerTimedOut?.(lobbyId, playerId)
     }, LOBBY_DISCONNECT_GRACE_MS)
 
     this.emitChange(lobbyId, this.toSnapshot(record))
+  }
+
+  /** Grace period expired — remove player from lobby (game forfeit handled by caller on disconnect). */
+  leaveLobbyAfterDisconnectTimeout(lobbyId: string, playerId: string): boolean {
+    const record = this.lobbies.get(lobbyId)
+    if (!record) return false
+
+    const player = record.players.find((p) => p.id === playerId)
+    if (!player) return false
+
+    this.clearDisconnectTimer(player)
+    return this.leaveLobby(lobbyId, playerId)
   }
 
   markConnected(lobbyId: string, playerId: string): void {
@@ -492,6 +515,7 @@ export class LobbyStore {
       this.playerLobbyIndex.delete(p.id)
     })
     this.lobbies.delete(lobbyId)
+    this.onDestroy?.(lobbyId)
   }
 
   private clearDisconnectTimer(player: InternalLobbyPlayer): void {
@@ -521,7 +545,7 @@ export class LobbyStore {
       .map((p) => p.color)
       .filter((c): c is PlayerColor => c !== null)
 
-    const playerCount = record.players.filter((p) => p.connected).length
+    const playerCount = record.players.length
 
     return {
       lobbyId: record.lobbyId,
