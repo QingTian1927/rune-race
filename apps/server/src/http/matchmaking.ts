@@ -3,6 +3,7 @@ import {
   MATCHMAKING_TIER_2_SECONDS,
   MATCHMAKING_TIER_3_SECONDS,
   MATCHMAKING_TIER_4_SECONDS,
+  MATCHMAKING_PRIORITIZE_WINDOW_SECONDS,
 } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
 import { getAuthUser } from '../lib/auth'
@@ -69,12 +70,25 @@ export class MatchmakingQueue {
     )
 
     let batchSize: number | null = null
-    if (this.queue.length >= 4 && oldestWait >= MATCHMAKING_TIER_4_SECONDS) {
-      batchSize = 4
-    } else if (this.queue.length >= 3 && oldestWait >= MATCHMAKING_TIER_3_SECONDS) {
-      batchSize = 3
-    } else if (this.queue.length >= 2 && oldestWait >= MATCHMAKING_TIER_2_SECONDS) {
-      batchSize = 2
+
+    // Prioritize matching larger groups during the initial window.
+    if (oldestWait < MATCHMAKING_PRIORITIZE_WINDOW_SECONDS) {
+      if (this.queue.length >= 4) {
+        batchSize = 4
+      } else if (this.queue.length >= 3) {
+        batchSize = 3
+      } else if (this.queue.length >= 2 && oldestWait >= MATCHMAKING_TIER_2_SECONDS) {
+        batchSize = 2
+      }
+    } else {
+      // After the prioritize window, match as fast as possible using tier thresholds.
+      if (this.queue.length >= 4 && oldestWait >= MATCHMAKING_TIER_4_SECONDS) {
+        batchSize = 4
+      } else if (this.queue.length >= 3 && oldestWait >= MATCHMAKING_TIER_3_SECONDS) {
+        batchSize = 3
+      } else if (this.queue.length >= 2 && oldestWait >= MATCHMAKING_TIER_2_SECONDS) {
+        batchSize = 2
+      }
     }
 
     if (!batchSize) return

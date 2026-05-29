@@ -28,6 +28,7 @@
     }
   },
   "scripts": {
+    "dev": "tsc -w",
     "build": "tsc"
   },
   "devDependencies": {

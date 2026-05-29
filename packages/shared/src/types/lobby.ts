@@ -53,9 +53,10 @@ export const LOBBY_START_COUNTDOWN_SECONDS = 5
 export const JOIN_CODE_LENGTH = 8
 
 /** Matchmaking timing (seconds). */
-export const MATCHMAKING_TIER_4_SECONDS = 20
-export const MATCHMAKING_TIER_3_SECONDS = 40
-export const MATCHMAKING_TIER_2_SECONDS = 60
+export const MATCHMAKING_PRIORITIZE_WINDOW_SECONDS = 15
+export const MATCHMAKING_TIER_4_SECONDS = 0
+export const MATCHMAKING_TIER_3_SECONDS = 5
+export const MATCHMAKING_TIER_2_SECONDS = 3
 
 /** Disconnect grace (milliseconds). */
 export const LOBBY_DISCONNECT_GRACE_MS = 90_000
