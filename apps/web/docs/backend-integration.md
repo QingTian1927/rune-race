@@ -39,9 +39,18 @@ If `useAuth` has a Supabase session, `lib/socket.ts` sends `auth: { token }` in 
 
 Emit: `lobby:join`, `lobby:set_color`, `lobby:ready`, `lobby:unready`, `lobby:leave`, host actions, `lobby:sync_request`.
 
-Listen: `lobby:snapshot`, `lobby:start_countdown`, `lobby:start_countdown_cancelled`, `lobby:game_started`, `lobby:error`.
+Listen: `lobby:snapshot`, `lobby:start_countdown`, `lobby:start_countdown_cancelled`, `lobby:game_started`, `lobby:error`, `lobby:closed`, `lobby:kicked`, `lobby:removed`.
 
-The hook now accepts an optional Supabase access token and reuses it for the socket handshake.
+**Leave behavior (client):**
+
+- **Rời phòng** / **← Trang chủ** on `LobbyPage` → `emitLeaveLobby` then navigate.
+- **Rời game** on `OnlineGamePage` → same (`lobby:leave` removes from lobby and forfeits match).
+- **Lobby → game** navigation sets `rune-race-lobby-retain` so unmount does **not** auto-leave (player stays in lobby for Back link).
+- Do **not** call `lobby:leave` on hook unmount — avoids React StrictMode destroying rooms in dev.
+
+Optional `onRemoved` callback redirects home on `lobby:closed` / `lobby:kicked` / `lobby:removed`.
+
+The hook accepts an optional Supabase access token for the socket handshake.
 
 ### Game (`useGameSocket`)
 
@@ -107,6 +116,10 @@ There is no socket field for “show move list”; multiple moves are chosen via
 | `VITE_API_URL` | API + socket base (e.g. `http://192.168.1.10:3000`). Empty = same origin + Vite proxy. |
 | `VITE_SUPABASE_URL` | Supabase project URL for the web auth client. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key used by the browser client. |
+
+Place variables in the **repo root** `.env` (see `.env.example`). Vite `envDir` points at the monorepo root so one file serves web and server in local dev.
+
+**Server-only** (same `.env` file, no `VITE_` prefix): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `PORT`, `CLIENT_ORIGIN`.
 
 ### LAN checklist
 

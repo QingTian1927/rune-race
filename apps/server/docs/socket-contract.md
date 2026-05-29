@@ -23,6 +23,16 @@ If the client has a Supabase session, it sends `auth: { token }` in the socket h
 4. Countdown completes → `lobby:game_started` + initial `game:state_snapshot` on `game:{gameId}`.
 5. Clients emit `game:join` with `gameId`.
 
+### Leave and disconnect
+
+| Action | Game | Lobby | Broadcast |
+|--------|------|-------|-----------|
+| `lobby:leave` (explicit) | Forfeit if in match | Remove immediately | `lobby:snapshot`; `lobby:closed` if empty |
+| Socket `disconnect` | Forfeit if in match | `connected: false`, then remove after 30s grace | `lobby:snapshot`; `lobby:removed` to timed-out player |
+| Host kick | — | Remove immediately (lobby phase only) | `lobby:kicked` to target + `lobby:snapshot` |
+
+Players navigating lobby → game **stay** in the lobby record; only explicit leave or disconnect grace removes them.
+
 ### Game
 
 1. `game:join` → `game:connected` + full `game:state_snapshot` (all `events` on first join).
@@ -41,8 +51,8 @@ If the client has a Supabase session, it sends `auth: { token }` in the socket h
 | `lobby:set_color` | Pick `red` \| `blue` \| `green` \| `yellow` |
 | `lobby:ready` | Mark ready (may start countdown) |
 | `lobby:unready` | Cancel ready; emits `lobby:start_countdown_cancelled` |
-| `lobby:leave` | Leave lobby |
-| `lobby:kick` | Host kicks `targetPlayerId` |
+| `lobby:leave` | Leave lobby immediately (and forfeit active game) |
+| `lobby:kick` | Host kicks `targetPlayerId` (lobby phase only) |
 | `lobby:cancel_countdown` | Host cancels start countdown |
 | `lobby:update_settings` | Host: `name`, `password`, `clearPassword` |
 | `lobby:transfer_host` | Host transfers to `newHostPlayerId` |
@@ -88,6 +98,9 @@ For authenticated users, `playerId` must match the Supabase user id attached to 
 | `lobby:start_countdown_cancelled` | `{ reason: string }` |
 | `lobby:game_started` | `{ gameId, lobbyId, firstPlayerId }` |
 | `lobby:error` | `{ message, code }` |
+| `lobby:closed` | `{ lobbyId, reason: 'empty' }` — room destroyed (last player left) |
+| `lobby:kicked` | `{ lobbyId, reason: 'kicked' }` — sent to kicked player |
+| `lobby:removed` | `{ lobbyId, reason: 'disconnect_timeout' }` — grace expired after disconnect |
 
 **`LobbySnapshot` (summary):**
 

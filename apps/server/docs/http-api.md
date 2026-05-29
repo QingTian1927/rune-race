@@ -90,7 +90,7 @@ Client should then `lobby:join` over Socket.IO with the same `playerId`.
 
 ### `POST /api/matchmaking/join`
 
-Enqueue for auto-match.
+Enqueue for auto-match. Creates a **public** lobby when matched (listed in `GET /api/rooms`; others may join if seats remain).
 
 **Body:** `{ "playerId": "...", "playerName": "..." }`
 

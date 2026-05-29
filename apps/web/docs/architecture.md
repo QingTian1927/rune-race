@@ -99,11 +99,13 @@ Camera / game debug / editor toggle — separate from gameplay HUD.
 
 ## Hooks
 
-### `useLobbySocket(lobbyId, playerId)`
+### `useLobbySocket(lobbyId, playerId, …)`
 
-Subscribes to `lobby:snapshot`, emits lobby commands. Handles join on connect.
+Subscribes to `lobby:snapshot` and removal events; emits lobby commands; joins on socket connect.
 
-When a Supabase access token is available, the hook passes it to `lib/socket.ts` so the server can validate the authenticated user.
+Does **not** leave on unmount (explicit leave buttons + server disconnect grace only). Uses `retainLobbyOnUnmount` when entering a game.
+
+When a Supabase access token is available, passes it to `lib/socket.ts` for handshake auth.
 
 ### `useGameSocket(gameId, playerId)`
 
@@ -131,7 +133,9 @@ Skips dice gate on **first** snapshot (full event history on join).
 
 - `config.ts`: `API_BASE = import.meta.env.VITE_API_URL ?? ''`
 - Empty `API_BASE` → same-origin; Vite proxies `/api` and `/socket.io` to port 3000.
-- `lib/supabase.ts`: browser auth client configured with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- `vite.config.ts`: `envDir` → repo root (shared `.env` with server).
+- `lib/supabase.ts`: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- `lib/socket.ts`: `emitLeaveLobby`, `retainLobbyOnUnmount`, `LOBBY_RETAIN_SESSION_KEY`.
 
 ## Dev-only features
 

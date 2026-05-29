@@ -13,18 +13,23 @@
 2. UI renders `LobbySnapshot`: players, colors, ready, countdown.
 3. Host: kick, settings, cancel countdown, transfer host.
 4. All ready → server countdown 5s → `lobby:game_started`.
-5. Navigate to `/game/:gameId`; store `rune-race-lobby-id` in `sessionStorage` for back link.
+5. Navigate to `/game/:gameId`; `retainLobbyOnUnmount` keeps lobby membership; `sessionStorage` stores `rune-race-lobby-id` for Back.
+
+**Leaving:** use **Rời phòng** or **← Trang chủ** (both emit `lobby:leave`). Accidental tab close → server disconnect grace (30s) then removal.
 
 ## Online game flow (`OnlineGamePage`)
 
 1. `useGameSocket(gameId, playerId, accessToken)` → `game:join` on connect.
-2. `GameView` receives display state from presentation hook.
-3. **Roll:** if `canRoll` (my turn, `waiting_roll`, not presenting dice) → `game:roll`.
-4. Server snapshot with delta `dice_roll` (+ maybe `token_moved` if auto-resolved):
+2. **Back** → `/lobby/:lobbyId` (still a lobby member).
+3. **Rời game** → `lobby:leave` + navigate home (forfeit + leave lobby).
+4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect if removed while in match.
+5. `GameView` receives display state from presentation hook.
+6. **Roll:** if `canRoll` (my turn, `waiting_roll`, not presenting dice) → `game:roll`.
+7. Server snapshot with delta `dice_roll` (+ maybe `token_moved` if auto-resolved):
    - Increment `rollTrigger` → `DiceShaker` animates.
    - Tokens frozen until animation completes.
-5. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only (no HUD move list) → `game:choose_move`.
-6. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
+8. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only (no HUD move list) → `game:choose_move`.
+9. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
 
 ## Local game flow (`LocalGamePage`)
 

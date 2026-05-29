@@ -42,6 +42,9 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | `lobby:start_countdown_cancelled` | `{ reason }` |
 | `lobby:game_started` | `{ gameId, lobbyId, firstPlayerId }` |
 | `lobby:error` | `{ message, code }` |
+| `lobby:closed` | `{ lobbyId, reason: 'empty' }` |
+| `lobby:kicked` | `{ lobbyId, reason: 'kicked' }` |
+| `lobby:removed` | `{ lobbyId, reason: 'disconnect_timeout' }` |
 
 ### Game
 
