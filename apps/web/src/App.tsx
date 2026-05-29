@@ -10,7 +10,12 @@ import ProfileEditPage from './pages/ProfileEdit'
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth/login" element={<AuthLoginPage />} />

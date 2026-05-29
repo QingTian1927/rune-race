@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
 import { PlayerBadge } from '../components/hud/PlayerBadge'
 import { useLobbySocket } from '../hooks/useLobbySocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
-import { getSocket } from '../lib/socket'
+import { getSocket, retainLobbyOnUnmount } from '../lib/socket'
 import {
   gameAlertError,
   gameBtnDestructive,
@@ -51,6 +51,13 @@ export default function LobbyPage() {
 
   const { playerId, playerName, accessToken } = usePlayerIdentity()
 
+  const handleLobbyRemoved = useCallback(
+    (_reason: 'closed' | 'kicked' | 'disconnect_timeout') => {
+      navigate('/')
+    },
+    [navigate],
+  )
+
   const {
     snapshot,
     error,
@@ -62,7 +69,9 @@ export default function LobbyPage() {
     cancelCountdown,
     updateSettings,
     transferHost,
-  } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken)
+  } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken, {
+    onRemoved: handleLobbyRemoved,
+  })
 
   useEffect(() => {
     if (!lobbyId) return
@@ -70,6 +79,7 @@ export default function LobbyPage() {
 
     const onGameStarted = (payload: { gameId: string; lobbyId: string }) => {
       sessionStorage.setItem('rune-race-lobby-id', payload.lobbyId)
+      retainLobbyOnUnmount(payload.lobbyId)
       navigate(`/game/${payload.gameId}`)
     }
 
@@ -82,6 +92,7 @@ export default function LobbyPage() {
   useEffect(() => {
     if (snapshot?.status === 'in_game' && snapshot.currentGameId) {
       sessionStorage.setItem('rune-race-lobby-id', snapshot.lobbyId)
+      retainLobbyOnUnmount(snapshot.lobbyId)
       navigate(`/game/${snapshot.currentGameId}`)
     }
   }, [snapshot?.status, snapshot?.currentGameId, snapshot?.lobbyId, navigate])
@@ -110,8 +121,15 @@ export default function LobbyPage() {
   const maxPlayers = snapshot?.settings.maxPlayers ?? 4
   const players = snapshot?.players ?? []
   const emptySlotCount = Math.max(0, maxPlayers - players.length)
+  const inLobbyPhase = snapshot?.status === 'lobby' || snapshot?.status === 'countdown'
+  const enteringGame = snapshot?.status === 'in_game'
 
   const handleLeave = () => {
+    leave()
+    navigate('/')
+  }
+
+  const handleGoHome = () => {
     leave()
     navigate('/')
   }
@@ -119,9 +137,9 @@ export default function LobbyPage() {
   return (
     <div className={gamePage}>
       <div className={gameContainerWide}>
-        <Link to="/" className={gameNavLink}>
+        <button type="button" onClick={handleGoHome} className={gameNavLink}>
           ← Trang chủ
-        </Link>
+        </button>
 
         <header className="mt-4">
           <h1 className={gameTitle}>{snapshot?.settings.name ?? 'Lobby'}</h1>
@@ -145,127 +163,136 @@ export default function LobbyPage() {
             {snapshot?.status === 'countdown' && snapshot.countdownSeconds !== null
               ? ` · Bắt đầu sau ${snapshot.countdownSeconds}s`
               : ''}
+            {!connected && !error ? ' · Đang kết nối socket...' : ''}
           </p>
         </header>
 
         {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
 
-        <section className={`mt-6 ${gamePanel}`}>
-          <h2 className={`mb-3 ${gameSectionTitle}`}>Người chơi</h2>
-          <ul className="space-y-2">
-            {players.map((player) => (
-              <li key={player.id} className={gameListRow}>
-                <div className="flex min-w-0 items-center gap-3">
-                  {player.color ? (
-                    <PlayerBadge color={player.color} />
-                  ) : (
-                    <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300 bg-white/40" />
-                  )}
-                  <div className="min-w-0">
-                    <Link
-                      to={`/profile/${player.id}`}
-                      className="truncate text-sm font-bold text-stone-800 hover:underline"
-                    >
-                      {player.name}
-                    </Link>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {player.isHost ? (
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-                          Host
+        {!snapshot && !error ? (
+          <p className={`mt-6 text-center ${gameTagline}`}>Đang tải phòng...</p>
+        ) : null}
+
+        {snapshot ? (
+          <>
+            <section className={`mt-6 ${gamePanel}`}>
+              <h2 className={`mb-3 ${gameSectionTitle}`}>Người chơi</h2>
+              <ul className="space-y-2">
+                {players.map((player) => (
+                  <li key={player.id} className={gameListRow}>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {player.color ? (
+                        <PlayerBadge color={player.color} />
+                      ) : (
+                        <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300 bg-white/40" />
+                      )}
+                      <div className="min-w-0">
+                        <Link
+                          to={`/profile/${player.id}`}
+                          className="truncate text-sm font-bold text-stone-800 hover:underline"
+                        >
+                          {player.name}
+                        </Link>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {player.isHost ? (
+                            <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">
+                              Host
+                            </span>
+                          ) : null}
+                          {!player.connected ? (
+                            <span className={gameMeta}>Offline</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {player.ready ? (
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
+                          Sẵn sàng
                         </span>
-                      ) : null}
-                      {!player.connected ? (
-                        <span className={gameMeta}>Offline</span>
+                      ) : (
+                        <span className={gameMeta}>Chờ...</span>
+                      )}
+                      {isHost && player.id !== playerId && snapshot.status === 'lobby' ? (
+                        <button
+                          type="button"
+                          onClick={() => kick(player.id)}
+                          className={gameBtnDestructive}
+                        >
+                          Kick
+                        </button>
                       ) : null}
                     </div>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {player.ready ? (
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">
-                      Sẵn sàng
-                    </span>
-                  ) : (
-                    <span className={gameMeta}>Chờ...</span>
-                  )}
-                  {isHost && player.id !== playerId && snapshot?.status === 'lobby' ? (
-                    <button
-                      type="button"
-                      onClick={() => kick(player.id)}
-                      className={gameBtnDestructive}
-                    >
-                      Kick
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-            {Array.from({ length: emptySlotCount }, (_, i) => (
-              <li key={`empty-${i}`} className={gameEmptySlot}>
-                <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300/80" />
-                <span>Chỗ trống</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {snapshot?.status === 'lobby' || snapshot?.status === 'countdown' ? (
-          <>
-            <section className={`mt-4 ${gamePanel}`}>
-              <h2 className={`mb-3 ${gameSectionTitle}`}>Chọn màu</h2>
-              <div className="flex flex-wrap gap-3">
-                {PLAYER_COLORS.map((color) => {
-                  const taken = snapshot?.takenColors.includes(color)
-                  const selected = me?.color === color
-                  return (
-                    <button
-                      key={color}
-                      type="button"
-                      disabled={taken && !selected}
-                      onClick={() => setColor(color)}
-                      className={`h-12 w-12 rounded-full ring-2 ring-offset-1 ring-offset-amber-50 ${COLOR_PICKER[color]} ${
-                        selected ? 'ring-stone-700' : 'ring-transparent opacity-80'
-                      } disabled:cursor-not-allowed disabled:opacity-30`}
-                      title={color}
-                    />
-                  )
-                })}
-              </div>
+                  </li>
+                ))}
+                {Array.from({ length: emptySlotCount }, (_, i) => (
+                  <li key={`empty-${i}`} className={gameEmptySlot}>
+                    <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300/80" />
+                    <span>Chỗ trống</span>
+                  </li>
+                ))}
+              </ul>
             </section>
 
-            {isHost ? (
-              <HostPanel
-                onUpdateSettings={updateSettings}
-                onTransferHost={transferHost}
-                players={players}
-                currentName={snapshot?.settings.name ?? ''}
-              />
+            {inLobbyPhase ? (
+              <>
+                <section className={`mt-4 ${gamePanel}`}>
+                  <h2 className={`mb-3 ${gameSectionTitle}`}>Chọn màu</h2>
+                  <div className="flex flex-wrap gap-3">
+                    {PLAYER_COLORS.map((color) => {
+                      const taken = snapshot.takenColors.includes(color)
+                      const selected = me?.color === color
+                      return (
+                        <button
+                          key={color}
+                          type="button"
+                          disabled={taken && !selected}
+                          onClick={() => setColor(color)}
+                          className={`h-12 w-12 rounded-full ring-2 ring-offset-1 ring-offset-amber-50 ${COLOR_PICKER[color]} ${
+                            selected ? 'ring-stone-700' : 'ring-transparent opacity-80'
+                          } disabled:cursor-not-allowed disabled:opacity-30`}
+                          title={color}
+                        />
+                      )
+                    })}
+                  </div>
+                </section>
+
+                {isHost ? (
+                  <HostPanel
+                    onUpdateSettings={updateSettings}
+                    onTransferHost={transferHost}
+                    players={players}
+                    currentName={snapshot.settings.name ?? ''}
+                  />
+                ) : null}
+
+                <div className="mt-6 space-y-2">
+                  <button
+                    type="button"
+                    disabled={!me?.color}
+                    onClick={() => setReady(!me?.ready)}
+                    className={gameBtnPrimary}
+                  >
+                    {me?.ready ? 'Hủy sẵn sàng' : 'Sẵn sàng'}
+                  </button>
+
+                  {isHost && snapshot.status === 'countdown' ? (
+                    <button type="button" onClick={cancelCountdown} className={gameBtnPrimary}>
+                      Hủy đếm ngược
+                    </button>
+                  ) : null}
+
+                  <button type="button" onClick={handleLeave} className={gameBtnGhostFull}>
+                    Rời phòng
+                  </button>
+                </div>
+              </>
+            ) : enteringGame ? (
+              <p className={`mt-6 text-center ${gameTagline}`}>Đang chuyển vào game...</p>
             ) : null}
-
-            <div className="mt-6 space-y-2">
-              <button
-                type="button"
-                disabled={!me?.color}
-                onClick={() => setReady(!me?.ready)}
-                className={gameBtnPrimary}
-              >
-                {me?.ready ? 'Hủy sẵn sàng' : 'Sẵn sàng'}
-              </button>
-
-              {isHost && snapshot?.status === 'countdown' ? (
-                <button type="button" onClick={cancelCountdown} className={gameBtnPrimary}>
-                  Hủy đếm ngược
-                </button>
-              ) : null}
-
-              <button type="button" onClick={handleLeave} className={gameBtnGhostFull}>
-                Rời phòng
-              </button>
-            </div>
           </>
-        ) : (
-          <p className={`mt-6 text-center ${gameTagline}`}>Đang chuyển vào game...</p>
-        )}
+        ) : null}
       </div>
     </div>
   )

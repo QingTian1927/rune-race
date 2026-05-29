@@ -90,6 +90,8 @@ export type GameViewProps = {
   localPlayerId?: string
   /** Profile avatar emoji for the local player HUD. */
   localAvatarEmoji?: string | null
+  /** Active leave from online game (also leaves lobby). */
+  onLeave?: () => void
 }
 
 export default function GameView({
@@ -103,6 +105,7 @@ export default function GameView({
   isPresentingDice = false,
   localPlayerId,
   localAvatarEmoji,
+  onLeave,
 }: GameViewProps) {
   const { active, progress } = useProgress()
   const [showDevMenu, setShowDevMenu] = useState(false)
@@ -486,13 +489,22 @@ export default function GameView({
       />
 
       <div className="pointer-events-none absolute inset-0 z-10">
-        <div className="pointer-events-auto absolute left-4 top-4">
+        <div className="pointer-events-auto absolute left-4 top-4 flex flex-col gap-2">
           <Link
             to={backHref}
             className="rounded-xl bg-white/70 px-3 py-1 text-sm font-semibold text-gray-700 shadow backdrop-blur-sm transition-all hover:bg-white/90"
           >
             {gameState.status === 'finished' ? 'Ve lobby' : 'Back'}
           </Link>
+          {onLeave ? (
+            <button
+              type="button"
+              onClick={onLeave}
+              className="rounded-xl bg-red-600/90 px-3 py-1 text-sm font-semibold text-white shadow backdrop-blur-sm transition-all hover:bg-red-700"
+            >
+              Rời game
+            </button>
+          ) : null}
         </div>
         <CurrentTurnPanel
           player={displayedTurnPlayer}

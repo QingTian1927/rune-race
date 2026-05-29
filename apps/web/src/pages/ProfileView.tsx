@@ -14,7 +14,6 @@ import {
   gamePanel,
   gameStatRow,
   gameTagline,
-  gameTitle,
 } from '../lib/gameUiStyles'
 import { useAuth } from '../hooks/useAuth'
 import { isLegacyLocalAnonId } from '../lib/playerSession'

@@ -29,3 +29,14 @@ export function disconnectSocket(): void {
   socket = null
   currentToken = null
 }
+
+/** Set before navigating lobby → game so unmount does not emit lobby:leave. */
+export const LOBBY_RETAIN_SESSION_KEY = 'rune-race-lobby-retain'
+
+export function retainLobbyOnUnmount(lobbyId: string): void {
+  sessionStorage.setItem(LOBBY_RETAIN_SESSION_KEY, lobbyId)
+}
+
+export function emitLeaveLobby(token: string | null | undefined, playerId: string): void {
+  getSocket(token).emit('lobby:leave', { playerId })
+}

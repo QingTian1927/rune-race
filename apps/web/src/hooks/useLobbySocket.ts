@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LobbySnapshot, PlayerColor } from '@rune-race/shared'
-import { getSocket } from '../lib/socket'
+import {
+  emitLeaveLobby,
+  getSocket,
+  retainLobbyOnUnmount,
+} from '../lib/socket'
+
+export type LobbyRemovalReason = 'closed' | 'kicked' | 'disconnect_timeout'
 
 export function useLobbySocket(
   lobbyId: string,
@@ -8,16 +14,29 @@ export function useLobbySocket(
   playerName: string,
   password?: string,
   authToken?: string | null,
+  options?: {
+    onRemoved?: (reason: LobbyRemovalReason) => void
+  },
 ) {
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
+  const onRemoved = options?.onRemoved
+  const onRemovedRef = useRef(onRemoved)
+  onRemovedRef.current = onRemoved
+  const playerNameRef = useRef(playerName)
+  playerNameRef.current = playerName
 
   useEffect(() => {
     const socket = getSocket(authToken)
 
     const onConnected = () => {
-      socket.emit('lobby:join', { playerId, playerName, lobbyId, password })
+      socket.emit('lobby:join', {
+        playerId,
+        playerName: playerNameRef.current,
+        lobbyId,
+        password,
+      })
     }
 
     const onLobbyConnected = () => {
@@ -33,6 +52,30 @@ export function useLobbySocket(
       setError(payload.message)
     }
 
+    const onClosed = (payload: { lobbyId: string }) => {
+      if (payload.lobbyId !== lobbyId) return
+      setSnapshot(null)
+      onRemovedRef.current?.('closed')
+    }
+
+    const onKicked = (payload: { lobbyId: string }) => {
+      if (payload.lobbyId !== lobbyId) return
+      setSnapshot(null)
+      onRemovedRef.current?.('kicked')
+    }
+
+    const onTimedOut = (payload: { lobbyId: string }) => {
+      if (payload.lobbyId !== lobbyId) return
+      setSnapshot(null)
+      onRemovedRef.current?.('disconnect_timeout')
+    }
+
+    const onGameStarted = (payload: { lobbyId: string }) => {
+      if (payload.lobbyId === lobbyId) {
+        retainLobbyOnUnmount(lobbyId)
+      }
+    }
+
     if (socket.connected) {
       onConnected()
     } else {
@@ -42,14 +85,24 @@ export function useLobbySocket(
     socket.on('lobby:connected', onLobbyConnected)
     socket.on('lobby:snapshot', onSnapshot)
     socket.on('lobby:error', onLobbyError)
+    socket.on('lobby:closed', onClosed)
+    socket.on('lobby:kicked', onKicked)
+    socket.on('lobby:removed', onTimedOut)
+    socket.on('lobby:game_started', onGameStarted)
 
     return () => {
       socket.off('connect', onConnected)
       socket.off('lobby:connected', onLobbyConnected)
       socket.off('lobby:snapshot', onSnapshot)
       socket.off('lobby:error', onLobbyError)
+      socket.off('lobby:closed', onClosed)
+      socket.off('lobby:kicked', onKicked)
+      socket.off('lobby:removed', onTimedOut)
+      socket.off('lobby:game_started', onGameStarted)
+      // Do not emit lobby:leave here — React StrictMode remount and profile name
+      // updates would destroy the room. Leave via explicit UI or server disconnect grace.
     }
-  }, [authToken, lobbyId, playerId, playerName, password])
+  }, [authToken, lobbyId, playerId, password])
 
   const setColor = useCallback(
     (color: PlayerColor) => {
@@ -66,7 +119,7 @@ export function useLobbySocket(
   )
 
   const leave = useCallback(() => {
-    getSocket(authToken).emit('lobby:leave', { playerId })
+    emitLeaveLobby(authToken, playerId)
   }, [authToken, playerId])
 
   const kick = useCallback(
