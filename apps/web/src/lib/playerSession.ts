@@ -27,11 +27,6 @@ function randomId() {
   return `anon-${createRandomUUID()}`
 }
 
-/** Legacy clients stored `anon-<uuid>` before Supabase anonymous auth. */
-export function isLegacyLocalAnonId(id: string): boolean {
-  return id.startsWith('anon-')
-}
-
 export function syncPlayerIdFromAuth(authUserId: string): void {
   localStorage.setItem(PLAYER_ID_KEY, authUserId)
 }

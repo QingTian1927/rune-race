@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { linkAnonProfile } from '../lib/api'
+import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
 import {
   gameAlertError,
   gameAlertSuccess,
@@ -19,7 +19,7 @@ import {
 
 export default function AuthSignupPage() {
   const navigate = useNavigate()
-  const { signUp, anonUserId } = useAuth()
+  const { signUp } = useAuth()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -42,20 +42,13 @@ export default function AuthSignupPage() {
       if (result.error) throw result.error
 
       const newSession = result.data.session
-      if (newSession?.user && anonUserId && anonUserId !== newSession.user.id) {
-        try {
-          await linkAnonProfile(newSession.access_token, anonUserId)
-        } catch {
-          // ignore merge failures on signup
-        }
-      }
-
-      if (newSession) {
+      if (newSession?.user && newSession.access_token) {
+        await linkAnonSessionIfNeeded(newSession.access_token, newSession.user.id)
         navigate('/')
         return
       }
 
-      setInfo('Vui lòng kiểm tra email để xác nhận, sau đó đăng nhập.')
+      setInfo('Vui lòng kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
@@ -72,7 +65,7 @@ export default function AuthSignupPage() {
 
         <section className={`mt-6 ${gamePanel}`}>
           <h1 className={gameTitle}>Đăng ký</h1>
-          <p className={`mt-1 ${gameTagline}`}>Tạo tài khoản để lưu tiến trình</p>
+          <p className={`mt-1 ${gameTagline}`}>Tạo tài khoản để lưu profile và thống kê</p>
 
           {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
           {info ? <div className={`mt-4 ${gameAlertSuccess}`}>{info}</div> : null}
@@ -87,6 +80,7 @@ export default function AuthSignupPage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 className={`mt-1.5 ${gameInput}`}
+                maxLength={50}
               />
             </div>
             <div>
@@ -103,7 +97,7 @@ export default function AuthSignupPage() {
             </div>
             <div>
               <label htmlFor="signup-phone" className={gameLabel}>
-                Số điện thoại (tùy chọn)
+                SĐT (tùy chọn)
               </label>
               <input
                 id="signup-phone"
@@ -128,7 +122,7 @@ export default function AuthSignupPage() {
 
           <button
             type="button"
-            disabled={busy || !email || !password || !displayName.trim()}
+            disabled={busy || !email || !password}
             onClick={handleSignup}
             className={`mt-5 ${gameBtnPrimary}`}
           >

@@ -2,15 +2,13 @@
 
 The web client is **wired to the live server** for lobby and online play. Local mode uses the same rules package without sockets.
 
-Auth/profile uses Supabase sessions and profile endpoints in the same server.
-
 ## Source of truth
 
 | Data | Authority |
 |------|-----------|
 | Lobby membership, ready, countdown | Server `lobby:snapshot` |
 | Game state, dice, moves | Server `game:state_snapshot` |
-| User profile fields | Supabase `profiles` row via `/api/profile` |
+| Player id + display name | Client `localStorage` via `lib/playerSession.ts` |
 | Board layout in editor | Client JSON (export only in MVP) |
 | Dice animation timing | Client `dicePresentation.ts` |
 
@@ -24,16 +22,10 @@ Auth/profile uses Supabase sessions and profile endpoints in the same server.
 | `joinMatchmaking` | `POST /api/matchmaking/join` |
 | `leaveMatchmaking` | `DELETE /api/matchmaking/leave` |
 | `getMatchmakingStatus` | `GET /api/matchmaking/status?playerId=` |
-| `fetchProfile` | `GET /api/profile` |
-| `fetchProfileById` | `GET /api/profile/:id` |
-| `updateProfile` | `PATCH /api/profile` |
-| `linkAnonProfile` | `POST /api/auth/link-anon` |
 
 ## Socket (`lib/socket.ts`)
 
 Singleton `io(API_BASE || undefined)` with websocket + polling.
-
-If `useAuth` has a Supabase session, `lib/socket.ts` sends `auth: { token }` in the socket handshake.
 
 ### Lobby (`useLobbySocket`)
 
@@ -50,15 +42,11 @@ Listen: `lobby:snapshot`, `lobby:start_countdown`, `lobby:start_countdown_cancel
 
 Optional `onRemoved` callback redirects home on `lobby:closed` / `lobby:kicked` / `lobby:removed`.
 
-The hook accepts an optional Supabase access token for the socket handshake.
-
 ### Game (`useGameSocket`)
 
 Emit: `game:join`, `game:roll`, `game:choose_move`, `game:sync_request`.
 
 Listen: `game:connected`, `game:state_snapshot`, `game:error`.
-
-The hook also accepts the optional Supabase access token so authenticated users keep the same identity across HTTP and socket requests.
 
 **Snapshots:** `applyAuthoritativeState(state, { deltaEvents: payload.events })`. Treat `events` as **delta** during play; full list on join/sync.
 
@@ -66,16 +54,9 @@ The hook also accepts the optional Supabase access token so authenticated users 
 
 - `rune-race-player-id` — stable anonymous id (`anon-{uuid}`).
 - `rune-race-player-name` — display name for lobby.
-- `usePlayerIdentity()` prefers the Supabase user id when signed in, otherwise falls back to the guest player id.
+- `usePlayerIdentity()` reads both from `localStorage`.
 
 UUID generation uses `randomUUID` → `getRandomValues` → `Math.random` fallback for **HTTP LAN** (non-secure context).
-
-## Auth and profile
-
-- `useAuth` wraps Supabase auth state and exposes `signIn`, `signUp`, `signInWithGoogle`, `signInAnonymously`, and `signOut`.
-- Anonymous users can open `/profile/edit`; the page will start a guest session if needed.
-- Public profiles are routed through `/profile/:profileId` and are readable without a token.
-- Registered sign-up can link an existing anon profile before the old anon account is removed.
 
 ## Presentation vs authority
 
@@ -114,12 +95,10 @@ There is no socket field for “show move list”; multiple moves are chosen via
 | Variable | Meaning |
 |----------|---------|
 | `VITE_API_URL` | API + socket base (e.g. `http://192.168.1.10:3000`). Empty = same origin + Vite proxy. |
-| `VITE_SUPABASE_URL` | Supabase project URL for the web auth client. |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key used by the browser client. |
 
 Place variables in the **repo root** `.env` (see `.env.example`). Vite `envDir` points at the monorepo root so one file serves web and server in local dev.
 
-**Server-only** (same `.env` file, no `VITE_` prefix): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `PORT`, `CLIENT_ORIGIN`.
+**Server-only** (same `.env` file, no `VITE_` prefix): `PORT`, `CLIENT_ORIGIN`.
 
 ### LAN checklist
 

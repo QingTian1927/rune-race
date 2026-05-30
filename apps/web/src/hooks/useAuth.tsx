@@ -1,16 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { AuthResponse, Session, User } from '@supabase/supabase-js'
+import { displayNameFromMetadata } from '@rune-race/shared'
 import { supabase } from '../lib/supabase'
-import { clearStoredPlayerId } from '../lib/playerSession'
-
-const ANON_USER_ID_KEY = 'rune-race-anon-user-id'
+import { clearStoredPlayerId, syncPlayerIdFromAuth } from '../lib/playerSession'
+import { clearRememberedAnonUserId, linkAnonSessionIfNeeded, rememberAnonUserId } from '../lib/linkAnonSession'
+import { isRegisteredUser } from '../lib/authUser'
 
 type AuthContextValue = {
   user: User | null
   session: Session | null
   accessToken: string | null
   loading: boolean
-  anonUserId: string | null
+  isRegistered: boolean
   signUp: (params: {
     email: string
     password: string
@@ -19,34 +20,56 @@ type AuthContextValue = {
   }) => Promise<AuthResponse>
   signIn: (params: { email: string; password: string }) => Promise<AuthResponse>
   signInWithGoogle: () => Promise<void>
-  signInAnonymously: () => Promise<AuthResponse>
   signOut: () => Promise<void>
+  updateEmail: (email: string) => Promise<{ error: Error | null }>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+function syncGoogleDisplayName(user: User): void {
+  if (!isRegisteredUser(user)) return
+  const meta = user.user_metadata as Record<string, unknown>
+  if (meta.display_name) return
+  const fromGoogle = displayNameFromMetadata(meta)
+  if (!fromGoogle) return
+  void supabase.auth.updateUser({ data: { display_name: fromGoogle } })
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const [anonUserId, setAnonUserId] = useState<string | null>(() => {
-    return localStorage.getItem(ANON_USER_ID_KEY)
-  })
 
   useEffect(() => {
     let active = true
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return
-      setSession(data.session ?? null)
+      const next = data.session ?? null
+      setSession(next)
+      if (next?.user) {
+        syncPlayerIdFromAuth(next.user.id)
+        if (next.user.user_metadata?.is_anon) rememberAnonUserId(next.user.id)
+        syncGoogleDisplayName(next.user)
+      }
       setLoading(false)
     })
+
     const { data } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession ?? null)
       setLoading(false)
-      if (newSession?.user?.user_metadata?.is_anon) {
-        localStorage.setItem(ANON_USER_ID_KEY, newSession.user.id)
-        setAnonUserId(newSession.user.id)
+      if (newSession?.user) {
+        syncPlayerIdFromAuth(newSession.user.id)
+        if (newSession.user.user_metadata?.is_anon) {
+          rememberAnonUserId(newSession.user.id)
+        } else {
+          clearRememberedAnonUserId()
+          if (newSession.access_token) {
+            void linkAnonSessionIfNeeded(newSession.access_token, newSession.user.id)
+          }
+        }
+        syncGoogleDisplayName(newSession.user)
       }
     })
+
     return () => {
       active = false
       data.subscription.unsubscribe()
@@ -60,21 +83,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       accessToken: session?.access_token ?? null,
       loading,
-      anonUserId,
+      isRegistered: isRegisteredUser(user),
       signUp: async ({ email, password, displayName, phone }) => {
         return supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
-              display_name: displayName,
-              phone: phone || null,
+              display_name: displayName.trim(),
+              phone: phone?.trim() || null,
               is_anon: false,
             },
           },
         })
       },
       signIn: async ({ email, password }) => {
+        // Avoid sending a stale user JWT on the password grant (can break CORS preflight).
+        await supabase.auth.signOut({ scope: 'local' })
         return supabase.auth.signInWithPassword({ email, password })
       },
       signInWithGoogle: async () => {
@@ -83,25 +108,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           options: { redirectTo: `${window.location.origin}/auth/login` },
         })
       },
-      signInAnonymously: async () => {
-        if (typeof supabase.auth.signInAnonymously !== 'function') {
-          throw new Error('Anonymous auth not supported')
-        }
-        const response = await supabase.auth.signInAnonymously({
-          options: { data: { is_anon: true } },
-        })
-        if (response.data.user) {
-          localStorage.setItem(ANON_USER_ID_KEY, response.data.user.id)
-          setAnonUserId(response.data.user.id)
-        }
-        return response
-      },
       signOut: async () => {
         await supabase.auth.signOut()
         clearStoredPlayerId()
+        clearRememberedAnonUserId()
+      },
+      updateEmail: async (email: string) => {
+        const { error } = await supabase.auth.updateUser({ email: email.trim() })
+        return { error: error ? new Error(error.message) : null }
       },
     }
-  }, [anonUserId, loading, session])
+  }, [loading, session])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

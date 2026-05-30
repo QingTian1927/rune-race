@@ -10,6 +10,29 @@ export type PublicRoom = {
   status: string
 }
 
+export type Profile = {
+  id: string
+  display_name: string | null
+  phone: string | null
+  bio: string | null
+  avatar_emoji: string | null
+  total_played_seconds: number
+  total_games: number
+  total_wins: number
+  total_losses: number
+  last_played_at: string | null
+}
+
+export type PublicProfile = Omit<Profile, 'phone'>
+
+function authHeaders(accessToken: string | null | undefined): Record<string, string> {
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+}
+
+function jsonHeaders(accessToken?: string | null) {
+  return { 'Content-Type': 'application/json', ...authHeaders(accessToken) }
+}
+
 export async function fetchPublicRooms(): Promise<PublicRoom[]> {
   const res = await fetch(`${API_BASE}/api/rooms`)
   if (!res.ok) throw new Error('Failed to load rooms')
@@ -17,15 +40,18 @@ export async function fetchPublicRooms(): Promise<PublicRoom[]> {
   return data.rooms
 }
 
-export async function createRoom(params: {
-  playerId: string
-  playerName: string
-  name?: string
-  password?: string
-}): Promise<{ lobbyId: string; joinCode: string; playerId: string }> {
+export async function createRoom(
+  params: {
+    playerId: string
+    playerName: string
+    name?: string
+    password?: string
+  },
+  accessToken?: string | null,
+): Promise<{ lobbyId: string; joinCode: string; playerId: string }> {
   const res = await fetch(`${API_BASE}/api/rooms`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(accessToken),
     body: JSON.stringify(params),
   })
   if (!res.ok) throw new Error('Failed to create room')
@@ -39,10 +65,14 @@ export async function resolveRoomByCode(joinCode: string): Promise<{ lobbyId: st
   return { lobbyId: data.lobbyId as string }
 }
 
-export async function joinMatchmaking(playerId: string, playerName: string) {
+export async function joinMatchmaking(
+  playerId: string,
+  playerName: string,
+  accessToken?: string | null,
+) {
   const res = await fetch(`${API_BASE}/api/matchmaking/join`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(accessToken),
     body: JSON.stringify({ playerId, playerName }),
   })
   if (!res.ok) throw new Error('Matchmaking failed')
@@ -77,47 +107,48 @@ export async function getMatchmakingStatus(playerId: string) {
   }>
 }
 
-export type Profile = {
-  id: string
-  display_name: string | null
-  bio: string | null
-  avatar_emoji: string | null
-  phone: string | null
-  xp: number
-  coins: number
-  items: unknown
-  is_anon: boolean
-  total_played_hours: number
-  total_games: number
-  total_wins: number
-  total_losses: number
-}
-
-function authHeaders(accessToken: string) {
-  return { Authorization: `Bearer ${accessToken}` }
+export async function updateDisplayName(accessToken: string, displayName: string) {
+  const res = await fetch(`${API_BASE}/api/player/display-name`, {
+    method: 'PATCH',
+    headers: jsonHeaders(accessToken),
+    body: JSON.stringify({ displayName }),
+  })
+  if (!res.ok) throw new Error('Failed to update display name')
+  return res.json() as Promise<{ display_name: string }>
 }
 
 export async function fetchProfile(accessToken: string): Promise<Profile> {
   const res = await fetch(`${API_BASE}/api/profile`, {
-    headers: { ...authHeaders(accessToken) },
+    headers: authHeaders(accessToken),
   })
-  if (!res.ok) throw new Error('Failed to load profile')
+  if (res.status === 401) {
+    throw new Error('SESSION_EXPIRED')
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? 'Failed to load profile')
+  }
   return res.json() as Promise<Profile>
 }
 
-export async function fetchProfileById(profileId: string): Promise<Profile> {
+export async function fetchProfileById(profileId: string): Promise<PublicProfile> {
   const res = await fetch(`${API_BASE}/api/profile/${encodeURIComponent(profileId)}`)
   if (!res.ok) throw new Error('Profile not found')
-  return res.json() as Promise<Profile>
+  return res.json() as Promise<PublicProfile>
 }
 
 export async function updateProfile(
   accessToken: string,
-  patch: { displayName?: string; bio?: string; avatarEmoji?: string; phone?: string },
+  patch: {
+    displayName?: string
+    bio?: string
+    avatarEmoji?: string
+    phone?: string
+  },
 ): Promise<Profile> {
   const res = await fetch(`${API_BASE}/api/profile`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+    headers: jsonHeaders(accessToken),
     body: JSON.stringify(patch),
   })
   if (!res.ok) throw new Error('Failed to update profile')
@@ -127,7 +158,7 @@ export async function updateProfile(
 export async function linkAnonProfile(accessToken: string, anonId: string) {
   const res = await fetch(`${API_BASE}/api/auth/link-anon`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders(accessToken) },
+    headers: jsonHeaders(accessToken),
     body: JSON.stringify({ anonId }),
   })
   if (!res.ok) throw new Error('Failed to link anon profile')

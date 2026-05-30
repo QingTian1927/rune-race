@@ -4,6 +4,8 @@ import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
 import { PlayerBadge } from '../components/hud/PlayerBadge'
 import { useLobbySocket } from '../hooks/useLobbySocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { isLikelySupabaseUserId } from '../lib/authUserId'
+import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getSocket, retainLobbyOnUnmount } from '../lib/socket'
 import {
   gameAlertError,
@@ -72,6 +74,12 @@ export default function LobbyPage() {
   } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken, {
     onRemoved: handleLobbyRemoved,
   })
+
+  useEffect(() => {
+    void ensureOnlineSession(playerName).catch(() => {
+      // Lobby may still work with legacy local id if anon auth is disabled.
+    })
+  }, [playerName])
 
   useEffect(() => {
     if (!lobbyId) return
@@ -187,12 +195,18 @@ export default function LobbyPage() {
                         <div className="h-9 w-9 shrink-0 rounded-full border-2 border-dashed border-stone-300 bg-white/40" />
                       )}
                       <div className="min-w-0">
-                        <Link
-                          to={`/profile/${player.id}`}
-                          className="truncate text-sm font-bold text-stone-800 hover:underline"
-                        >
-                          {player.name}
-                        </Link>
+                        {isLikelySupabaseUserId(player.id) ? (
+                          <Link
+                            to={`/profile/${player.id}`}
+                            className="truncate text-sm font-bold text-stone-800 hover:underline"
+                          >
+                            {player.name}
+                          </Link>
+                        ) : (
+                          <span className="truncate text-sm font-bold text-stone-800">
+                            {player.name}
+                          </span>
+                        )}
                         <div className="flex flex-wrap items-center gap-2">
                           {player.isHost ? (
                             <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-700">

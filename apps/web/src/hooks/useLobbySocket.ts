@@ -99,8 +99,6 @@ export function useLobbySocket(
       socket.off('lobby:kicked', onKicked)
       socket.off('lobby:removed', onTimedOut)
       socket.off('lobby:game_started', onGameStarted)
-      // Do not emit lobby:leave here — React StrictMode remount and profile name
-      // updates would destroy the room. Leave via explicit UI or server disconnect grace.
     }
   }, [authToken, lobbyId, playerId, password])
 

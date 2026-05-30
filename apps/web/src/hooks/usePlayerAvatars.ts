@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchProfileById } from '../lib/api'
-import { isLegacyLocalAnonId } from '../lib/playerSession'
 
 /**
- * Loads public profile avatars for a set of player ids (e.g. game participants).
+ * Loads public profile avatars for registered players in a game.
  */
-export function usePlayerAvatars(playerIds: string[]): Record<string, string> {
+export function usePlayerAvatars(
+  playerIds: string[],
+  localAvatar?: { playerId: string; emoji: string | null },
+): Record<string, string> {
   const [avatars, setAvatars] = useState<Record<string, string>>({})
 
   const idsKey = useMemo(() => {
-    const unique = [...new Set(playerIds.filter((id) => id && !isLegacyLocalAnonId(id)))]
+    const unique = [...new Set(playerIds.filter(Boolean))]
     unique.sort()
     return unique.join('|')
   }, [playerIds])
@@ -38,13 +40,16 @@ export function usePlayerAvatars(playerIds: string[]): Record<string, string> {
       for (const [id, emoji] of rows) {
         if (emoji) next[id] = emoji
       }
+      if (localAvatar?.playerId && localAvatar.emoji?.trim()) {
+        next[localAvatar.playerId] = localAvatar.emoji.trim()
+      }
       setAvatars(next)
     })
 
     return () => {
       cancelled = true
     }
-  }, [idsKey])
+  }, [idsKey, localAvatar?.emoji, localAvatar?.playerId])
 
   return avatars
 }

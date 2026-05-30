@@ -7,8 +7,14 @@ import {
   joinMatchmaking,
   leaveMatchmaking,
   resolveRoomByCode,
+  updateDisplayName,
   type PublicRoom,
 } from '../lib/api'
+import { ensureOnlineSession } from '../lib/ensureOnlineSession'
+import { getPlayerName, setPlayerName } from '../lib/playerSession'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
+import { useMyProfilePath, usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import {
   gameAlertError,
   gameBtnGhost,
@@ -28,9 +34,6 @@ import {
   gameTagline,
   gameTitle,
 } from '../lib/gameUiStyles'
-import { getPlayerName, setPlayerName } from '../lib/playerSession'
-import { useAuth } from '../hooks/useAuth'
-import { useMyProfilePath, usePlayerIdentity } from '../hooks/usePlayerIdentity'
 
 function PersonIcon() {
   return (
@@ -50,8 +53,14 @@ function PersonIcon() {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { user, signOut } = useAuth()
-  const { playerId, playerName, avatarEmoji } = usePlayerIdentity()
+  const { signOut, isRegistered } = useAuth()
+  const {
+    playerId,
+    playerName,
+    avatarEmoji,
+    accessToken,
+    canEditNameOnHome,
+  } = usePlayerIdentity()
   const profilePath = useMyProfilePath()
   const [name, setName] = useState(playerName || getPlayerName())
   const [joinCode, setJoinCode] = useState('')
@@ -81,19 +90,39 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [refreshRooms])
 
-  const saveName = () => setPlayerName(name)
+  const saveLocalName = () => setPlayerName(name)
+
+  const saveAnonDisplayName = async () => {
+    saveLocalName()
+    if (!canEditNameOnHome || !accessToken) return
+    try {
+      await updateDisplayName(accessToken, name.trim())
+      await supabase.auth.refreshSession()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save name')
+    }
+  }
+
+  const prepareOnline = async () => {
+    saveLocalName()
+    const session = await ensureOnlineSession(name)
+    return session
+  }
 
   const handleCreateRoom = async () => {
     setError(null)
     setLoading(true)
     try {
-      saveName()
-      const result = await createRoom({
-        playerId,
-        playerName: name,
-        name: roomName || undefined,
-        password: createPassword || undefined,
-      })
+      const session = await prepareOnline()
+      const result = await createRoom(
+        {
+          playerId: session.playerId,
+          playerName: session.playerName,
+          name: roomName || undefined,
+          password: createPassword || undefined,
+        },
+        session.accessToken,
+      )
       navigate(`/lobby/${result.lobbyId}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed')
@@ -107,7 +136,7 @@ export default function HomePage() {
     setError(null)
     setLoading(true)
     try {
-      saveName()
+      await prepareOnline()
       const { lobbyId } = await resolveRoomByCode(joinCode.trim())
       navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
     } catch (e) {
@@ -117,19 +146,28 @@ export default function HomePage() {
     }
   }
 
-  const handleJoinLobby = (lobbyId: string) => {
-    saveName()
-    navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
+  const handleJoinLobby = async (lobbyId: string) => {
+    setError(null)
+    setLoading(true)
+    try {
+      await prepareOnline()
+      navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Join failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleQuickMatch = async () => {
     setError(null)
     setMatchStatus('Đang tìm trận...')
+    setLoading(true)
     try {
-      saveName()
-      await joinMatchmaking(playerId, name)
+      const session = await prepareOnline()
+      await joinMatchmaking(session.playerId, session.playerName, session.accessToken)
       const poll = async () => {
-        const status = await getMatchmakingStatus(playerId)
+        const status = await getMatchmakingStatus(session.playerId)
         if (status.status === 'matched' && status.lobbyId) {
           setMatchStatus(null)
           navigate(`/lobby/${status.lobbyId}`)
@@ -148,6 +186,8 @@ export default function HomePage() {
     } catch (e) {
       setMatchStatus(null)
       setError(e instanceof Error ? e.message : 'Matchmaking failed')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -160,11 +200,13 @@ export default function HomePage() {
     <div className={gamePage}>
       <div className={gameContainerWide}>
         <nav className={gameNavRow}>
-          {user ? (
+          {isRegistered ? (
             <>
-              <Link to="/profile/edit" className={gameNavLink}>
-                Profile
-              </Link>
+              {profilePath ? (
+                <Link to={profilePath} className={gameNavLink}>
+                  Profile
+                </Link>
+              ) : null}
               <button type="button" onClick={signOut} className={gameNavLink}>
                 Đăng xuất
               </button>
@@ -176,9 +218,6 @@ export default function HomePage() {
               </Link>
               <Link to="/auth/signup" className={gameNavLink}>
                 Đăng ký
-              </Link>
-              <Link to={profilePath} className={gameNavLink}>
-                Profile
               </Link>
             </>
           )}
@@ -197,15 +236,28 @@ export default function HomePage() {
           ) : (
             <PersonIcon />
           )}
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={saveName}
-            placeholder="Tên hiển thị"
-            className={avatarEmoji ? `${gameIdentityInput} pl-9` : gameIdentityInput}
-            maxLength={50}
-            aria-label="Tên hiển thị"
-          />
+          {isRegistered ? (
+            <div
+              className={`${avatarEmoji ? `${gameIdentityInput} pl-9` : gameIdentityInput} flex items-center justify-between`}
+            >
+              <span className="truncate font-medium text-stone-800">{playerName}</span>
+              <Link to="/profile/edit" className={`shrink-0 ${gameNavLink}`}>
+                Sửa profile
+              </Link>
+            </div>
+          ) : (
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                void saveAnonDisplayName()
+              }}
+              placeholder="Tên hiển thị"
+              className={avatarEmoji ? `${gameIdentityInput} pl-9` : gameIdentityInput}
+              maxLength={50}
+              aria-label="Tên hiển thị"
+            />
+          )}
         </div>
 
         {error ? <div className={`mb-4 ${gameAlertError}`}>{error}</div> : null}
@@ -315,7 +367,8 @@ export default function HomePage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleJoinLobby(room.lobbyId)}
+                      disabled={loading}
+                      onClick={() => void handleJoinLobby(room.lobbyId)}
                       className={`shrink-0 ${gameBtnGhost}`}
                     >
                       Vào

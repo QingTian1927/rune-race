@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
 import {
   gameAlertError,
   gameAuthFooter,
@@ -11,7 +12,6 @@ import {
   gameLabel,
   gameNavLink,
   gamePage,
-  gamePageCentered,
   gamePanel,
   gameTagline,
   gameTitle,
@@ -19,7 +19,7 @@ import {
 
 export default function AuthLoginPage() {
   const navigate = useNavigate()
-  const { user, loading, signIn, signInWithGoogle, signInAnonymously, signOut } = useAuth()
+  const { user, loading, signIn, signInWithGoogle, signOut, isRegistered } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +31,10 @@ export default function AuthLoginPage() {
     try {
       const result = await signIn({ email, password })
       if (result.error) throw result.error
+      const session = result.data.session
+      if (session?.access_token && session.user) {
+        await linkAnonSessionIfNeeded(session.access_token, session.user.id)
+      }
       navigate('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -50,29 +54,15 @@ export default function AuthLoginPage() {
     }
   }
 
-  const handleGuest = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      const result = await signInAnonymously()
-      if (result.error) throw result.error
-      navigate('/')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Guest login failed')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (loading) {
     return (
-      <div className={`${gamePageCentered} ${gameTagline}`}>
-        Đang tải...
+      <div className={`${gamePage} flex items-center justify-center`}>
+        <p className={gameTagline}>Đang tải...</p>
       </div>
     )
   }
 
-  if (user) {
+  if (user && isRegistered) {
     return (
       <div className={gamePage}>
         <div className={gameContainerForm}>
@@ -102,7 +92,7 @@ export default function AuthLoginPage() {
 
         <section className={`mt-6 ${gamePanel}`}>
           <h1 className={gameTitle}>Đăng nhập</h1>
-          <p className={`mt-1 ${gameTagline}`}>Đăng nhập để lưu tiến trình</p>
+          <p className={`mt-1 ${gameTagline}`}>Đăng nhập để lưu profile và thống kê</p>
 
           {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
 
@@ -142,7 +132,7 @@ export default function AuthLoginPage() {
             Đăng nhập
           </button>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4">
             <button
               type="button"
               disabled={busy}
@@ -150,14 +140,6 @@ export default function AuthLoginPage() {
               className={gameBtnGhostFull}
             >
               Tiếp tục với Google
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleGuest}
-              className={gameBtnGhostFull}
-            >
-              Chơi với tài khoản khách
             </button>
           </div>
         </section>

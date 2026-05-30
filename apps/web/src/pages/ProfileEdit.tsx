@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchProfile, updateProfile } from '../lib/api'
+import { getDisplayName } from '../lib/authUser'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
 import { useAuth } from '../hooks/useAuth'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
-import { setPlayerName } from '../lib/playerSession'
 import {
   gameAlertError,
+  gameAlertSuccess,
   gameAvatarCircle,
   gameBtnGhostFull,
   gameBtnPrimary,
@@ -21,7 +22,7 @@ import {
   gameTitle,
 } from '../lib/gameUiStyles'
 
-const MAX_BIO_LENGTH = 240
+const MAX_BIO_LENGTH = 200
 
 const AVATAR_BTN_BASE =
   'flex h-10 w-10 items-center justify-center rounded-xl border text-xl backdrop-blur-sm transition-all'
@@ -31,71 +32,56 @@ const AVATAR_BTN_DEFAULT = 'border-stone-200 bg-white/70 hover:bg-white'
 
 export default function ProfileEditPage() {
   const navigate = useNavigate()
-  const { accessToken, user, loading: authLoading, signInAnonymously } = useAuth()
+  const { accessToken, user, loading: authLoading, isRegistered, updateEmail } = useAuth()
   const { refetch: refetchProfile } = usePlayerProfile()
   const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [bio, setBio] = useState('')
   const [avatarEmoji, setAvatarEmoji] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [anonAttempted, setAnonAttempted] = useState(false)
+  const [info, setInfo] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading) return
-    if (!accessToken) {
-      if (anonAttempted) {
-        setLoading(false)
-        return
-      }
-      setAnonAttempted(true)
-      setLoading(true)
-      signInAnonymously()
-        .then((result) => {
-          if (result.error) throw result.error
-        })
-        .catch((err) =>
-          setError(err instanceof Error ? err.message : 'Guest login failed'),
-        )
-        .finally(() => setLoading(false))
+    if (!isRegistered || !accessToken) {
+      setLoading(false)
       return
     }
     setLoading(true)
     fetchProfile(accessToken)
       .then((profile) => {
-        setDisplayName(profile.display_name ?? '')
+        setDisplayName(profile.display_name ?? getDisplayName(user))
+        setEmail(user?.email ?? '')
+        setPhone(profile.phone ?? '')
         setBio(profile.bio ?? '')
         setAvatarEmoji(profile.avatar_emoji ?? PROFILE_EMOJIS[0])
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load profile'))
       .finally(() => setLoading(false))
-  }, [accessToken, anonAttempted, authLoading, signInAnonymously])
-
-  const handleGuestLogin = async () => {
-    setError(null)
-    setLoading(true)
-    try {
-      const result = await signInAnonymously()
-      if (result.error) throw result.error
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Guest login failed')
-      setLoading(false)
-    }
-  }
+  }, [accessToken, authLoading, isRegistered, user])
 
   const handleSave = async () => {
     if (!accessToken) return
     setSaving(true)
     setError(null)
+    setInfo(null)
     try {
-      const updated = await updateProfile(accessToken, {
+      const trimmedEmail = email.trim()
+      if (trimmedEmail && user?.email && trimmedEmail !== user.email) {
+        const emailResult = await updateEmail(trimmedEmail)
+        if (emailResult.error) throw emailResult.error
+        setInfo('Email mới cần xác nhận — kiểm tra hộp thư của bạn.')
+      }
+
+      await updateProfile(accessToken, {
         displayName: displayName.trim(),
         bio: bio.trim(),
         avatarEmoji,
+        phone: phone.trim(),
       })
-      if (updated.display_name?.trim()) {
-        setPlayerName(updated.display_name.trim())
-      }
       await refetchProfile()
       navigate(`/profile/${user?.id ?? ''}`)
     } catch (err) {
@@ -105,25 +91,21 @@ export default function ProfileEditPage() {
     }
   }
 
-  const cancelHref = user ? `/profile/${user.id}` : '/'
-  const displayEmoji = avatarEmoji || PROFILE_EMOJIS[0]
-
-  if (!accessToken && !loading) {
+  if (!authLoading && !isRegistered) {
     return (
       <div className={gamePage}>
         <div className={gameContainerForm}>
           <section className={gamePanel}>
-            <h1 className={gameTitle}>Cần đăng nhập</h1>
+            <h1 className={gameTitle}>Cần tài khoản</h1>
             <p className={`mt-2 ${gameTagline}`}>
-              Bạn có thể dùng chế độ khách để chỉnh sửa profile.
+              Profile dành cho tài khoản đăng ký. Khách chỉ đổi tên trên trang chủ.
             </p>
-            {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
             <div className="mt-4 space-y-2">
-              <button type="button" onClick={handleGuestLogin} className={gameBtnPrimary}>
-                Tiếp tục với khách
-              </button>
+              <Link to="/auth/signup" className={`block text-center ${gameBtnPrimary}`}>
+                Đăng ký
+              </Link>
               <Link to="/auth/login" className={`block text-center ${gameBtnGhostFull}`}>
-                Đến trang đăng nhập
+                Đăng nhập
               </Link>
             </div>
           </section>
@@ -131,6 +113,24 @@ export default function ProfileEditPage() {
       </div>
     )
   }
+
+  if (!accessToken && !loading) {
+    return (
+      <div className={gamePage}>
+        <div className={gameContainerForm}>
+          <section className={gamePanel}>
+            <h1 className={gameTitle}>Cần đăng nhập</h1>
+            <Link to="/auth/login" className={`mt-4 block text-center ${gameBtnPrimary}`}>
+              Đến trang đăng nhập
+            </Link>
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  const cancelHref = user ? `/profile/${user.id}` : '/'
+  const displayEmoji = avatarEmoji || PROFILE_EMOJIS[0]
 
   return (
     <div className={gamePage}>
@@ -144,25 +144,14 @@ export default function ProfileEditPage() {
         ) : (
           <>
             <div className="mt-8 flex flex-col items-center">
-              <button
-                type="button"
-                className={`${gameAvatarCircle} transition-transform hover:scale-105`}
-                onClick={() => {
-                  const idx = PROFILE_EMOJIS.indexOf(displayEmoji as (typeof PROFILE_EMOJIS)[number])
-                  const next = PROFILE_EMOJIS[(idx + 1) % PROFILE_EMOJIS.length]
-                  setAvatarEmoji(next)
-                }}
-                aria-label="Đổi avatar"
-              >
-                {displayEmoji}
-              </button>
-              <p className={`mt-2 ${gameMeta}`}>Chạm avatar để đổi nhanh</p>
+              <div className={gameAvatarCircle}>{displayEmoji}</div>
             </div>
 
             <section className={`mt-6 ${gamePanel}`}>
               <h1 className={gameTitle}>Chỉnh sửa profile</h1>
 
               {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
+              {info ? <div className={`mt-4 ${gameAlertSuccess}`}>{info}</div> : null}
 
               <div className="mt-5 space-y-4">
                 <div>
@@ -173,6 +162,33 @@ export default function ProfileEditPage() {
                     id="profile-name"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
+                    className={`mt-1.5 ${gameInput}`}
+                    maxLength={50}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="profile-email" className={gameLabel}>
+                    Email
+                  </label>
+                  <input
+                    id="profile-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={`mt-1.5 ${gameInput}`}
+                  />
+                  <p className={`mt-1 ${gameMeta}`}>Đổi email cần xác nhận qua hộp thư mới.</p>
+                </div>
+
+                <div>
+                  <label htmlFor="profile-phone" className={gameLabel}>
+                    SĐT
+                  </label>
+                  <input
+                    id="profile-phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     className={`mt-1.5 ${gameInput}`}
                   />
                 </div>

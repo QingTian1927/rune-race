@@ -43,7 +43,6 @@ export type GameViewProps = {
   isPresentingDice?: boolean
   /** When set, move-selection arrows only show for this player (online). */
   localPlayerId?: string
-  /** Profile avatar emoji for the local player HUD. */
   localAvatarEmoji?: string | null
   /** Online: leave game + lobby after user confirms exit. */
   onLeave?: () => void
@@ -168,14 +167,13 @@ export default function GameView({
   }, [displayedFinishOrder, displayedFinishOrderIds, gameState.players])
 
   const playerIds = useMemo(() => gameState.players.map((p) => p.id), [gameState.players])
-  const fetchedAvatars = usePlayerAvatars(playerIds)
-  const avatarsByPlayerId = useMemo(() => {
-    const merged = { ...fetchedAvatars }
-    if (localPlayerId && localAvatarEmoji?.trim()) {
-      merged[localPlayerId] = localAvatarEmoji.trim()
-    }
-    return merged
-  }, [fetchedAvatars, localAvatarEmoji, localPlayerId])
+  const fetchedAvatars = usePlayerAvatars(
+    playerIds,
+    localPlayerId && localAvatarEmoji
+      ? { playerId: localPlayerId, emoji: localAvatarEmoji }
+      : undefined,
+  )
+  const avatarsByPlayerId = fetchedAvatars
 
   const avatarFor = (playerId: string | undefined) =>
     playerId ? (avatarsByPlayerId[playerId] ?? null) : null

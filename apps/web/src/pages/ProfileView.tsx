@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { fetchProfile, fetchProfileById, type Profile } from '../lib/api'
+import { fetchProfile, fetchProfileById, type PublicProfile } from '../lib/api'
+import { supabase } from '../lib/supabase'
+import { formatPlayTime, formatWinRate } from '../lib/formatPlayTime'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
 import {
   gameAlertError,
@@ -16,23 +18,22 @@ import {
   gameTagline,
 } from '../lib/gameUiStyles'
 import { useAuth } from '../hooks/useAuth'
-import { isLegacyLocalAnonId } from '../lib/playerSession'
 
 const FALLBACK_AVATAR = PROFILE_EMOJIS[0]
 
 export default function ProfileViewPage() {
   const navigate = useNavigate()
   const { profileId } = useParams<{ profileId: string }>()
-  const { user, accessToken } = useAuth()
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const { user, accessToken, isRegistered } = useAuth()
+  const [profile, setProfile] = useState<PublicProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!profileId) return
 
-    if (isLegacyLocalAnonId(profileId)) {
-      navigate('/profile/edit', { replace: true })
+    if (user?.id === profileId && !isRegistered) {
+      navigate('/', { replace: true })
       return
     }
 
@@ -44,12 +45,16 @@ export default function ProfileViewPage() {
         setProfile(await fetchProfileById(profileId))
         return
       } catch {
-        // Own profile may not exist yet; GET /api/profile auto-creates for auth user.
-        if (accessToken && user?.id === profileId) {
+        if (accessToken && isRegistered && user?.id === profileId) {
           try {
             setProfile(await fetchProfile(accessToken))
             return
           } catch (ownErr) {
+            if (ownErr instanceof Error && ownErr.message === 'SESSION_EXPIRED') {
+              await supabase.auth.signOut()
+              setError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+              return
+            }
             setError(ownErr instanceof Error ? ownErr.message : 'Profile not found')
             return
           }
@@ -61,7 +66,7 @@ export default function ProfileViewPage() {
     }
 
     void load()
-  }, [accessToken, navigate, profileId, user?.id])
+  }, [accessToken, isRegistered, navigate, profileId, user?.id])
 
   if (!profileId) {
     return (
@@ -83,7 +88,7 @@ export default function ProfileViewPage() {
         ) : error ? (
           <div className={`mt-6 space-y-3 ${gameAlertError}`}>
             <p>{error}</p>
-            {user?.id === profileId ? (
+            {isRegistered && user?.id === profileId ? (
               <Link to="/profile/edit" className={`inline-block ${gameBtnPrimary}`}>
                 Tạo profile
               </Link>
@@ -96,15 +101,10 @@ export default function ProfileViewPage() {
               <h1 className="mt-3 text-xl font-black tracking-tight text-stone-800">
                 {profile.display_name ?? 'Player'}
               </h1>
-              {profile.is_anon ? (
-                <span className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-amber-700">
-                  Khách
-                </span>
-              ) : null}
             </div>
 
             <section className={`relative mt-6 ${gamePanel}`}>
-              {user?.id === profile.id ? (
+              {isRegistered && user?.id === profile.id ? (
                 <Link
                   to="/profile/edit"
                   className={`absolute right-4 top-4 ${gameBtnGhost}`}
@@ -121,9 +121,9 @@ export default function ProfileViewPage() {
                   </span>
                 </div>
                 <div className={gameStatRow}>
-                  <span className={gameLabel}>Giờ chơi</span>
+                  <span className={gameLabel}>Thời gian chơi</span>
                   <span className="text-sm font-bold text-stone-800">
-                    {profile.total_played_hours}h
+                    {formatPlayTime(profile.total_played_seconds)}
                   </span>
                 </div>
                 <div className={gameStatRow}>
@@ -132,7 +132,9 @@ export default function ProfileViewPage() {
                 </div>
                 <div className={gameStatRow}>
                   <span className={gameLabel}>Thắng</span>
-                  <span className="text-sm font-bold text-stone-800">{profile.total_wins}</span>
+                  <span className="text-sm font-bold text-stone-800">
+                    {profile.total_wins} ({formatWinRate(profile.total_wins, profile.total_games)})
+                  </span>
                 </div>
                 <div className={gameStatRow}>
                   <span className={gameLabel}>Thua</span>
