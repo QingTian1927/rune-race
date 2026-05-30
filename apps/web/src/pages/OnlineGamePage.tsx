@@ -10,6 +10,7 @@ export default function OnlineGamePage() {
   const navigate = useNavigate()
   const { playerId, accessToken, avatarEmoji } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
+  const lobbyHref = lobbyId ? `/lobby/${lobbyId}` : '/'
 
   const { gameState, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
     useGameSocket(gameId ?? '', playerId, accessToken)
@@ -75,6 +76,7 @@ export default function OnlineGamePage() {
       rollTrigger={rollTrigger}
       onRoll={roll}
       onSelectMove={chooseMove}
+      backHref={lobbyHref}
       canRoll={canRoll}
       isPresentingDice={isPresentingDice}
       localPlayerId={playerId}

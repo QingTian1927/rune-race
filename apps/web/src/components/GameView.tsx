@@ -12,6 +12,7 @@ import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { CurrentTurnPanel } from './hud/CurrentTurnPanel'
 import { MyPlayerPanel } from './hud/MyPlayerPanel'
 import { FinishOrderPanel } from './hud/FinishOrderPanel'
+import { GameEndOverlay } from './hud/GameEndOverlay'
 import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
 import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
@@ -34,7 +35,7 @@ export type GameViewProps = {
   rollTrigger: number
   onRoll: () => void
   onSelectMove: (moveId: string) => void
-  /** Navigate here after confirm when `onLeave` is not set (local mock). */
+  /** Navigate here when leaving or auto-returning if `onLeave` is not set (local mock). */
   backHref?: string
   canRoll?: boolean
   /** Local mock: auto-resolve after dice animation */
@@ -81,6 +82,8 @@ export default function GameView({
   const rollShowTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const moveBannerTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const hudCommitTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const endCountdownTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
+  const endCountdownTriggeredRef = useRef(false)
   const wasPresentingRef = useRef(isPresentingDice)
   const canRollRef = useRef(canRoll)
   const seenTurnAdvanceRef = useRef<string>('')
@@ -94,6 +97,7 @@ export default function GameView({
   const [showRollButton, setShowRollButton] = useState(canRoll)
   const [displayedTurnPlayerId, setDisplayedTurnPlayerId] = useState(gameState.turn.currentPlayerId)
   const [displayedFinishOrderIds, setDisplayedFinishOrderIds] = useState<string[]>([])
+  const [endCountdownSeconds, setEndCountdownSeconds] = useState(10)
 
   const finishOrder = useMemo(() => {
     const seen = new Set<string>()
@@ -118,6 +122,7 @@ export default function GameView({
   const isWaitingChoice =
     isLocalPlayersTurn &&
     !isPresentingDice &&
+    gameState.status === 'playing' &&
     gameState.turn.phase === 'waiting_choice' &&
     gameState.turn.legalMoves.length > 1
 
@@ -146,6 +151,22 @@ export default function GameView({
     ? gameState.players.find((p) => p.id === localPlayerId) ?? null
     : gameState.players[0] ?? displayedTurnPlayer
 
+  const finishOrderReady = useMemo(
+    () => finishOrderIds.every((id) => displayedFinishOrderIds.includes(id)),
+    [displayedFinishOrderIds, finishOrderIds],
+  )
+
+  const endOverlayEntries = useMemo(() => {
+    const finishedIds = new Set(displayedFinishOrderIds)
+    const remainingPlayers = gameState.players.filter((player) => !finishedIds.has(player.id))
+    const orderedPlayers = [...displayedFinishOrder, ...remainingPlayers]
+    return orderedPlayers.map((player, index) => ({
+      player,
+      rank: index + 1,
+      isUnfinished: !finishedIds.has(player.id),
+    }))
+  }, [displayedFinishOrder, displayedFinishOrderIds, gameState.players])
+
   const playerIds = useMemo(() => gameState.players.map((p) => p.id), [gameState.players])
   const fetchedAvatars = usePlayerAvatars(playerIds)
   const avatarsByPlayerId = useMemo(() => {
@@ -162,6 +183,61 @@ export default function GameView({
   const isMyTurn = localPlayer
     ? gameState.turn.currentPlayerId === localPlayer.id
     : isLocalPlayersTurn
+
+  const returnDestinationLabel = backHref.startsWith('/lobby/') ? 'lobby' : 'trang chủ'
+  const showEndOverlay =
+    gameState.status === 'finished' && !isPresentingDice && finishOrderReady
+
+  const clearEndCountdown = useCallback(() => {
+    if (endCountdownTimerRef.current) {
+      window.clearInterval(endCountdownTimerRef.current)
+      endCountdownTimerRef.current = null
+    }
+  }, [])
+
+  const handleReturnToLobby = useCallback(() => {
+    clearEndCountdown()
+    navigate(backHref)
+  }, [backHref, clearEndCountdown, navigate])
+
+  const handleLeaveNow = useCallback(() => {
+    clearEndCountdown()
+    if (onLeave) {
+      onLeave()
+    } else {
+      navigate(backHref)
+    }
+  }, [backHref, clearEndCountdown, navigate, onLeave])
+
+  useEffect(() => {
+    if (!showEndOverlay) {
+      clearEndCountdown()
+      endCountdownTriggeredRef.current = false
+      setEndCountdownSeconds(10)
+      return
+    }
+
+    if (endCountdownTimerRef.current) return
+
+    endCountdownTriggeredRef.current = false
+    setEndCountdownSeconds(10)
+    endCountdownTimerRef.current = window.setInterval(() => {
+      setEndCountdownSeconds((current) => {
+        if (current <= 1) {
+          if (!endCountdownTriggeredRef.current) {
+            endCountdownTriggeredRef.current = true
+            handleReturnToLobby()
+          }
+          return 0
+        }
+        return current - 1
+      })
+    }, 1000)
+
+    return () => {
+      clearEndCountdown()
+    }
+  }, [clearEndCountdown, handleReturnToLobby, showEndOverlay])
 
   useEffect(() => {
     currentTurnPlayerIdRef.current = gameState.turn.currentPlayerId
@@ -400,6 +476,7 @@ export default function GameView({
       if (rollShowTimerRef.current) window.clearTimeout(rollShowTimerRef.current)
       if (moveBannerTimerRef.current) window.clearTimeout(moveBannerTimerRef.current)
       if (hudCommitTimerRef.current) window.clearTimeout(hudCommitTimerRef.current)
+      if (endCountdownTimerRef.current) window.clearInterval(endCountdownTimerRef.current)
     },
     [],
   )
@@ -422,6 +499,7 @@ export default function GameView({
 
   const handleExitConfirm = () => {
     setExitConfirmOpen(false)
+    clearEndCountdown()
     if (onLeave) {
       onLeave()
     } else {
@@ -460,32 +538,39 @@ export default function GameView({
       />
 
       <div className="pointer-events-none absolute inset-0 z-10">
-        <div className="pointer-events-auto absolute left-4 top-4">
-          <button
-            type="button"
-            onClick={handleExitClick}
-            className="rounded-xl bg-white/70 px-3 py-1 text-sm font-semibold text-gray-700 shadow backdrop-blur-sm transition-all hover:bg-white/90"
-          >
-            {onLeave ? 'Rời game' : 'Thoát'}
-          </button>
-        </div>
-        <CurrentTurnPanel
-          player={displayedTurnPlayer}
-          isLocalTurn={isMyTurn}
-          avatarEmoji={avatarFor(displayedTurnPlayer?.id)}
-        />
-        <MyPlayerPanel player={localPlayer} avatarEmoji={avatarFor(localPlayer?.id)} />
-        <FinishOrderPanel players={displayedFinishOrder} avatarsByPlayerId={avatarsByPlayerId} />
-        <YourTurnBanner
-          visible={showYourTurnBanner}
-          color={localPlayer?.color ?? 'red'}
-          text={bannerText}
-        />
-        <RollDiceButton
-          visible={showRollButton && canRoll && gameState.status !== 'finished'}
-          color={localPlayer?.color ?? 'red'}
-          onClick={handleRollClick}
-        />
+        {!showEndOverlay ? (
+          <>
+            <div className="pointer-events-auto absolute left-4 top-4">
+              <button
+                type="button"
+                onClick={handleExitClick}
+                className="rounded-xl bg-white/70 px-3 py-1 text-sm font-semibold text-gray-700 shadow backdrop-blur-sm transition-all hover:bg-white/90"
+              >
+                {onLeave ? 'Rời game' : 'Thoát'}
+              </button>
+            </div>
+            <CurrentTurnPanel
+              player={displayedTurnPlayer}
+              isLocalTurn={isMyTurn}
+              avatarEmoji={avatarFor(displayedTurnPlayer?.id)}
+            />
+            <MyPlayerPanel player={localPlayer} avatarEmoji={avatarFor(localPlayer?.id)} />
+            <FinishOrderPanel
+              players={displayedFinishOrder}
+              avatarsByPlayerId={avatarsByPlayerId}
+            />
+            <YourTurnBanner
+              visible={showYourTurnBanner}
+              color={localPlayer?.color ?? 'red'}
+              text={bannerText}
+            />
+            <RollDiceButton
+              visible={showRollButton && canRoll && gameState.status !== 'finished'}
+              color={localPlayer?.color ?? 'red'}
+              onClick={handleRollClick}
+            />
+          </>
+        ) : null}
       </div>
 
       {showDevMenu ? (
@@ -518,6 +603,15 @@ export default function GameView({
       />
 
       <LoadingOverlay active={active} progress={progress} />
+
+      <GameEndOverlay
+        open={showEndOverlay}
+        entries={endOverlayEntries}
+        countdownSeconds={endCountdownSeconds}
+        returnDestinationLabel={returnDestinationLabel}
+        avatarsByPlayerId={avatarsByPlayerId}
+        onLeave={handleLeaveNow}
+      />
 
       <ConfirmDialog
         open={exitConfirmOpen}
