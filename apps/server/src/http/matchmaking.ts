@@ -6,6 +6,7 @@ import {
   MATCHMAKING_PRIORITIZE_WINDOW_SECONDS,
 } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
+import { displayNameFromMetadata } from '@rune-race/shared'
 import { getAuthUser } from '../lib/auth'
 
 interface QueueEntry {
@@ -136,7 +137,9 @@ export function registerMatchmakingRoutes(
     const user = await getAuthUser(request)
     const playerId = user?.id ?? body.playerId
     const playerName =
-      body.playerName ?? (user?.user_metadata?.display_name as string | undefined)
+      body.playerName ??
+      displayNameFromMetadata(user?.user_metadata as Record<string, unknown>) ??
+      'Player'
 
     if (!playerId || !playerName) {
       return { error: 'playerId and playerName required' }

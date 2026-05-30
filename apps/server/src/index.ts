@@ -10,6 +10,7 @@ import { setupSocketHandlers } from './socket/handlers'
 import { registerRoomRoutes } from './http/rooms'
 import { MatchmakingQueue, registerMatchmakingRoutes } from './http/matchmaking'
 import { registerProfileRoutes } from './http/profile'
+import { registerPlayerRoutes } from './http/player'
 import { registerAuthRoutes } from './http/auth'
 
 const port = Number(process.env.PORT) || 3000
@@ -30,6 +31,7 @@ const matchmaking = new MatchmakingQueue(lobbyStore)
 registerRoomRoutes(fastify, lobbyStore)
 registerMatchmakingRoutes(fastify, matchmaking)
 registerProfileRoutes(fastify)
+registerPlayerRoutes(fastify)
 registerAuthRoutes(fastify)
 
 fastify.get('/', async () => ({

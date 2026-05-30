@@ -1,6 +1,12 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { User } from '@supabase/supabase-js'
+import { isRegisteredFromMetadata } from '@rune-race/shared'
 import { getUserFromAccessToken } from './supabase-server'
+
+export function isRegisteredUser(user: User | null | undefined): boolean {
+  if (!user) return false
+  return isRegisteredFromMetadata(user.user_metadata as Record<string, unknown>)
+}
 
 export function getBearerToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization

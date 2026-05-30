@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { LobbyStore } from '../lobby/lobby-store'
+import { displayNameFromMetadata } from '@rune-race/shared'
 import { getAuthUser } from '../lib/auth'
-
 export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbyStore): void {
   fastify.get('/api/rooms', async () => {
     const lobbies = lobbyStore.listPublicLobbies()
@@ -54,9 +54,8 @@ export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbySt
     const playerId = user?.id ?? body.playerId ?? `anon-${randomUUID()}`
     const playerName =
       body.playerName ??
-      (user?.user_metadata?.display_name as string | undefined) ??
+      displayNameFromMetadata(user?.user_metadata as Record<string, unknown>) ??
       'Player'
-
     const snapshot = lobbyStore.createLobby({
       hostPlayerId: playerId,
       hostName: playerName,
