@@ -2,12 +2,15 @@ create extension if not exists "pgcrypto";
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  display_name text,
   phone text,
-  xp integer not null default 0,
-  coins integer not null default 0,
-  items jsonb not null default '[]'::jsonb,
+  bio text,
+  avatar_emoji text,
   is_anon boolean not null default false,
+  total_played_seconds bigint not null default 0,
+  total_games integer not null default 0,
+  total_wins integer not null default 0,
+  total_losses integer not null default 0,
+  last_played_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -32,6 +35,9 @@ create policy "profiles_insert_own" on public.profiles
 
 create policy "profiles_update_own" on public.profiles
   for update using (auth.uid() = id);
+
+create policy "profiles_select_public" on public.profiles
+  for select using (is_anon = false);
 
 create policy "game_history_select_own" on public.game_history
   for select using (auth.uid() = user_id);
@@ -61,10 +67,9 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, display_name, phone, is_anon)
+  insert into public.profiles (id, phone, is_anon)
   values (
     new.id,
-    nullif(new.raw_user_meta_data->>'display_name', ''),
     nullif(new.raw_user_meta_data->>'phone', ''),
     coalesce((new.raw_user_meta_data->>'is_anon')::boolean, false)
   )
