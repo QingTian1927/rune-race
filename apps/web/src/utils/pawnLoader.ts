@@ -1,5 +1,6 @@
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import { applyCartoonMaterialsToObject } from '../lib/sceneMaterials'
 
 export const HORSE_MODEL_PATHS = [
   '/assets/models/red_horse.glb',
@@ -59,7 +60,13 @@ export function normalizePawnModel(
   const center = new THREE.Vector3()
   scaledBox.getCenter(center)
 
-  clone.position.set(-center.x, -scaledBox.min.y, -center.z)
+  // Slight sink so hard shadows meet the ground plane (avoids "floating" look).
+  clone.position.set(-center.x, -scaledBox.min.y - 0.004, -center.z)
+  applyCartoonMaterialsToObject(clone, {
+    variant: 'pawn',
+    castShadow: true,
+    receiveShadow: false,
+  })
   return clone
 }
 

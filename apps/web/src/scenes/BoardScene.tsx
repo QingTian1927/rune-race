@@ -5,7 +5,12 @@ import * as THREE from 'three'
 import BoardModel from '../components/BoardModel'
 import BoardPieces from '../components/BoardPieces'
 import DiceShaker from '../components/DiceShaker'
+import { useSceneShadowsEnabled } from '../hooks/useSceneShadowsEnabled'
 import getMockSnapshot from '../mock/getMockSnapshot'
+import { CloudField } from './environment/CloudField'
+import { SkyDome } from './environment/SkyDome'
+import { SceneLighting } from './lighting/SceneLighting'
+import { SceneRendererSetup } from './SceneRendererSetup'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
@@ -240,10 +245,13 @@ export default function BoardScene({
 
   const mockSnapshot = useMemo(() => getMockSnapshot(), [])
   const activeGameState = gameState ?? mockSnapshot
+  const shadowsEnabled = useSceneShadowsEnabled()
 
   return (
-    <Canvas dpr={[1, 1.75]} className="h-full w-full">
-      <color attach="background" args={['#0b162b']} />
+    <Canvas shadows dpr={[1, 1.75]} className="h-full w-full">
+      <color attach="background" args={['#f0ecd8']} />
+
+      <SceneRendererSetup shadowsEnabled={shadowsEnabled} />
 
       <PerspectiveCamera
         makeDefault
@@ -253,8 +261,11 @@ export default function BoardScene({
         far={CAMERA_CONFIG.far}
       />
 
+      <SkyDome />
+      <CloudField />
+
       <Suspense fallback={null}>
-        <BoardModel />
+        <BoardModel shadowsEnabled={shadowsEnabled} />
         <BoardPieces
           gameState={activeGameState}
           selectableTokenIds={selectableTokenIds}
@@ -262,21 +273,25 @@ export default function BoardScene({
           freezeTokenAnimations={freezeTokenAnimations}
           boardImpactFeedback={boardImpactFeedback}
         />
-        <DiceShaker gameState={activeGameState} rollTrigger={rollTrigger} />
+        <DiceShaker
+          gameState={activeGameState}
+          rollTrigger={rollTrigger}
+          shadowsEnabled={shadowsEnabled}
+        />
       </Suspense>
 
-      <ambientLight intensity={1.2} />
-      <directionalLight position={[4, 8, 5]} intensity={1.8} color="#fff7e6" />
-      <directionalLight position={[-4, 5, -3]} intensity={0.8} color="#cfe7ff" />
+      <fog attach="fog" args={['#f5ecd8', 38, 72]} />
+
+      <SceneLighting shadowsEnabled={shadowsEnabled} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} userData={{ editorInteractionSurface: true }}>
         <planeGeometry args={[14, 14]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]} receiveShadow={shadowsEnabled}>
         <planeGeometry args={[42, 42]} />
-        <meshBasicMaterial color="#0f243f" />
+        <meshLambertMaterial color="#a8eca8" />
       </mesh>
 
       <CameraDebugReporter controlsRef={controlsRef} onDebugInfoChange={onDebugInfoChange} />

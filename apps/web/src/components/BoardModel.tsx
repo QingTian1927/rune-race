@@ -1,19 +1,18 @@
 import { useGLTF } from '@react-three/drei'
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import {
+  applyCartoonMaterialsToObject,
+  toBoardCartoonMaterial,
+} from '../lib/sceneMaterials'
 
 const MODEL_PATH = '/assets/models/glb_scene.glb'
 
-function toBasicMaterial(material?: THREE.Material): THREE.MeshBasicMaterial {
-  if (material && 'map' in material) {
-    const mapped = material as THREE.MeshStandardMaterial
-    return new THREE.MeshBasicMaterial({ color: mapped.color, map: mapped.map ?? null })
-  }
-
-  return new THREE.MeshBasicMaterial({ color: '#b8c4d9' })
+type BoardModelProps = {
+  shadowsEnabled?: boolean
 }
 
-export default function BoardModel() {
+export default function BoardModel({ shadowsEnabled = true }: BoardModelProps) {
   const { scene } = useGLTF(MODEL_PATH)
 
   const normalizedScene = useMemo(() => {
@@ -27,24 +26,32 @@ export default function BoardModel() {
         mesh.userData.boardSurface = true
 
         if (!mesh.material) {
-          mesh.material = new THREE.MeshBasicMaterial({ color: '#b8c4d9' })
+          mesh.material = toBoardCartoonMaterial()
         }
 
         if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((mat) => toBasicMaterial(mat))
+          mesh.material = mesh.material.map((mat) => toBoardCartoonMaterial(mat))
         } else {
-          mesh.material = toBasicMaterial(mesh.material)
+          mesh.material = toBoardCartoonMaterial(mesh.material)
         }
       }
+    })
+
+    applyCartoonMaterialsToObject(clone, {
+      variant: 'board',
+      castShadow: shadowsEnabled,
+      receiveShadow: shadowsEnabled,
     })
 
     if (meshCount === 0) {
       const fallback = new THREE.Mesh(
         new THREE.BoxGeometry(4, 0.6, 4),
-        new THREE.MeshBasicMaterial({ color: '#5f6f8a' }),
+        toBoardCartoonMaterial(),
       )
       fallback.position.set(0, 0.3, 0)
       fallback.userData.boardSurface = true
+      fallback.castShadow = shadowsEnabled
+      fallback.receiveShadow = shadowsEnabled
       clone.add(fallback)
     }
 
@@ -67,7 +74,7 @@ export default function BoardModel() {
 
     clone.position.set(-scaledCenter.x, -scaledBox.min.y, -scaledCenter.z)
     return clone
-  }, [scene])
+  }, [scene, shadowsEnabled])
 
   return <primitive object={normalizedScene} />
 }

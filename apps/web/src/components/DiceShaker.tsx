@@ -9,12 +9,14 @@ import {
   DICE_PHASE_DURATIONS,
 } from '../lib/dicePresentation'
 import boardLayout from '../../data/board-layout.json'
+import { applyCartoonMaterialsToObject } from '../lib/sceneMaterials'
 
 type DiceAnimationPhase = 'idle' | 'appearing' | 'shaking' | 'lifting' | 'revealing' | 'finished'
 
 interface DiceShakerProps {
   gameState: GameState
   rollTrigger: number
+  shadowsEnabled?: boolean
 }
 
 const BUCKET_MODEL_PATH = '/assets/models/bucket.glb'
@@ -41,7 +43,11 @@ function cloneModel(scene: THREE.Group): THREE.Group {
   return clone
 }
 
-function normalizeModel(scene: THREE.Group, targetSize: { x: number; y: number; z: number }) {
+function normalizeModel(
+  scene: THREE.Group,
+  targetSize: { x: number; y: number; z: number },
+  shadowsEnabled: boolean,
+) {
   const clone = cloneModel(scene)
   const box = new THREE.Box3().setFromObject(clone)
 
@@ -65,12 +71,14 @@ function normalizeModel(scene: THREE.Group, targetSize: { x: number; y: number; 
   scaledBox.getCenter(center)
 
   clone.position.set(-center.x, -scaledBox.min.y, -center.z)
+  applyCartoonMaterialsToObject(clone, { variant: 'prop', castShadow: shadowsEnabled })
   return clone
 }
 
 function normalizeCenteredModel(
   scene: THREE.Group,
   targetSize: { x: number; y: number; z: number },
+  shadowsEnabled: boolean,
 ): { object: THREE.Group; halfHeight: number } {
   const clone = cloneModel(scene)
   const box = new THREE.Box3().setFromObject(clone)
@@ -98,6 +106,7 @@ function normalizeCenteredModel(
   const scaledSize = new THREE.Vector3()
   scaledBox.getSize(scaledSize)
 
+  applyCartoonMaterialsToObject(clone, { variant: 'prop', castShadow: shadowsEnabled })
   return { object: clone, halfHeight: scaledSize.y * 0.5 }
 }
 
@@ -109,14 +118,10 @@ function setOpacity(object: THREE.Object3D, opacity: number) {
 
     const mesh = node as THREE.Mesh
     const applyMaterial = (material: THREE.Material) => {
-      const materialWithOpacity = material as THREE.MeshBasicMaterial & {
-        opacity?: number
-        transparent?: boolean
-        depthWrite?: boolean
-      }
-      materialWithOpacity.transparent = true
-      materialWithOpacity.opacity = opacity
-      materialWithOpacity.depthWrite = opacity >= 0.98
+      material.transparent = true
+      material.opacity = opacity
+      material.depthWrite = opacity >= 0.98
+      material.needsUpdate = true
     }
 
     if (Array.isArray(mesh.material)) {
@@ -174,7 +179,11 @@ function getRestDieRotation(result: number): { x: number; y: number; z: number }
   }
 }
 
-export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) {
+export default function DiceShaker({
+  gameState,
+  rollTrigger,
+  shadowsEnabled = true,
+}: DiceShakerProps) {
   const layout = boardLayout as any
   const diceBox = layout?.dice ?? null
   const rollResult = latestDiceRollResult(gameState)
@@ -191,8 +200,14 @@ export default function DiceShaker({ gameState, rollTrigger }: DiceShakerProps) 
   const bucketScene = useGLTF(BUCKET_MODEL_PATH).scene
   const diceScene = useGLTF(DICE_MODEL_PATH).scene
 
-  const normalizedBucket = useMemo(() => normalizeModel(bucketScene, { x: 0.42, y: 0.28, z: 0.42 }), [bucketScene])
-  const normalizedDice = useMemo(() => normalizeCenteredModel(diceScene, { x: 0.16, y: 0.16, z: 0.16 }), [diceScene])
+  const normalizedBucket = useMemo(
+    () => normalizeModel(bucketScene, { x: 0.42, y: 0.28, z: 0.42 }, shadowsEnabled),
+    [bucketScene, shadowsEnabled],
+  )
+  const normalizedDice = useMemo(
+    () => normalizeCenteredModel(diceScene, { x: 0.16, y: 0.16, z: 0.16 }, shadowsEnabled),
+    [diceScene, shadowsEnabled],
+  )
   const diceProbe = useMemo(() => normalizedDice.object.clone(true), [normalizedDice])
 
   useEffect(() => {

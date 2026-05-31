@@ -15,6 +15,7 @@ import {
 import type { ImpactPuffKind } from '../lib/boardImpact'
 import ImpactPuffPool, { type SpawnImpactPuff } from './board/ImpactPuffPool'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
+import { applyMaterialOpacity, getBoardGradientMap } from '../lib/sceneMaterials'
 import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
 import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
@@ -230,14 +231,7 @@ function setOpacity(object: THREE.Object3D, opacity: number) {
 
     const mesh = node as THREE.Mesh
     const applyMaterial = (material: THREE.Material) => {
-      const materialWithOpacity = material as THREE.MeshBasicMaterial & {
-        opacity?: number
-        transparent?: boolean
-        depthWrite?: boolean
-      }
-      materialWithOpacity.transparent = true
-      materialWithOpacity.opacity = opacity
-      materialWithOpacity.depthWrite = opacity >= 0.98
+      applyMaterialOpacity(material, opacity)
     }
 
     if (Array.isArray(mesh.material)) {
@@ -406,22 +400,22 @@ function HousePlaceholder({ box, color = '#ffffff' }: { box: any; color?: string
   const baseColor = new THREE.Color(color)
   const roofColor = baseColor.clone().offsetHSL(0, 0, -0.18).getStyle()
   const chimneyColor = baseColor.clone().offsetHSL(0, -0.4, -0.45).getStyle()
-
+  const gradientMap = getBoardGradientMap()
   return (
     <group position={[cx, cy, cz]} rotation-y={box.rotationY ?? 0}>
-      <mesh position={[0, -h * 0.12, 0]}>
+      <mesh position={[0, -h * 0.12, 0]} castShadow>
         <boxGeometry args={[w * 0.9, h * 0.6, d * 0.9]} />
-        <meshBasicMaterial color={color} />
+        <meshToonMaterial color={color} gradientMap={gradientMap} />
       </mesh>
 
-      <mesh position={[0, h * 0.18, 0]} rotation={[0, 0, 0]}>
+      <mesh position={[0, h * 0.18, 0]} rotation={[0, 0, 0]} castShadow>
         <boxGeometry args={[w * 0.98, h * 0.2, d * 0.98]} />
-        <meshBasicMaterial color={roofColor} />
+        <meshToonMaterial color={roofColor} gradientMap={gradientMap} />
       </mesh>
 
-      <mesh position={[w * 0.28, h * 0.22, -d * 0.18]}>
+      <mesh position={[w * 0.28, h * 0.22, -d * 0.18]} castShadow>
         <boxGeometry args={[w * 0.12, h * 0.18, d * 0.12]} />
-        <meshBasicMaterial color={chimneyColor} />
+        <meshToonMaterial color={chimneyColor} gradientMap={gradientMap} />
       </mesh>
     </group>
   )
@@ -684,7 +678,7 @@ function PawnInstance({
 
   return (
     <group>
-      <group ref={modelRef} scale={[0.85, 0.85, 0.85]}>
+      <group ref={modelRef} scale={[0.92, 0.92, 0.92]}>
         <primitive object={normalizedPawn} />
         {isSelectable ? (
           <mesh
