@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef } from 'react'
-import { gameBtnGhost, gameSectionTitle } from '../../lib/gameUiStyles'
 
 export type ConfirmDialogProps = {
   open: boolean
@@ -12,11 +11,6 @@ export type ConfirmDialogProps = {
   onConfirm: () => void
   onCancel: () => void
 }
-
-const confirmBtnBase =
-  'rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-150 active:scale-95'
-const confirmBtnDefault = `${confirmBtnBase} border-2 border-amber-300 bg-amber-50/95 text-amber-900 hover:bg-amber-100`
-const confirmBtnDestructive = `${confirmBtnBase} border-2 border-red-300 bg-red-50/95 text-red-800 hover:bg-red-100`
 
 export function ConfirmDialog({
   open,
@@ -56,37 +50,37 @@ export function ConfirmDialog({
         if (e.target === e.currentTarget) onCancel()
       }}
     >
-      <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-sm" aria-hidden />
+      <div className="game-hud-backdrop" aria-hidden />
 
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={messageId}
-        className="relative w-full max-w-sm rounded-2xl border border-gray-200/90 bg-white/90 px-6 py-5 shadow-2xl backdrop-blur-md"
+        className="game-hud-modal game-hud-modal--sm"
       >
-        <h2 id={titleId} className={`${gameSectionTitle} text-base`}>
+        <h2 id={titleId} className="game-hud-modal-title">
           {title}
         </h2>
-        <p id={messageId} className="mt-2 text-sm leading-relaxed text-stone-600">
+        <p id={messageId} className="game-hud-modal-body">
           {message}
         </p>
 
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="game-hud-modal-actions">
           <button
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className={`${gameBtnGhost} sm:min-w-[5.5rem]`}
+            className="game-btn btn-outline"
           >
-            {cancelLabel}
+            <span>{cancelLabel}</span>
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`${destructive ? confirmBtnDestructive : confirmBtnDefault} sm:min-w-[5.5rem]`}
+            className={destructive ? 'btn-leave game-btn' : 'game-btn btn-yellow'}
           >
-            {confirmLabel}
+            <span>{confirmLabel}</span>
           </button>
         </div>
       </div>

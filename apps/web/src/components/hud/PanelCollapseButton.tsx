@@ -22,11 +22,11 @@ function chevronDirection(
 }
 
 function ChevronIcon({ direction }: { direction: ChevronDirection }) {
-  const rotations: Record<ChevronDirection, string> = {
-    right: 'rotate-0',
-    down: 'rotate-90',
-    left: 'rotate-180',
-    up: '-rotate-90',
+  const rotation: Record<ChevronDirection, string> = {
+    right: 'rotate(0deg)',
+    down: 'rotate(90deg)',
+    left: 'rotate(180deg)',
+    up: 'rotate(-90deg)',
   }
 
   return (
@@ -37,7 +37,7 @@ function ChevronIcon({ direction }: { direction: ChevronDirection }) {
       strokeWidth="3"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={['h-5 w-5', rotations[direction]].join(' ')}
+      style={{ transform: rotation[direction] }}
       aria-hidden
     >
       <path d="M9 6l6 6-6 6" />
@@ -63,10 +63,7 @@ export function PanelCollapseButton({
       onClick={onClick}
       aria-expanded={!collapsed}
       aria-label={ariaLabel(collapsed)}
-      className={[
-        'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 border-gray-300 bg-white p-0 text-gray-800 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 active:scale-95',
-        className,
-      ].join(' ')}
+      className={['game-hud-icon-btn', className].filter(Boolean).join(' ')}
     >
       <ChevronIcon direction={direction} />
     </button>

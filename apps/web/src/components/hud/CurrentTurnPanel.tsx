@@ -19,36 +19,35 @@ export function CurrentTurnPanel({ player, isLocalTurn, avatarEmoji }: CurrentTu
 
   if (collapsed) {
     return (
-      <div className="pointer-events-auto absolute left-4 top-14 z-10 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/85 px-2.5 py-2 backdrop-blur-sm shadow-sm">
-        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
-        <PanelCollapseButton
-          collapsed={collapsed}
-          expandDirection="right"
-          onClick={() => setCollapsed(false)}
-        />
+      <div className="game-hud-slot game-hud-slot--turn">
+        <div className="game-hud-panel game-hud-panel--collapsed">
+          <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
+          <PanelCollapseButton
+            collapsed={collapsed}
+            expandDirection="right"
+            onClick={() => setCollapsed(false)}
+          />
+        </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={[
-        'pointer-events-auto absolute left-4 top-14 z-10 rounded-xl border bg-white/75 px-3 py-2 backdrop-blur-sm shadow-sm transition-all duration-200',
-        colorStyles.border,
-      ].join(' ')}
-    >
-      <div className="flex items-center gap-2">
-        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
-        <div className="min-w-[172px]">
-          <p className={HUD_PANEL_LABEL_CLASS}>LƯỢT HIỆN TẠI</p>
-          <p className={[HUD_PLAYER_NAME_CLASS, colorStyles.text].join(' ')}>{player.name}</p>
+    <div className="game-hud-slot game-hud-slot--turn">
+      <div className={['game-hud-panel', colorStyles.hudPanel].join(' ')}>
+        <div className="game-hud-row">
+          <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
+          <div className="game-hud-turn-copy">
+            <p className={HUD_PANEL_LABEL_CLASS}>LƯỢT HIỆN TẠI</p>
+            <p className={[HUD_PLAYER_NAME_CLASS, colorStyles.nameClass].join(' ')}>{player.name}</p>
+          </div>
+          <PanelCollapseButton
+            collapsed={collapsed}
+            expandDirection="right"
+            onClick={() => setCollapsed(true)}
+            className="game-hud-collapse-end"
+          />
         </div>
-        <PanelCollapseButton
-          collapsed={collapsed}
-          expandDirection="right"
-          onClick={() => setCollapsed(true)}
-          className="ml-auto"
-        />
       </div>
     </div>
   )

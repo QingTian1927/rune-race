@@ -5,6 +5,17 @@ import { useGameSocket } from '../hooks/useGameSocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { emitLeaveLobby, getSocket } from '../lib/socket'
 
+function GameLoadingScreen({ message }: { message: string }) {
+  return (
+    <div className="game-hud-loading-screen">
+      <div className="game-hud-loading-card">
+        <div className="game-hud-loading-spinner" aria-hidden />
+        <p className="game-hud-loading-text">{message}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function OnlineGamePage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
@@ -52,14 +63,12 @@ export default function OnlineGamePage() {
   }, [accessToken, lobbyId, navigate])
 
   if (!gameId) {
-    return <div className="p-8 text-white">Missing game id</div>
+    return <GameLoadingScreen message="Thiếu mã game." />
   }
 
   if (!gameState) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
-        {connected ? 'Loading game...' : 'Connecting...'}
-      </div>
+      <GameLoadingScreen message={connected ? 'Đang tải game…' : 'Đang kết nối…'} />
     )
   }
 

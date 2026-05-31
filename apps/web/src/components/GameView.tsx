@@ -21,10 +21,11 @@ import { ConfirmDialog } from './ui/ConfirmDialog'
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-slate-950/70 backdrop-blur-[2px]">
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-slate-700/60 bg-slate-900/80 px-6 py-5 text-slate-100 shadow-xl">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-400 border-t-cyan-300" />
-        <p className="text-sm font-medium">Loading board... {Math.round(progress)}%</p>
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+      <div className="game-hud-backdrop" aria-hidden />
+      <div className="game-hud-loading-card">
+        <div className="game-hud-loading-spinner" aria-hidden />
+        <p className="game-hud-loading-text">Đang tải bàn cờ… {Math.round(progress)}%</p>
       </div>
     </div>
   )
@@ -517,7 +518,7 @@ export default function GameView({
   const exitConfirmLabel = onLeave ? 'Rời game' : 'Thoát'
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-slate-950">
+    <div className="game-hud-shell relative h-screen w-full overflow-hidden">
       <BoardScene
         onDebugInfoChange={showDevMenu ? setCameraDebugInfo : undefined}
         isEditorActive={isEditorActive}
@@ -535,15 +536,11 @@ export default function GameView({
         setEditorMouseMode={setEditorMouseMode}
       />
 
-      <div className="pointer-events-none absolute inset-0 z-10">
+      <div className="game-hud-overlay">
         {!showEndOverlay ? (
           <>
-            <div className="pointer-events-auto absolute left-4 top-4">
-              <button
-                type="button"
-                onClick={handleExitClick}
-                className="rounded-xl bg-white/70 px-3 py-1 text-sm font-semibold text-gray-700 shadow backdrop-blur-sm transition-all hover:bg-white/90"
-              >
+            <div className="game-hud-slot game-hud-slot--exit">
+              <button type="button" onClick={handleExitClick} className="game-hud-exit-btn">
                 {onLeave ? 'Rời game' : 'Thoát'}
               </button>
             </div>

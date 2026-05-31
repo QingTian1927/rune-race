@@ -18,35 +18,34 @@ export function MyPlayerPanel({ player, avatarEmoji }: MyPlayerPanelProps) {
 
   if (collapsed) {
     return (
-      <div className="pointer-events-auto absolute bottom-6 right-4 z-10 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/85 px-2.5 py-2 backdrop-blur-sm shadow-sm">
-        <PanelCollapseButton
-          collapsed={collapsed}
-          expandDirection="left"
-          onClick={() => setCollapsed(false)}
-        />
-        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} />
+      <div className="game-hud-slot game-hud-slot--self">
+        <div className="game-hud-panel game-hud-panel--collapsed">
+          <PanelCollapseButton
+            collapsed={collapsed}
+            expandDirection="left"
+            onClick={() => setCollapsed(false)}
+          />
+          <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} />
+        </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={[
-        'pointer-events-auto absolute bottom-6 right-4 z-10 rounded-xl border bg-stone-100/80 px-3 py-2 backdrop-blur-sm shadow-sm transition-all duration-200',
-        colorStyles.border,
-      ].join(' ')}
-    >
-      <div className="flex items-center gap-2">
-        <div className="min-w-[140px] text-right">
-          <p className={HUD_PANEL_LABEL_CLASS}>BẠN</p>
-          <p className={[HUD_PLAYER_NAME_CLASS, colorStyles.text].join(' ')}>{player.name}</p>
+    <div className="game-hud-slot game-hud-slot--self">
+      <div className={['game-hud-panel', colorStyles.hudPanel].join(' ')}>
+        <div className="game-hud-row game-hud-row--reverse">
+          <div className="game-hud-self-copy">
+            <p className={HUD_PANEL_LABEL_CLASS}>BẠN</p>
+            <p className={[HUD_PLAYER_NAME_CLASS, colorStyles.nameClass].join(' ')}>{player.name}</p>
+          </div>
+          <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} />
+          <PanelCollapseButton
+            collapsed={collapsed}
+            expandDirection="left"
+            onClick={() => setCollapsed(true)}
+          />
         </div>
-        <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} />
-        <PanelCollapseButton
-          collapsed={collapsed}
-          expandDirection="left"
-          onClick={() => setCollapsed(true)}
-        />
       </div>
     </div>
   )

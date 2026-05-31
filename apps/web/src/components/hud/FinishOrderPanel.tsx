@@ -16,47 +16,52 @@ export function FinishOrderPanel({ players, avatarsByPlayerId = {} }: FinishOrde
 
   if (collapsed) {
     return (
-      <div className="pointer-events-auto absolute right-4 top-4 z-10 flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/85 px-2.5 py-2 backdrop-blur-sm shadow-sm">
-        <span className="text-sm leading-none text-gray-600" aria-hidden>
-          🏆
-        </span>
-        <span className="text-sm font-semibold tabular-nums text-gray-600">{players.length}</span>
-        <PanelCollapseButton
-          collapsed={collapsed}
-          expandDirection="down"
-          onClick={() => setCollapsed(false)}
-        />
+      <div className="game-hud-slot game-hud-slot--finish">
+        <div className="game-hud-panel game-hud-panel--collapsed hud-p-gold">
+          <span className="game-hud-finish-trophy" aria-hidden>
+            🏆
+          </span>
+          <span className="game-hud-finish-count">{players.length}</span>
+          <PanelCollapseButton
+            collapsed={collapsed}
+            expandDirection="down"
+            onClick={() => setCollapsed(false)}
+          />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-10 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 backdrop-blur-sm shadow-sm transition-all duration-200">
-      <div className="mb-1.5 flex items-center gap-2">
-        <p className={HUD_PANEL_LABEL_CLASS}>VỀ ĐÍCH</p>
-        <PanelCollapseButton
-          collapsed={collapsed}
-          expandDirection="down"
-          onClick={() => setCollapsed(true)}
-          className="ml-auto"
-        />
-      </div>
-      <div className="space-y-1.5">
-        {players.map((player, index) => (
-          <div
-            key={player.id}
-            className="flex items-center gap-2 rounded-lg border border-amber-200/70 bg-white/75 px-3 py-2"
-          >
-            <span className="w-6 text-sm font-semibold text-gray-500">{index + 1}</span>
-            <PlayerBadge
-              color={player.color}
-              avatarEmoji={avatarsByPlayerId[player.id]}
-            />
-            <span className={[HUD_PLAYER_NAME_CLASS, PLAYER_COLOR_MAP[player.color].text].join(' ')}>
-              {player.name}
-            </span>
-          </div>
-        ))}
+    <div className="game-hud-slot game-hud-slot--finish">
+      <div className="game-hud-panel hud-p-gold">
+        <div className="game-hud-row game-hud-finish-head">
+          <p className={HUD_PANEL_LABEL_CLASS}>VỀ ĐÍCH</p>
+          <PanelCollapseButton
+            collapsed={collapsed}
+            expandDirection="down"
+            onClick={() => setCollapsed(true)}
+            className="game-hud-collapse-end"
+          />
+        </div>
+        <div className="game-hud-finish-list">
+          {players.map((player, index) => {
+            const colorStyles = PLAYER_COLOR_MAP[player.color]
+            return (
+              <div key={player.id} className="game-hud-finish-item">
+                <span className="game-hud-finish-rank">{index + 1}</span>
+                <PlayerBadge
+                  color={player.color}
+                  avatarEmoji={avatarsByPlayerId[player.id]}
+                  size="sm"
+                />
+                <span className={[HUD_PLAYER_NAME_CLASS, colorStyles.nameClass].join(' ')}>
+                  {player.name}
+                </span>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
