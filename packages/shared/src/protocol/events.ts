@@ -2,6 +2,7 @@
  * WebSocket events protocol — lobby + game.
  */
 
+import type { ChatMessage } from '../types/chat'
 import type { GameState, GameEvent } from '../types/game'
 import type { LobbySnapshot } from '../types/lobby'
 import type { PlayerColor } from '../types/game'
@@ -24,6 +25,11 @@ export interface ServerToClientEvents {
   'lobby:closed': (payload: { lobbyId: string; reason: 'empty' }) => void
   'lobby:kicked': (payload: { lobbyId: string; reason: 'kicked' }) => void
   'lobby:removed': (payload: { lobbyId: string; reason: 'left' | 'disconnect_timeout' }) => void
+
+  // --- Chat (lobby-scoped, lobby + in-game) ---
+  'chat:message': (payload: ChatMessage) => void
+  'chat:history': (payload: { lobbyId: string; messages: ChatMessage[] }) => void
+  'chat:error': (payload: { message: string; code: string }) => void
 
   // --- Game ---
   'game:connected': (payload: { playerId: string; gameId: string }) => void
@@ -65,6 +71,10 @@ export interface ClientToServerEvents {
     newHostPlayerId: string
   }) => void
   'lobby:sync_request': (payload: { playerId: string }) => void
+
+  // --- Chat ---
+  'chat:send': (payload: { playerId: string; lobbyId: string; text: string }) => void
+  'chat:sync_request': (payload: { playerId: string; lobbyId: string }) => void
 
   // --- Game ---
   'game:join': (payload: { playerId: string; gameId: string }) => void

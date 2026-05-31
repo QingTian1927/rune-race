@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import type { Player, GameState } from '@rune-race/shared'
@@ -49,6 +49,8 @@ export type GameViewProps = {
   onLeave?: () => void
   /** Board land/spawn SFX + reduced motion (optional override). */
   boardImpactFeedback?: BoardImpactFeedback
+  /** Optional lobby chat overlay (online). */
+  roomChat?: ReactNode
 }
 
 export default function GameView({
@@ -64,6 +66,7 @@ export default function GameView({
   localAvatarEmoji,
   onLeave,
   boardImpactFeedback: boardImpactFeedbackProp,
+  roomChat,
 }: GameViewProps) {
   const navigate = useNavigate()
   const { active, progress } = useProgress()
@@ -564,6 +567,7 @@ export default function GameView({
               color={localPlayer?.color ?? 'red'}
               onClick={handleRollClick}
             />
+            {roomChat}
           </>
         ) : null}
       </div>

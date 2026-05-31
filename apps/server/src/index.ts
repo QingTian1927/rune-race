@@ -4,6 +4,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { Server as SocketIOServer } from 'socket.io'
 import type { ClientToServerEvents, ServerToClientEvents } from '@rune-race/shared'
+import { ChatStore } from './chat/chat-store'
 import { LobbyStore } from './lobby/lobby-store'
 import { GameStore } from './game/game-store'
 import { setupSocketHandlers } from './socket/handlers'
@@ -23,8 +24,9 @@ const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(fastif
 
 const lobbyStore = new LobbyStore()
 const gameStore = new GameStore()
+const chatStore = new ChatStore()
 
-setupSocketHandlers(io, lobbyStore, gameStore)
+setupSocketHandlers(io, lobbyStore, gameStore, chatStore)
 
 const matchmaking = new MatchmakingQueue(lobbyStore)
 

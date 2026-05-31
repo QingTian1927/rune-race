@@ -3,6 +3,7 @@
  */
 
 import { z } from 'zod'
+import { CHAT_MAX_TEXT_LENGTH } from '../types/chat.js'
 
 const PlayerColorSchema = z.enum(['red', 'blue', 'green', 'yellow'])
 
@@ -68,6 +69,17 @@ export const PingSchema = z.object({
   playerId: z.string().min(1),
 })
 
+export const ChatSendSchema = z.object({
+  playerId: z.string().min(1),
+  lobbyId: z.string().min(1),
+  text: z.string().min(1).max(CHAT_MAX_TEXT_LENGTH),
+})
+
+export const ChatSyncRequestSchema = z.object({
+  playerId: z.string().min(1),
+  lobbyId: z.string().min(1),
+})
+
 const schemas: Record<string, z.ZodSchema> = {
   'lobby:join': LobbyJoinSchema,
   'lobby:set_color': LobbySetColorSchema,
@@ -79,6 +91,8 @@ const schemas: Record<string, z.ZodSchema> = {
   'lobby:update_settings': LobbyUpdateSettingsSchema,
   'lobby:transfer_host': LobbyTransferHostSchema,
   'lobby:sync_request': LobbyPlayerIdSchema,
+  'chat:send': ChatSendSchema,
+  'chat:sync_request': ChatSyncRequestSchema,
   'game:join': GameJoinSchema,
   'game:roll': RollDiceSchema,
   'game:choose_move': ChooseMoveSchema,

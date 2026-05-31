@@ -1,6 +1,7 @@
 export * from './auth.js'
 export * from './types/game.js'
 export * from './types/lobby.js'
+export * from './types/chat.js'
 export * from './protocol/events.js'
 export * from './schemas/game.js'
 export * from './schemas/events.js'

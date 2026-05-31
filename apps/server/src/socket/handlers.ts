@@ -1,6 +1,7 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io'
 import type { ClientToServerEvents, ServerToClientEvents } from '@rune-race/shared'
 import { validateCommand } from '@rune-race/shared'
+import type { ChatStore } from '../chat/chat-store'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
 import { getUserFromAccessToken } from '../lib/supabase-server'
@@ -18,6 +19,10 @@ function lobbyError(socket: AppSocket, message: string, code: string) {
 
 function gameError(socket: AppSocket, message: string, code: string) {
   socket.emit('game:error', { message, code })
+}
+
+function chatError(socket: AppSocket, message: string, code: string) {
+  socket.emit('chat:error', { message, code })
 }
 
 function assertPlayerIdMatchesAuth(socket: AppSocket, playerId: string): void {
@@ -98,6 +103,7 @@ export function setupSocketHandlers(
   io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
   lobbyStore: LobbyStore,
   gameStore: GameStore,
+  chatStore: ChatStore,
 ): void {
   const socketRegistry = new PlayerSocketRegistry()
 
@@ -115,6 +121,7 @@ export function setupSocketHandlers(
       io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
     },
     onDestroy: (lobbyId) => {
+      chatStore.clearLobby(lobbyId)
       io.to(`lobby:${lobbyId}`).emit('lobby:closed', { lobbyId, reason: 'empty' })
     },
     onPlayerTimedOut: (lobbyId, playerId) => {
@@ -313,6 +320,46 @@ export function setupSocketHandlers(
         if (snapshot) socket.emit('lobby:snapshot', snapshot)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'SYNC_FAILED')
+      }
+    })
+
+    socket.on('chat:send', (payload) => {
+      try {
+        const cmd = validateCommand('chat:send', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
+        const message = chatStore.send({
+          lobbyId: cmd.lobbyId,
+          playerId: cmd.playerId,
+          text: cmd.text,
+          lobbyStore,
+        })
+        io.to(`lobby:${cmd.lobbyId}`).emit('chat:message', message)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Send failed'
+        const code =
+          message === 'Sending too fast'
+            ? 'RATE_LIMITED'
+            : message === 'Not in this lobby' || message === 'Player not in lobby'
+              ? 'NOT_IN_LOBBY'
+              : 'SEND_FAILED'
+        chatError(socket, message, code)
+      }
+    })
+
+    socket.on('chat:sync_request', (payload) => {
+      try {
+        const cmd = validateCommand('chat:sync_request', payload)
+        assertPlayerIdMatchesAuth(socket, cmd.playerId)
+        const memberLobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        if (memberLobbyId !== cmd.lobbyId) {
+          throw new Error('Not in this lobby')
+        }
+        socket.emit('chat:history', {
+          lobbyId: cmd.lobbyId,
+          messages: chatStore.getHistory(cmd.lobbyId),
+        })
+      } catch (error) {
+        chatError(socket, error instanceof Error ? error.message : 'Sync failed', 'SYNC_FAILED')
       }
     })
 

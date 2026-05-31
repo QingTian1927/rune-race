@@ -1,8 +1,10 @@
 import { useCallback, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import GameView from '../components/GameView'
 import { useGameSocket } from '../hooks/useGameSocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { useRoomChat } from '../hooks/useRoomChat'
 import { emitLeaveLobby, getSocket } from '../lib/socket'
 
 function GameLoadingScreen({ message }: { message: string }) {
@@ -25,6 +27,13 @@ export default function OnlineGamePage() {
 
   const { gameState, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
     useGameSocket(gameId ?? '', playerId, accessToken)
+
+  const {
+    messages: chatMessages,
+    sendMessage: sendChatMessage,
+    sendError: chatSendError,
+    clearSendError: clearChatSendError,
+  } = useRoomChat(lobbyId ?? undefined, playerId, accessToken)
 
   const handleLeaveGame = useCallback(() => {
     emitLeaveLobby(accessToken, playerId)
@@ -91,6 +100,18 @@ export default function OnlineGamePage() {
       localPlayerId={playerId}
       localAvatarEmoji={avatarEmoji}
       onLeave={handleLeaveGame}
+      roomChat={
+        lobbyId ? (
+          <RoomChatPanel
+            placement="game"
+            messages={chatMessages}
+            localPlayerId={playerId}
+            onSend={sendChatMessage}
+            sendError={chatSendError}
+            onClearSendError={clearChatSendError}
+          />
+        ) : null
+      }
     />
   )
 }

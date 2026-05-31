@@ -4,8 +4,10 @@ import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { PLAYER_GRADIENT } from '../components/sky/skyColors'
 import { useLobbyBackButton } from '../components/sky/useLobbyBackButton'
+import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import { useLobbySocket } from '../hooks/useLobbySocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { useRoomChat } from '../hooks/useRoomChat'
 import { isLikelySupabaseUserId } from '../lib/authUserId'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
@@ -52,6 +54,13 @@ export default function LobbyPage() {
   } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken, {
     onRemoved: handleLobbyRemoved,
   })
+
+  const {
+    messages: chatMessages,
+    sendMessage: sendChatMessage,
+    sendError: chatSendError,
+    clearSendError: clearChatSendError,
+  } = useRoomChat(snapshot ? lobbyId : undefined, playerId, accessToken)
 
   useEffect(() => {
     if (playerName) setName(playerName)
@@ -143,6 +152,17 @@ export default function LobbyPage() {
       onPlayerNameChange={setName}
       onPlayerNameBlur={() => void saveAnonDisplayName()}
     >
+      {snapshot ? (
+        <RoomChatPanel
+          placement="lobby"
+          messages={chatMessages}
+          localPlayerId={playerId}
+          onSend={sendChatMessage}
+          sendError={chatSendError}
+          onClearSendError={clearChatSendError}
+        />
+      ) : null}
+
       <div className="lobby-screen">
         <button
           ref={backRef}
