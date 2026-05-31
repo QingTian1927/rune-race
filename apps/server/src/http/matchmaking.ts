@@ -150,13 +150,17 @@ export function registerMatchmakingRoutes(
 
   fastify.delete('/api/matchmaking/leave', async (request) => {
     const body = request.body as { playerId: string }
-    if (body?.playerId) queue.leave(body.playerId)
+    const user = await getAuthUser(request)
+    const playerId = user?.id ?? body?.playerId
+    if (playerId) queue.leave(playerId)
     return { status: 'left' }
   })
 
   fastify.get('/api/matchmaking/status', async (request) => {
     const { playerId } = request.query as { playerId?: string }
-    if (!playerId) return { error: 'playerId required' }
-    return queue.getStatus(playerId)
+    const user = await getAuthUser(request)
+    const resolvedId = user?.id ?? playerId
+    if (!resolvedId) return { error: 'playerId required' }
+    return queue.getStatus(resolvedId)
   })
 }

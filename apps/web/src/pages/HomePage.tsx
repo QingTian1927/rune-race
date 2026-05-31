@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   createRoom,
@@ -13,56 +13,26 @@ import {
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../hooks/useAuth'
-import { useMyProfilePath, usePlayerIdentity } from '../hooks/usePlayerIdentity'
-import {
-  gameAlertError,
-  gameBtnGhost,
-  gameBtnGhostFull,
-  gameBtnPrimary,
-  gameContainerWide,
-  gameIdentityInput,
-  gameInput,
-  gameListRow,
-  gameMeta,
-  gameNavLink,
-  gameNavRow,
-  gamePage,
-  gamePanel,
-  gamePanelStack,
-  gameSectionTitle,
-  gameTagline,
-  gameTitle,
-} from '../lib/gameUiStyles'
+import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { PublicRoomCard } from '../components/sky/PublicRoomCard'
+import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 
-function PersonIcon() {
-  return (
-    <svg
-      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden
-    >
-      <path d="M20 21a8 8 0 0 0-16 0" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  )
+type HomeView = 'menu' | 'form'
+type HomeForm = 'join' | 'create' | 'match' | 'public'
+
+type MatchSearchSession = {
+  playerId: string
+  playerName: string
+  accessToken: string | null
 }
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { signOut, isRegistered } = useAuth()
-  const {
-    playerId,
-    playerName,
-    avatarEmoji,
-    accessToken,
-    canEditNameOnHome,
-  } = usePlayerIdentity()
-  const profilePath = useMyProfilePath()
+  const { playerName, accessToken, canEditNameOnHome } = usePlayerIdentity()
+
   const [name, setName] = useState(playerName || getPlayerName())
+  const [homeView, setHomeView] = useState<HomeView>('menu')
+  const [activeForm, setActiveForm] = useState<HomeForm>('join')
   const [joinCode, setJoinCode] = useState('')
   const [roomPassword, setRoomPassword] = useState('')
   const [createPassword, setCreatePassword] = useState('')
@@ -70,7 +40,11 @@ export default function HomePage() {
   const [rooms, setRooms] = useState<PublicRoom[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [matchStatus, setMatchStatus] = useState<string | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [queueSize, setQueueSize] = useState(0)
+  const [waitedSeconds, setWaitedSeconds] = useState(0)
+  const [matchSearch, setMatchSearch] = useState<MatchSearchSession | null>(null)
+  const idleRetriesRef = useRef(0)
 
   useEffect(() => {
     if (playerName) setName(playerName)
@@ -90,6 +64,71 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [refreshRooms])
 
+  useEffect(() => {
+    if (!matchSearch) return
+
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const status = await getMatchmakingStatus(matchSearch.playerId, matchSearch.accessToken)
+
+        if (cancelled) return
+
+        if (status.status === 'matched' && status.lobbyId) {
+          setIsSearching(false)
+          setMatchSearch(null)
+          navigate(`/lobby/${status.lobbyId}`)
+          return
+        }
+
+        if (status.status === 'queued') {
+          idleRetriesRef.current = 0
+          setQueueSize(status.queueSize)
+          setWaitedSeconds(status.waitedSeconds)
+          return
+        }
+
+        if (idleRetriesRef.current < 3) {
+          idleRetriesRef.current += 1
+          const rejoin = await joinMatchmaking(
+            matchSearch.playerId,
+            matchSearch.playerName,
+            matchSearch.accessToken,
+          )
+          if (rejoin.status === 'matched' && rejoin.lobbyId) {
+            setIsSearching(false)
+            setMatchSearch(null)
+            navigate(`/lobby/${rejoin.lobbyId}`)
+            return
+          }
+          if (rejoin.status === 'queued') {
+            setQueueSize(rejoin.queueSize)
+            setWaitedSeconds(rejoin.waitedSeconds)
+          }
+          return
+        }
+
+        setError('Mất kết nối hàng chờ — hãy thử lại')
+        setIsSearching(false)
+        setMatchSearch(null)
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Matchmaking status failed')
+          setIsSearching(false)
+          setMatchSearch(null)
+        }
+      }
+    }
+
+    void poll()
+    const interval = setInterval(() => void poll(), 1500)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [matchSearch, navigate])
+
   const saveLocalName = () => setPlayerName(name)
 
   const saveAnonDisplayName = async () => {
@@ -105,8 +144,19 @@ export default function HomePage() {
 
   const prepareOnline = async () => {
     saveLocalName()
-    const session = await ensureOnlineSession(name)
-    return session
+    return ensureOnlineSession(name)
+  }
+
+  const showHomeMenu = () => {
+    setHomeView('menu')
+    setError(null)
+  }
+
+  const showHomeForm = (form: HomeForm) => {
+    setActiveForm(form)
+    setHomeView('form')
+    setError(null)
+    if (form === 'public') void refreshRooms()
   }
 
   const handleCreateRoom = async () => {
@@ -161,231 +211,331 @@ export default function HomePage() {
 
   const handleQuickMatch = async () => {
     setError(null)
-    setMatchStatus('Đang tìm trận...')
     setLoading(true)
+    idleRetriesRef.current = 0
     try {
       const session = await prepareOnline()
-      await joinMatchmaking(session.playerId, session.playerName, session.accessToken)
-      const poll = async () => {
-        const status = await getMatchmakingStatus(session.playerId)
-        if (status.status === 'matched' && status.lobbyId) {
-          setMatchStatus(null)
-          navigate(`/lobby/${status.lobbyId}`)
-          return
-        }
-        if (status.status === 'queued') {
-          setMatchStatus(
-            `Đang chờ... ${status.waitedSeconds}s (${status.queueSize} người trong hàng)`,
-          )
-          setTimeout(poll, 1500)
-          return
-        }
-        setMatchStatus('Không tìm được trận')
+      const joined = await joinMatchmaking(
+        session.playerId,
+        session.playerName,
+        session.accessToken,
+      )
+
+      if (joined.status === 'matched' && joined.lobbyId) {
+        navigate(`/lobby/${joined.lobbyId}`)
+        return
       }
-      await poll()
+
+      setQueueSize(joined.queueSize)
+      setWaitedSeconds(joined.waitedSeconds)
+      setIsSearching(true)
+      setMatchSearch({
+        playerId: session.playerId,
+        playerName: session.playerName,
+        accessToken: session.accessToken,
+      })
     } catch (e) {
-      setMatchStatus(null)
       setError(e instanceof Error ? e.message : 'Matchmaking failed')
+      setIsSearching(false)
+      setMatchSearch(null)
     } finally {
       setLoading(false)
     }
   }
 
   const handleCancelMatch = async () => {
-    await leaveMatchmaking(playerId)
-    setMatchStatus(null)
+    if (matchSearch) {
+      await leaveMatchmaking(matchSearch.playerId, matchSearch.accessToken)
+    }
+    idleRetriesRef.current = 0
+    setIsSearching(false)
+    setMatchSearch(null)
+    setQueueSize(0)
+    setWaitedSeconds(0)
   }
 
+  const footer = (
+    <div className="sky-dev-footer">
+      <Link to="/play/local" className="sky-dev-link">
+        Chế độ test local (không server)
+      </Link>
+    </div>
+  )
+
   return (
-    <div className={gamePage}>
-      <div className={gameContainerWide}>
-        <nav className={gameNavRow}>
-          {isRegistered ? (
-            <>
-              {profilePath ? (
-                <Link to={profilePath} className={gameNavLink}>
-                  Profile
-                </Link>
-              ) : null}
-              <button type="button" onClick={signOut} className={gameNavLink}>
-                Đăng xuất
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/auth/login" className={gameNavLink}>
-                Đăng nhập
-              </Link>
-              <Link to="/auth/signup" className={gameNavLink}>
-                Đăng ký
-              </Link>
-            </>
-          )}
-        </nav>
-
-        <header className="mb-6 text-center">
-          <h1 className={gameTitle}>Rune Race</h1>
-          <p className={`mt-1 ${gameTagline}`}>Cá ngựa online — chơi ẩn danh</p>
-        </header>
-
-        <div className="relative mb-6">
-          {avatarEmoji ? (
-            <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-base leading-none">
-              {avatarEmoji}
-            </span>
-          ) : (
-            <PersonIcon />
-          )}
-          {isRegistered ? (
-            <div
-              className={`${avatarEmoji ? `${gameIdentityInput} pl-9` : gameIdentityInput} flex items-center justify-between`}
+    <SkyPageLayout
+      playerName={name}
+      onPlayerNameChange={setName}
+      onPlayerNameBlur={() => void saveAnonDisplayName()}
+      footer={footer}
+    >
+      <div
+        className="screen active home-screen"
+        data-home-state={homeView}
+      >
+        <div id="home-menu" className="home-menu">
+          <div className="home-orbit">
+            <button
+              type="button"
+              className="menu-orb orb-join"
+              data-label="Vào phòng"
+              aria-label="Vào phòng"
+              onClick={() => showHomeForm('join')}
             >
-              <span className="truncate font-medium text-stone-800">{playerName}</span>
-              <Link to="/profile/edit" className={`shrink-0 ${gameNavLink}`}>
-                Sửa profile
-              </Link>
-            </div>
-          ) : (
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={() => {
-                void saveAnonDisplayName()
-              }}
-              placeholder="Tên hiển thị"
-              className={avatarEmoji ? `${gameIdentityInput} pl-9` : gameIdentityInput}
-              maxLength={50}
-              aria-label="Tên hiển thị"
-            />
-          )}
+              <i className="bi bi-door-open-fill" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="menu-orb orb-create"
+              data-label="Tạo phòng"
+              aria-label="Tạo phòng"
+              onClick={() => showHomeForm('create')}
+            >
+              <i className="bi bi-house-heart-fill" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="menu-orb orb-match"
+              data-label="Tìm trận"
+              aria-label="Tìm trận"
+              onClick={() => showHomeForm('match')}
+            >
+              <i className="bi bi-dice-5-fill" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="menu-orb orb-public"
+              data-label="Phòng công khai"
+              aria-label="Phòng công khai"
+              onClick={() => showHomeForm('public')}
+            >
+              <i className="bi bi-globe-asia-australia" aria-hidden="true" />
+            </button>
+            <Link className="guide-link" to="/guide" aria-label="Hướng dẫn chơi">
+              <i className="bi bi-question-circle-fill" aria-hidden="true" />
+              <span>Hướng dẫn chơi</span>
+            </Link>
+          </div>
         </div>
 
-        {error ? <div className={`mb-4 ${gameAlertError}`}>{error}</div> : null}
-
-        <div className={gamePanelStack}>
-          <section className={gamePanel}>
-            <h2 className={gameSectionTitle}>Vào phòng</h2>
-            <p className={`mt-1 ${gameMeta}`}>Mã 8 ký tự, phân biệt hoa thường</p>
-            <div className="mt-3 space-y-2">
-              <input
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                placeholder="joinCode"
-                className={`font-mono ${gameInput}`}
-                maxLength={8}
-              />
-              <input
-                type="password"
-                value={roomPassword}
-                onChange={(e) => setRoomPassword(e.target.value)}
-                placeholder="Mật khẩu phòng (nếu có)"
-                className={gameInput}
-              />
-            </div>
+        <div id="home-forms" className="home-forms">
+          <div className="home-form-stage">
             <button
               type="button"
-              disabled={loading || !joinCode.trim()}
-              onClick={handleJoinCode}
-              className={`mt-3 ${gameBtnGhostFull}`}
+              className="back-btn home-back-btn"
+              onClick={showHomeMenu}
             >
-              Vào bằng mã
+              <i className="bi bi-arrow-left-short inline-icon" aria-hidden="true" /> Quay về
+              trang chủ
             </button>
-          </section>
 
-          <section className={gamePanel}>
-            <h2 className={gameSectionTitle}>Tạo phòng</h2>
-            <div className="mt-3 space-y-2">
-              <input
-                value={roomName}
-                onChange={(e) => setRoomName(e.target.value)}
-                placeholder="Tên phòng"
-                className={gameInput}
-              />
-              <input
-                type="password"
-                value={createPassword}
-                onChange={(e) => setCreatePassword(e.target.value)}
-                placeholder="Mật khẩu (tùy chọn)"
-                className={gameInput}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={handleCreateRoom}
-              className={`mt-3 ${gameBtnPrimary}`}
-            >
-              Tạo phòng mới
-            </button>
-          </section>
+            {error ? <div className="sky-alert-error">{error}</div> : null}
 
-          <section className={gamePanel}>
-            <div className="flex items-center justify-between">
-              <h2 className={gameSectionTitle}>Chơi ngay</h2>
-              {matchStatus ? (
-                <button type="button" onClick={handleCancelMatch} className={gameNavLink}>
-                  Hủy
-                </button>
-              ) : null}
-            </div>
-            <p className={`mt-1 ${gameMeta}`}>
-              Ghép 4 người sau 20s, 3 người sau 40s, 2 người sau 60s
-            </p>
-            {matchStatus ? (
-              <p className="mt-3 text-sm font-semibold text-amber-800">{matchStatus}</p>
-            ) : (
-              <button
-                type="button"
-                disabled={loading}
-                onClick={handleQuickMatch}
-                className={`mt-3 ${gameBtnPrimary}`}
+            <div className="home-form-card">
+              <div
+                id="home-form-join"
+                className={`panel p-blue home-form-panel${activeForm === 'join' ? ' active' : ''}`}
               >
-                Tìm trận
-              </button>
-            )}
-          </section>
+                <div className="panel-head">
+                  <div className="panel-icon icon-blue">
+                    <i className="bi bi-door-open" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="panel-title">Vào phòng</div>
+                    <div className="panel-subtitle">Nhập mã 8 ký tự để tham gia</div>
+                  </div>
+                </div>
+                <div className="panel-body">
+                  <div className="input-wrap">
+                    <input
+                      className="game-input code-input"
+                      type="text"
+                      placeholder="MÃPHÒNG"
+                      maxLength={8}
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(e.target.value)}
+                    />
+                  </div>
+                  <div className="input-wrap">
+                    <span className="input-icon">
+                      <i className="bi bi-lock-fill" aria-hidden="true" />
+                    </span>
+                    <input
+                      className="game-input"
+                      type="password"
+                      placeholder="Mật khẩu phòng (nếu có)"
+                      value={roomPassword}
+                      onChange={(e) => setRoomPassword(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="game-btn btn-blue"
+                    disabled={loading || !joinCode.trim()}
+                    onClick={() => void handleJoinCode()}
+                  >
+                    <span className="btn-icon">
+                      <i className="bi bi-rocket-takeoff-fill" aria-hidden="true" />
+                    </span>
+                    <span>VÀO BẰNG MÃ</span>
+                  </button>
+                </div>
+              </div>
 
-          <section className={gamePanel}>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className={gameSectionTitle}>Phòng công khai</h2>
-              <button type="button" onClick={refreshRooms} className={gameNavLink}>
-                Làm mới
-              </button>
-            </div>
-            {rooms.length === 0 ? (
-              <p className={gameTagline}>Chưa có phòng nào</p>
-            ) : (
-              <ul className="space-y-2">
-                {rooms.map((room) => (
-                  <li key={room.lobbyId} className={gameListRow}>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold text-stone-800">{room.name}</div>
-                      <div className={gameMeta}>
-                        {room.playerCount}/{room.maxPlayers}
-                        {room.hasPassword ? ' · có mật khẩu' : ''}
+              <div
+                id="home-form-create"
+                className={`panel p-green home-form-panel${activeForm === 'create' ? ' active' : ''}`}
+              >
+                <div className="panel-head">
+                  <div className="panel-icon icon-green">
+                    <i className="bi bi-house-heart-fill" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="panel-title">Tạo phòng</div>
+                    <div className="panel-subtitle">Mời bạn bè cùng chơi</div>
+                  </div>
+                </div>
+                <div className="panel-body">
+                  <div className="input-wrap">
+                    <span className="input-icon">
+                      <i className="bi bi-tag-fill" aria-hidden="true" />
+                    </span>
+                    <input
+                      className="game-input"
+                      type="text"
+                      placeholder="Tên phòng của bạn"
+                      value={roomName}
+                      onChange={(e) => setRoomName(e.target.value)}
+                    />
+                  </div>
+                  <div className="input-wrap">
+                    <span className="input-icon">
+                      <i className="bi bi-key-fill" aria-hidden="true" />
+                    </span>
+                    <input
+                      className="game-input"
+                      type="password"
+                      placeholder="Mật khẩu (tùy chọn)"
+                      value={createPassword}
+                      onChange={(e) => setCreatePassword(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="game-btn btn-green"
+                    disabled={loading}
+                    onClick={() => void handleCreateRoom()}
+                  >
+                    <span className="btn-icon">
+                      <i className="bi bi-stars" aria-hidden="true" />
+                    </span>
+                    <span>TẠO PHÒNG MỚI</span>
+                  </button>
+                </div>
+              </div>
+
+              <div
+                id="home-form-match"
+                className={`panel p-yellow home-form-panel${activeForm === 'match' ? ' active' : ''}`}
+              >
+                <div className="panel-head">
+                  <div className="panel-icon icon-yellow">
+                    <i className="bi bi-controller" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="panel-title">Chơi ngay!</div>
+                    <div className="panel-subtitle">Tự động ghép trận nhanh nhất</div>
+                  </div>
+                </div>
+                <div className="panel-body">
+                  <div className="mm-badge">
+                    <div className="mm-dots">
+                      <div className="mm-dot" />
+                      <div className="mm-dot" />
+                      <div className="mm-dot" />
+                      <div className="mm-dot" />
+                    </div>
+                    <span>
+                      Ghép 4 người ngay · 3 người sau 5s · 2 người sau 3s
+                    </span>
+                  </div>
+
+                  {isSearching ? (
+                    <div className="mm-queue-stat">
+                      <div className="mm-queue-count">{queueSize}</div>
+                      <div className="mm-queue-label">người đang tìm trận</div>
+                      <div className="mm-queue-wait">
+                        {queueSize <= 1
+                          ? `Đang chờ thêm người chơi... (${waitedSeconds}s)`
+                          : `Đang ghép trận... ${waitedSeconds}s`}
                       </div>
                     </div>
+                  ) : null}
+
+                  {isSearching ? (
                     <button
                       type="button"
-                      disabled={loading}
-                      onClick={() => void handleJoinLobby(room.lobbyId)}
-                      className={`shrink-0 ${gameBtnGhost}`}
+                      className="game-btn btn-yellow"
+                      onClick={() => void handleCancelMatch()}
                     >
-                      Vào
+                      <span className="btn-icon">
+                        <i className="bi bi-x-circle-fill" aria-hidden="true" />
+                      </span>
+                      <span>HỦY TÌM TRẬN</span>
                     </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="game-btn btn-yellow"
+                      disabled={loading}
+                      onClick={() => void handleQuickMatch()}
+                    >
+                      <span className="btn-icon">
+                        <i className="bi bi-dice-5-fill" aria-hidden="true" />
+                      </span>
+                      <span>TÌM TRẬN</span>
+                    </button>
+                  )}
+                </div>
+              </div>
 
-        <div className="mt-8 text-center">
-          <Link to="/play/local" className={gameNavLink}>
-            Chế độ test local (không server)
-          </Link>
+              <div
+                id="home-form-public"
+                className={`panel p-red home-form-panel${activeForm === 'public' ? ' active' : ''}`}
+              >
+                <div className="panel-head">
+                  <div className="panel-icon icon-red">
+                    <i className="bi bi-globe-asia-australia" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="panel-title">Phòng công khai</div>
+                    <div className="panel-subtitle">Danh sách phòng đang mở cho mọi người</div>
+                  </div>
+                </div>
+                <div className="public-rooms-toolbar">
+                  <button type="button" className="refresh-pill" onClick={() => void refreshRooms()}>
+                    Làm mới
+                  </button>
+                </div>
+                {rooms.length === 0 ? (
+                  <div className="room-list-empty">Chưa có phòng nào</div>
+                ) : (
+                  <div className="room-list">
+                    {rooms.map((room) => (
+                      <PublicRoomCard
+                        key={room.lobbyId}
+                        room={room}
+                        loading={loading}
+                        onJoin={(id) => void handleJoinLobby(id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </SkyPageLayout>
   )
 }

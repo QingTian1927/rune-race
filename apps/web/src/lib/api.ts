@@ -85,17 +85,18 @@ export async function joinMatchmaking(
   }>
 }
 
-export async function leaveMatchmaking(playerId: string) {
+export async function leaveMatchmaking(playerId: string, accessToken?: string | null) {
   await fetch(`${API_BASE}/api/matchmaking/leave`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    headers: jsonHeaders(accessToken),
     body: JSON.stringify({ playerId }),
   })
 }
 
-export async function getMatchmakingStatus(playerId: string) {
+export async function getMatchmakingStatus(playerId: string, accessToken?: string | null) {
   const res = await fetch(
     `${API_BASE}/api/matchmaking/status?playerId=${encodeURIComponent(playerId)}`,
+    { headers: authHeaders(accessToken) },
   )
   if (!res.ok) throw new Error('Status check failed')
   return res.json() as Promise<{

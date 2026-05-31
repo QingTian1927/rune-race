@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import LobbyPage from './pages/LobbyPage'
+import GuidePage from './pages/GuidePage'
 import LocalGamePage from './pages/LocalGamePage'
 import OnlineGamePage from './pages/OnlineGamePage'
 import AuthLoginPage from './pages/AuthLogin'
@@ -18,6 +19,7 @@ function App() {
     >
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/guide" element={<GuidePage />} />
         <Route path="/auth/login" element={<AuthLoginPage />} />
         <Route path="/auth/signup" element={<AuthSignupPage />} />
         <Route path="/profile/edit" element={<ProfileEditPage />} />
