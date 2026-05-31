@@ -5,35 +5,17 @@ import { getDisplayName } from '../lib/authUser'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
 import { useAuth } from '../hooks/useAuth'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
-import {
-  gameAlertError,
-  gameAlertSuccess,
-  gameAvatarCircle,
-  gameBtnGhostFull,
-  gameBtnPrimary,
-  gameContainerForm,
-  gameInput,
-  gameLabel,
-  gameMeta,
-  gameNavLink,
-  gamePage,
-  gamePanel,
-  gameTagline,
-  gameTitle,
-} from '../lib/gameUiStyles'
+import { SkyFormStage } from '../components/sky/SkyFormStage'
+import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 const MAX_BIO_LENGTH = 200
-
-const AVATAR_BTN_BASE =
-  'flex h-10 w-10 items-center justify-center rounded-xl border text-xl backdrop-blur-sm transition-all'
-const AVATAR_BTN_SELECTED =
-  'border-amber-400 bg-amber-50 ring-2 ring-amber-200 shadow-sm'
-const AVATAR_BTN_DEFAULT = 'border-stone-200 bg-white/70 hover:bg-white'
 
 export default function ProfileEditPage() {
   const navigate = useNavigate()
   const { accessToken, user, loading: authLoading, isRegistered, updateEmail } = useAuth()
   const { refetch: refetchProfile } = usePlayerProfile()
+  const { name, setName, onNameBlur } = useSkyPageName()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -91,160 +73,200 @@ export default function ProfileEditPage() {
     }
   }
 
+  const cancelHref = user ? `/profile/${user.id}` : '/'
+  const displayEmoji = avatarEmoji || PROFILE_EMOJIS[0]
+
   if (!authLoading && !isRegistered) {
     return (
-      <div className={gamePage}>
-        <div className={gameContainerForm}>
-          <section className={gamePanel}>
-            <h1 className={gameTitle}>Cần tài khoản</h1>
-            <p className={`mt-2 ${gameTagline}`}>
-              Profile dành cho tài khoản đăng ký. Khách chỉ đổi tên trên trang chủ.
-            </p>
-            <div className="mt-4 space-y-2">
-              <Link to="/auth/signup" className={`block text-center ${gameBtnPrimary}`}>
-                Đăng ký
+      <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+        <SkyFormStage backTo="/">
+          <div className="panel p-yellow">
+            <div className="panel-head">
+              <div className="panel-icon icon-yellow">
+                <i className="bi bi-person-exclamation" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="panel-title">Cần tài khoản</div>
+                <div className="panel-subtitle">
+                  Profile dành cho tài khoản đăng ký. Khách chỉ đổi tên trên trang chủ.
+                </div>
+              </div>
+            </div>
+            <div className="panel-body sky-form-stack">
+              <Link to="/auth/signup" className="game-btn btn-green">
+                <span className="btn-icon">
+                  <i className="bi bi-person-plus-fill" aria-hidden="true" />
+                </span>
+                <span>ĐĂNG KÝ</span>
               </Link>
-              <Link to="/auth/login" className={`block text-center ${gameBtnGhostFull}`}>
-                Đăng nhập
+              <Link to="/auth/login" className="game-btn btn-blue">
+                <span className="btn-icon">
+                  <i className="bi bi-box-arrow-in-right" aria-hidden="true" />
+                </span>
+                <span>ĐĂNG NHẬP</span>
               </Link>
             </div>
-          </section>
-        </div>
-      </div>
+          </div>
+        </SkyFormStage>
+      </SkyPageLayout>
     )
   }
 
   if (!accessToken && !loading) {
     return (
-      <div className={gamePage}>
-        <div className={gameContainerForm}>
-          <section className={gamePanel}>
-            <h1 className={gameTitle}>Cần đăng nhập</h1>
-            <Link to="/auth/login" className={`mt-4 block text-center ${gameBtnPrimary}`}>
-              Đến trang đăng nhập
-            </Link>
-          </section>
-        </div>
-      </div>
+      <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+        <SkyFormStage backTo="/">
+          <div className="panel p-blue">
+            <div className="panel-head">
+              <div className="panel-icon icon-blue">
+                <i className="bi bi-shield-lock-fill" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="panel-title">Cần đăng nhập</div>
+                <div className="panel-subtitle">Đăng nhập để chỉnh sửa profile của bạn</div>
+              </div>
+            </div>
+            <div className="panel-body">
+              <Link to="/auth/login" className="game-btn btn-blue">
+                <span className="btn-icon">
+                  <i className="bi bi-box-arrow-in-right" aria-hidden="true" />
+                </span>
+                <span>ĐẾN TRANG ĐĂNG NHẬP</span>
+              </Link>
+            </div>
+          </div>
+        </SkyFormStage>
+      </SkyPageLayout>
     )
   }
 
-  const cancelHref = user ? `/profile/${user.id}` : '/'
-  const displayEmoji = avatarEmoji || PROFILE_EMOJIS[0]
-
   return (
-    <div className={gamePage}>
-      <div className={gameContainerForm}>
-        <Link to={cancelHref} className={gameNavLink}>
-          ← Quay lại
-        </Link>
-
+    <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+      <SkyFormStage backTo={cancelHref} backLabel="Quay lại profile">
         {loading ? (
-          <div className={`mt-8 text-center ${gameTagline}`}>Đang tải...</div>
+          <p className="sky-loading-text">Đang tải...</p>
         ) : (
           <>
-            <div className="mt-8 flex flex-col items-center">
-              <div className={gameAvatarCircle}>{displayEmoji}</div>
+            <div className="profile-hero">
+              <div className="profile-avatar-lg">{displayEmoji}</div>
             </div>
 
-            <section className={`mt-6 ${gamePanel}`}>
-              <h1 className={gameTitle}>Chỉnh sửa profile</h1>
+            {error ? <div className="sky-alert-error">{error}</div> : null}
+            {info ? <div className="sky-alert-success">{info}</div> : null}
 
-              {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
-              {info ? <div className={`mt-4 ${gameAlertSuccess}`}>{info}</div> : null}
-
-              <div className="mt-5 space-y-4">
+            <div className="panel p-yellow">
+              <div className="panel-head">
+                <div className="panel-icon icon-yellow">
+                  <i className="bi bi-pencil-square" aria-hidden="true" />
+                </div>
                 <div>
-                  <label htmlFor="profile-name" className={gameLabel}>
-                    Tên hiển thị
-                  </label>
-                  <input
-                    id="profile-name"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className={`mt-1.5 ${gameInput}`}
-                    maxLength={50}
-                  />
+                  <div className="panel-title">Chỉnh sửa profile</div>
+                  <div className="panel-subtitle">Cập nhật thông tin hiển thị công khai</div>
+                </div>
+              </div>
+              <div className="panel-body sky-form-stack">
+                <div className="field-block">
+                  <div className="field-label">Tên hiển thị</div>
+                  <div className="input-wrap">
+                    <span className="input-icon">
+                      <i className="bi bi-person-fill" aria-hidden="true" />
+                    </span>
+                    <input
+                      id="profile-name"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="game-input"
+                      maxLength={50}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="profile-email" className={gameLabel}>
-                    Email
-                  </label>
-                  <input
-                    id="profile-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={`mt-1.5 ${gameInput}`}
-                  />
-                  <p className={`mt-1 ${gameMeta}`}>Đổi email cần xác nhận qua hộp thư mới.</p>
+                <div className="field-block">
+                  <div className="field-label">Email</div>
+                  <div className="input-wrap">
+                    <span className="input-icon">
+                      <i className="bi bi-envelope-fill" aria-hidden="true" />
+                    </span>
+                    <input
+                      id="profile-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="game-input"
+                    />
+                  </div>
+                  <p className="profile-field-hint">Đổi email cần xác nhận qua hộp thư mới.</p>
                 </div>
 
-                <div>
-                  <label htmlFor="profile-phone" className={gameLabel}>
-                    SĐT
-                  </label>
-                  <input
-                    id="profile-phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={`mt-1.5 ${gameInput}`}
-                  />
+                <div className="field-block">
+                  <div className="field-label">SĐT</div>
+                  <div className="input-wrap">
+                    <span className="input-icon">
+                      <i className="bi bi-telephone-fill" aria-hidden="true" />
+                    </span>
+                    <input
+                      id="profile-phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="game-input"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="profile-bio" className={gameLabel}>
-                    Bio
-                  </label>
+                <div className="field-block">
+                  <div className="field-label">Bio</div>
                   <textarea
                     id="profile-bio"
                     value={bio}
                     onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LENGTH))}
                     rows={4}
-                    className={`mt-1.5 ${gameInput}`}
+                    className="game-input game-textarea"
                   />
-                  <div className={`mt-1 text-right ${gameMeta}`}>
+                  <div className="profile-char-count">
                     {bio.length}/{MAX_BIO_LENGTH}
                   </div>
                 </div>
 
-                <div>
-                  <span className={gameLabel}>Avatar</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                <div className="field-block">
+                  <div className="field-label">Avatar</div>
+                  <div className="avatar-picker">
                     {PROFILE_EMOJIS.map((emoji) => (
                       <button
                         key={emoji}
                         type="button"
                         onClick={() => setAvatarEmoji(emoji)}
-                        className={`${AVATAR_BTN_BASE} ${
-                          avatarEmoji === emoji ? AVATAR_BTN_SELECTED : AVATAR_BTN_DEFAULT
-                        }`}
+                        className={`avatar-pick-btn${avatarEmoji === emoji ? ' selected' : ''}`}
+                        aria-label={`Chọn avatar ${emoji}`}
                       >
                         {emoji}
                       </button>
                     ))}
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-6 space-y-2">
                 <button
                   type="button"
-                  onClick={handleSave}
+                  onClick={() => void handleSave()}
                   disabled={saving}
-                  className={gameBtnPrimary}
+                  className="game-btn btn-green"
                 >
-                  Lưu thay đổi
+                  <span className="btn-icon">
+                    <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                  </span>
+                  <span>{saving ? 'ĐANG LƯU...' : 'LƯU THAY ĐỔI'}</span>
                 </button>
-                <Link to={cancelHref} className={`block text-center ${gameBtnGhostFull}`}>
-                  Hủy
+
+                <Link to={cancelHref} className="game-btn btn-outline">
+                  <span className="btn-icon">
+                    <i className="bi bi-x-circle" aria-hidden="true" />
+                  </span>
+                  <span>HỦY</span>
                 </Link>
               </div>
-            </section>
+            </div>
           </>
         )}
-      </div>
-    </div>
+      </SkyFormStage>
+    </SkyPageLayout>
   )
 }

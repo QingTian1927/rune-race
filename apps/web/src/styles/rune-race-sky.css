@@ -28,75 +28,260 @@ html, body {
 
 /* ===== SKY BACKGROUND ===== */
 body {
-  background: linear-gradient(180deg, #4EB8F0 0%, #7DD3F8 40%, #A8E8FF 75%, #CBF0FF 100%);
+  background: #4eb8f0;
   min-height: 100vh;
   position: relative;
 }
 
-/* Sun */
-body::before {
-  content: '';
+/* Gradients cannot CSS-transition; crossfade stacked layers instead */
+.sky-gradient-stack {
   position: fixed;
-  top: 30px; right: 80px;
-  width: 70px; height: 70px;
-  background: radial-gradient(circle, #FFE566 40%, #FFD700 70%, rgba(255,220,0,0) 100%);
-  border-radius: 50%;
-  box-shadow: 0 0 40px 20px rgba(255,230,60,0.35), 0 0 80px 40px rgba(255,200,0,0.15);
-  animation: sun-pulse 4s ease-in-out infinite;
+  inset: 0;
   z-index: 0;
-}
-@keyframes sun-pulse {
-  0%,100%{transform:scale(1);opacity:1}
-  50%{transform:scale(1.05);opacity:0.9}
+  pointer-events: none;
 }
 
-/* ===== NIGHT MODE ===== */
-/* make background and sun transitions longer for smoother day->night */
-body { transition: background 5s ease; }
-body::before { transition: all 5s ease; }
+.sky-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 4.2s ease;
+}
 
-/* Night theme when `.night` is added to body */
-/* dusk = transitional state (soft dim, sun shrinks) */
-body.dusk {
+.sky-layer-day {
+  background: linear-gradient(180deg, #4eb8f0 0%, #7dd3f8 40%, #a8e8ff 75%, #cbf0ff 100%);
+}
+
+.sky-layer-dusk {
   background: linear-gradient(180deg, #6fb8da 0%, #356b91 45%, #143a55 100%);
 }
 
-body.dusk::before {
-  width: 46px; height: 46px;
-  background: radial-gradient(circle, #FFF2C6 0%, #FFE4A0 60%, rgba(255,230,170,0) 100%);
-  box-shadow: 0 0 18px 4px rgba(255,200,120,0.08);
-  top: 34px; right: 76px;
-  opacity: 0.9;
-}
-
-/* dawn = transition back to day */
-body.dawn {
-  background: linear-gradient(180deg, #7ecff6 0%, #8edfff 40%, #cdeeff 75%, #e7f8ff 100%);
-}
-
-body.dawn::before {
-  width: 64px; height: 64px;
-  background: radial-gradient(circle, #FFE566 40%, #FFD700 70%, rgba(255,220,0,0) 100%);
-  border-radius: 50%;
-  box-shadow: 0 6px 0 #A06000, 0 10px 20px rgba(0,0,0,0.12), 0 0 44px 22px rgba(255,230,60,0.25);
-  top: 30px; right: 80px;
-  animation: sun-pulse 4s ease-in-out infinite;
-  z-index: 0;
-}
-
-body.night {
+.sky-layer-night {
   background: linear-gradient(180deg, #07182b 0%, #0a2540 45%, #071427 100%);
 }
 
-body.night::before {
-  /* moon */
-  width: 52px; height: 52px;
-  background: radial-gradient(circle, #FFFFFF 0%, #E6F0FF 60%, rgba(230,240,255,0) 100%);
-  box-shadow: 0 0 24px 6px rgba(200,220,255,0.12), 0 0 60px 18px rgba(60,100,180,0.06);
-  top: 36px; right: 72px;
-  transform: none;
-  animation: none;
+.sky-layer-dawn {
+  background: linear-gradient(180deg, #7ecff6 0%, #8edfff 40%, #cdeeff 75%, #e7f8ff 100%);
+}
+
+body.sky-phase-day .sky-layer-day,
+body:not(.sky-phase-dusk):not(.sky-phase-night):not(.sky-phase-dawn) .sky-layer-day {
+  opacity: 1;
+}
+
+body.sky-phase-dusk .sky-layer-dusk { opacity: 1; }
+body.sky-phase-night .sky-layer-night { opacity: 1; }
+body.sky-phase-dawn .sky-layer-dawn { opacity: 1; }
+
+/* Sun / moon — above clouds & hills; single left/top coordinate system */
+.sky-celestials {
+  position: fixed;
+  inset: 0;
   z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sky-sun,
+.sky-moon {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  will-change: left, top, width, height, opacity;
+}
+
+/* —— Sun —— */
+.sky-sun {
+  left: 78%;
+  top: 11%;
+  width: 70px;
+  height: 70px;
+  opacity: 1;
+  background: radial-gradient(circle, #ffe566 40%, #ffd700 70%, rgba(255, 220, 0, 0) 100%);
+  box-shadow:
+    0 0 40px 20px rgba(255, 230, 60, 0.35),
+    0 0 80px 40px rgba(255, 200, 0, 0.15);
+  animation: sun-pulse 4s ease-in-out infinite;
+}
+
+@keyframes sun-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.07); }
+}
+
+/* Lặn thẳng xuống theo cung dọc — giống moon-rise nhưng ngược chiều */
+@keyframes sun-set {
+  0% {
+    left: 78%;
+    top: 11%;
+    width: 70px;
+    height: 70px;
+    opacity: 1;
+    filter: brightness(1);
+  }
+  35% {
+    left: 79%;
+    top: 38%;
+    width: 58px;
+    height: 58px;
+    opacity: 0.9;
+  }
+  100% {
+    left: 82%;
+    top: 108%;
+    width: 44px;
+    height: 44px;
+    opacity: 0;
+    filter: brightness(0.85);
+  }
+}
+
+/* Mọc thẳng lên từ dưới chân trời — cùng cung với moon-rise */
+@keyframes sun-rise {
+  0% {
+    left: 82%;
+    top: 108%;
+    width: 44px;
+    height: 44px;
+    opacity: 0;
+    filter: brightness(0.9);
+  }
+  20% {
+    left: 81%;
+    top: 72%;
+    opacity: 0.45;
+  }
+  100% {
+    left: 78%;
+    top: 11%;
+    width: 70px;
+    height: 70px;
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+body.sky-phase-day .sky-sun {
+  left: 78%;
+  top: 11%;
+  width: 70px;
+  height: 70px;
+  opacity: 1;
+  animation: sun-pulse 4s ease-in-out infinite;
+}
+
+body.sky-phase-dusk .sky-sun {
+  animation: sun-set var(--sky-transition-ms, 4200ms) ease-in-out forwards;
+}
+
+body.sky-phase-night .sky-sun {
+  left: 82%;
+  top: 110%;
+  width: 44px;
+  height: 44px;
+  opacity: 0;
+  animation: none;
+  filter: brightness(0.85);
+}
+
+body.sky-phase-dawn .sky-sun {
+  animation: sun-rise var(--sky-transition-ms, 4200ms) ease-in-out forwards;
+}
+
+/* —— Moon —— */
+.sky-moon {
+  left: 78%;
+  top: 110%;
+  width: 48px;
+  height: 48px;
+  opacity: 0;
+  background: radial-gradient(circle at 38% 38%, #ffffff 0%, #eef4ff 55%, #d0dff5 100%);
+  box-shadow:
+    0 0 24px 8px rgba(220, 235, 255, 0.45),
+    0 0 48px 16px rgba(120, 160, 220, 0.2);
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+}
+
+@keyframes moon-rise {
+  0% {
+    left: 82%;
+    top: 108%;
+    width: 44px;
+    height: 44px;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.15;
+  }
+  100% {
+    left: 78%;
+    top: 11%;
+    width: 52px;
+    height: 52px;
+    opacity: 1;
+  }
+}
+
+@keyframes moon-set {
+  0% {
+    left: 78%;
+    top: 11%;
+    width: 52px;
+    height: 52px;
+    opacity: 1;
+  }
+  100% {
+    left: 90%;
+    top: 50%;
+    width: 44px;
+    height: 44px;
+    opacity: 0;
+  }
+}
+
+body.sky-phase-dusk .sky-moon {
+  animation: moon-rise var(--sky-transition-ms, 4200ms) ease forwards;
+}
+
+body.sky-phase-night .sky-moon {
+  left: 78%;
+  top: 11%;
+  width: 52px;
+  height: 52px;
+  opacity: 1;
+  animation: none;
+}
+
+body.sky-phase-dawn .sky-moon {
+  animation: moon-set var(--sky-transition-ms, 4200ms) ease forwards;
+}
+
+body.sky-phase-day .sky-moon {
+  left: 82%;
+  top: 110%;
+  width: 48px;
+  height: 48px;
+  opacity: 0;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-layer,
+  .clouds-layer,
+  .stars {
+    transition-duration: 0.01ms !important;
+  }
+
+  body.sky-phase-dusk .sky-sun,
+  body.sky-phase-dawn .sky-sun,
+  body.sky-phase-dusk .sky-moon,
+  body.sky-phase-dawn .sky-moon {
+    animation-duration: 0.01ms !important;
+  }
+
+  .sky-sun {
+    animation: none;
+  }
 }
 
 /* Stars layer */
@@ -106,9 +291,10 @@ body.night::before {
   pointer-events: none;
   z-index: 3;
   opacity: 0;
-  transition: opacity 3s ease;
+  transition: opacity 4.2s ease;
 }
-body.night .stars { opacity: 1; }
+body.sky-phase-dusk .stars { opacity: 0.4; }
+body.sky-phase-night .stars { opacity: 1; }
 
 .star {
   position: absolute;
@@ -136,9 +322,10 @@ body.night .stars { opacity: 1; }
 }
 
 /* smooth dimming of clouds during dusk/night */
-.clouds-layer { transition: opacity 4s ease, filter 4s ease; }
-body.dusk .clouds-layer { opacity: 0.85; filter: brightness(0.85) saturate(0.9); }
-body.night .clouds-layer { opacity: 0.6; filter: brightness(0.7) saturate(0.85); }
+.clouds-layer { transition: opacity 4.2s ease, filter 4.2s ease; }
+body.sky-phase-dusk .clouds-layer { opacity: 0.85; filter: brightness(0.85) saturate(0.9); }
+body.sky-phase-night .clouds-layer { opacity: 0.6; filter: brightness(0.7) saturate(0.85); }
+body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) saturate(0.92); }
 
 .cloud {
   position: absolute;
@@ -455,6 +642,8 @@ body.night .clouds-layer { opacity: 0.6; filter: brightness(0.7) saturate(0.85);
 
 .game-input {
   width: 100%;
+  position: relative;
+  z-index: 1;
   background: linear-gradient(160deg, #FFFFFF, #FFF9E8);
   border: 3px solid #E8C85A;
   border-radius: 16px;
@@ -477,11 +666,26 @@ body.night .clouds-layer { opacity: 0.6; filter: brightness(0.7) saturate(0.85);
   box-shadow: 0 3px 0 #D4A820, 0 0 0 4px rgba(255,179,0,0.2);
   transform: translateY(-1px);
 }
-.game-input:focus + .input-icon {
-  transform: translateY(-1px) scale(1.1);
+
+/* icon precedes input in markup — use :focus-within, keep icon above field */
+.input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  pointer-events: none;
+  transition: transform 0.2s;
+  line-height: 1;
+  z-index: 2;
+  color: var(--text-mid);
 }
 
-/* special code input */
+.input-wrap:focus-within .input-icon {
+  transform: translateY(calc(-50% - 1px)) scale(1.1);
+}
+
+.input-icon i { font-size: 17px; }
 .code-input {
   letter-spacing: 5px;
   font-family: 'Be Vietnam Pro', sans-serif;
@@ -498,18 +702,6 @@ body.night .clouds-layer { opacity: 0.6; filter: brightness(0.7) saturate(0.85);
   border-color: #4A9CF5;
   box-shadow: 0 3px 0 #3A7BE8, 0 0 0 4px rgba(74,156,245,0.2);
 }
-
-.input-icon {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 18px;
-  pointer-events: none;
-  transition: transform 0.2s;
-  line-height: 1;
-}
-.input-icon i { font-size: 17px; }
 
 /* ===== BUTTONS ===== */
 .game-btn {
@@ -1621,3 +1813,229 @@ select.game-input {
   padding: 0 20px 8px;
 }
 
+/* ===== AUTH / PROFILE PAGES ===== */
+.sky-form-stage {
+  width: min(440px, 100%);
+  align-items: center;
+  min-height: min(50vh, 520px);
+}
+
+.sky-form-stage .panel {
+  max-width: none;
+  margin-bottom: 0;
+}
+
+.sky-form-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sky-alert-success {
+  width: 100%;
+  background: linear-gradient(135deg, #E8F8EE, #D4F0DE);
+  border: 3px solid #90D4A0;
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A6E35;
+  box-shadow: 0 3px 0 #4A9E60;
+  margin-bottom: 12px;
+}
+
+.sky-auth-footer {
+  width: 100%;
+  margin-top: 14px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+
+.sky-auth-footer a {
+  font-weight: 800;
+  color: #2A6FC0;
+  text-decoration: none;
+}
+
+.sky-auth-footer a:hover {
+  text-decoration: underline;
+}
+
+.game-textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  padding: 12px 16px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.game-btn.btn-outline {
+  background: linear-gradient(160deg, #FFFEF5, #FFF8E0);
+  border: 3px solid #E8C85A;
+  border-bottom: 5px solid #D4A820;
+  color: #7A5500;
+  text-shadow: none;
+  box-shadow: 0 4px 16px rgba(200, 150, 0, 0.15);
+}
+
+.game-btn.btn-outline:hover {
+  background: linear-gradient(160deg, #FFF8E8, #FFEFD0);
+  box-shadow: 0 6px 20px rgba(200, 150, 0, 0.22);
+  transform: translateY(-2px);
+}
+
+a.game-btn {
+  text-decoration: none;
+}
+
+.profile-hero {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.profile-avatar-lg {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  line-height: 1;
+  background: radial-gradient(circle at 30% 30%, #fffef5, #fff8e0 58%, #ffecb8);
+  border: 4px solid #ffd97d;
+  box-shadow: 0 6px 0 #f4a623, 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+
+.profile-display-name {
+  margin-top: 10px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 26px;
+  color: #6b3a00;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+.profile-edit-link {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: linear-gradient(135deg, #eef8ff, #d0eaff);
+  border: 2px solid #7ab8f5;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #2a6fc0;
+  text-decoration: none;
+  box-shadow: 0 2px 0 #4a8ed0;
+  transition: all 0.15s;
+}
+
+.profile-edit-link:hover {
+  transform: translateY(-1px);
+}
+
+.profile-stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.profile-stat-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 2px dashed rgba(255, 200, 60, 0.35);
+}
+
+.profile-stat-row:last-child {
+  border-bottom: none;
+}
+
+.profile-stat-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.profile-stat-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  text-align: right;
+  max-width: 62%;
+}
+
+.profile-field-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+
+.profile-char-count {
+  margin-top: 4px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+
+.avatar-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.avatar-pick-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 3px solid #ffe080;
+  background: linear-gradient(135deg, #ffffff, #fff8e8);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 2px 0 #e8c840;
+}
+
+.avatar-pick-btn:hover {
+  transform: translateY(-2px);
+}
+
+.avatar-pick-btn.selected {
+  border-color: #ffb300;
+  box-shadow: 0 0 0 3px rgba(255, 179, 0, 0.25), 0 3px 0 #e8c840;
+  transform: translateY(-2px);
+}
+
+.sky-loading-text {
+  width: 100%;
+  text-align: center;
+  padding: 24px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-mid);
+}
+
+.panel-body .field-block + .field-block {
+  margin-top: 2px;
+}

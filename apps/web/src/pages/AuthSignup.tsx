@@ -2,24 +2,14 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
-import {
-  gameAlertError,
-  gameAlertSuccess,
-  gameAuthFooter,
-  gameBtnPrimary,
-  gameContainerForm,
-  gameInput,
-  gameLabel,
-  gameNavLink,
-  gamePage,
-  gamePanel,
-  gameTagline,
-  gameTitle,
-} from '../lib/gameUiStyles'
+import { SkyFormStage } from '../components/sky/SkyFormStage'
+import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 export default function AuthSignupPage() {
   const navigate = useNavigate()
   const { signUp } = useAuth()
+  const { name, setName, onNameBlur } = useSkyPageName()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -57,86 +47,103 @@ export default function AuthSignupPage() {
   }
 
   return (
-    <div className={gamePage}>
-      <div className={gameContainerForm}>
-        <Link to="/" className={gameNavLink}>
-          ← Trang chủ
-        </Link>
+    <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+      <SkyFormStage backTo="/">
+        {error ? <div className="sky-alert-error">{error}</div> : null}
+        {info ? <div className="sky-alert-success">{info}</div> : null}
 
-        <section className={`mt-6 ${gamePanel}`}>
-          <h1 className={gameTitle}>Đăng ký</h1>
-          <p className={`mt-1 ${gameTagline}`}>Tạo tài khoản để lưu profile và thống kê</p>
-
-          {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
-          {info ? <div className={`mt-4 ${gameAlertSuccess}`}>{info}</div> : null}
-
-          <div className="mt-5 space-y-4">
-            <div>
-              <label htmlFor="signup-name" className={gameLabel}>
-                Tên hiển thị
-              </label>
-              <input
-                id="signup-name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className={`mt-1.5 ${gameInput}`}
-                maxLength={50}
-              />
+        <div className="panel p-green">
+          <div className="panel-head">
+            <div className="panel-icon icon-green">
+              <i className="bi bi-person-plus-fill" aria-hidden="true" />
             </div>
             <div>
-              <label htmlFor="signup-email" className={gameLabel}>
-                Email
-              </label>
-              <input
-                id="signup-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`mt-1.5 ${gameInput}`}
-              />
-            </div>
-            <div>
-              <label htmlFor="signup-phone" className={gameLabel}>
-                SĐT (tùy chọn)
-              </label>
-              <input
-                id="signup-phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={`mt-1.5 ${gameInput}`}
-              />
-            </div>
-            <div>
-              <label htmlFor="signup-password" className={gameLabel}>
-                Mật khẩu
-              </label>
-              <input
-                id="signup-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`mt-1.5 ${gameInput}`}
-              />
+              <div className="panel-title">Đăng ký</div>
+              <div className="panel-subtitle">Tạo tài khoản để lưu profile và thống kê</div>
             </div>
           </div>
+          <div className="panel-body sky-form-stack">
+            <div className="field-block">
+              <div className="field-label">Tên hiển thị</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-person-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="signup-name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="game-input"
+                  maxLength={50}
+                />
+              </div>
+            </div>
+            <div className="field-block">
+              <div className="field-label">Email</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-envelope-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="signup-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="game-input"
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+            <div className="field-block">
+              <div className="field-label">SĐT (tùy chọn)</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-telephone-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="signup-phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="game-input"
+                  autoComplete="tel"
+                />
+              </div>
+            </div>
+            <div className="field-block">
+              <div className="field-label">Mật khẩu</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-key-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="signup-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="game-input"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
 
-          <button
-            type="button"
-            disabled={busy || !email || !password}
-            onClick={handleSignup}
-            className={`mt-5 ${gameBtnPrimary}`}
-          >
-            Tạo tài khoản
-          </button>
-        </section>
+            <button
+              type="button"
+              disabled={busy || !email || !password}
+              onClick={() => void handleSignup()}
+              className="game-btn btn-green"
+            >
+              <span className="btn-icon">
+                <i className="bi bi-stars" aria-hidden="true" />
+              </span>
+              <span>TẠO TÀI KHOẢN</span>
+            </button>
+          </div>
+        </div>
 
-        <p className={`mt-6 text-center ${gameAuthFooter}`}>
-          Đã có tài khoản?{' '}
-          <Link to="/auth/login" className="font-semibold text-stone-700 hover:text-stone-900">
-            Đăng nhập
-          </Link>
+        <p className="sky-auth-footer">
+          Đã có tài khoản? <Link to="/auth/login">Đăng nhập</Link>
         </p>
-      </div>
-    </div>
+      </SkyFormStage>
+    </SkyPageLayout>
   )
 }

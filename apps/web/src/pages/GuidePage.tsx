@@ -1,22 +1,14 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getPlayerName, setPlayerName } from '../lib/playerSession'
+import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 export default function GuidePage() {
-  const [name, setName] = useState(getPlayerName())
+  const { name, setName, onNameBlur } = useSkyPageName()
 
   return (
-    <SkyPageLayout
-      playerName={name}
-      onPlayerNameChange={setName}
-      onPlayerNameBlur={() => setPlayerName(name)}
-    >
-      <div className="home-form-stage guide-page-card">
-        <Link to="/" className="back-btn home-back-btn">
-          <i className="bi bi-arrow-left-short inline-icon" aria-hidden="true" /> Quay về trang chủ
-        </Link>
-
+    <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+      <SkyFormStage backTo="/">
         <div className="panel p-blue">
           <div className="panel-head">
             <div className="panel-icon icon-blue">
@@ -32,7 +24,7 @@ export default function GuidePage() {
               Trang hướng dẫn đang được xây dựng. Tạm thời bạn có thể tạo phòng, vào phòng bằng mã,
               ghép trận nhanh hoặc chọn phòng công khai từ trang chủ.
             </p>
-            <Link to="/" className="game-btn btn-blue" style={{ textDecoration: 'none' }}>
+            <Link to="/" className="game-btn btn-blue">
               <span className="btn-icon">
                 <i className="bi bi-house-door-fill" aria-hidden="true" />
               </span>
@@ -40,7 +32,7 @@ export default function GuidePage() {
             </Link>
           </div>
         </div>
-      </div>
+      </SkyFormStage>
     </SkyPageLayout>
   )
 }

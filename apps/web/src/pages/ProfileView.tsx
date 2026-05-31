@@ -4,20 +4,10 @@ import { fetchProfile, fetchProfileById, type PublicProfile } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { formatPlayTime, formatWinRate } from '../lib/formatPlayTime'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
-import {
-  gameAlertError,
-  gameAvatarCircle,
-  gameBtnGhost,
-  gameBtnPrimary,
-  gameContainerForm,
-  gameLabel,
-  gameNavLink,
-  gamePage,
-  gamePanel,
-  gameStatRow,
-  gameTagline,
-} from '../lib/gameUiStyles'
 import { useAuth } from '../hooks/useAuth'
+import { SkyFormStage } from '../components/sky/SkyFormStage'
+import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 const FALLBACK_AVATAR = PROFILE_EMOJIS[0]
 
@@ -25,6 +15,7 @@ export default function ProfileViewPage() {
   const navigate = useNavigate()
   const { profileId } = useParams<{ profileId: string }>()
   const { user, accessToken, isRegistered } = useAuth()
+  const { name, setName, onNameBlur } = useSkyPageName()
   const [profile, setProfile] = useState<PublicProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -70,81 +61,86 @@ export default function ProfileViewPage() {
 
   if (!profileId) {
     return (
-      <div className={`${gamePage} p-8`}>
-        <p className={gameTagline}>Missing profile id</p>
-      </div>
+      <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+        <p className="sky-loading-text">Missing profile id</p>
+      </SkyPageLayout>
     )
   }
 
   return (
-    <div className={gamePage}>
-      <div className={gameContainerForm}>
-        <Link to="/" className={gameNavLink}>
-          ← Trang chủ
-        </Link>
-
+    <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+      <SkyFormStage backTo="/">
         {loading ? (
-          <div className={`mt-8 text-center ${gameTagline}`}>Đang tải profile...</div>
+          <p className="sky-loading-text">Đang tải profile...</p>
         ) : error ? (
-          <div className={`mt-6 space-y-3 ${gameAlertError}`}>
-            <p>{error}</p>
+          <>
+            <div className="sky-alert-error">{error}</div>
             {isRegistered && user?.id === profileId ? (
-              <Link to="/profile/edit" className={`inline-block ${gameBtnPrimary}`}>
-                Tạo profile
+              <Link to="/profile/edit" className="game-btn btn-green">
+                <span className="btn-icon">
+                  <i className="bi bi-pencil-square" aria-hidden="true" />
+                </span>
+                <span>TẠO PROFILE</span>
               </Link>
             ) : null}
-          </div>
+          </>
         ) : profile ? (
           <>
-            <div className="mt-8 flex flex-col items-center">
-              <div className={gameAvatarCircle}>{profile.avatar_emoji || FALLBACK_AVATAR}</div>
-              <h1 className="mt-3 text-xl font-black tracking-tight text-stone-800">
-                {profile.display_name ?? 'Player'}
-              </h1>
+            <div className="profile-hero">
+              <div className="profile-avatar-lg">{profile.avatar_emoji || FALLBACK_AVATAR}</div>
+              <h1 className="profile-display-name">{profile.display_name ?? 'Player'}</h1>
             </div>
 
-            <section className={`relative mt-6 ${gamePanel}`}>
+            <div className="panel p-blue" style={{ position: 'relative' }}>
               {isRegistered && user?.id === profile.id ? (
-                <Link
-                  to="/profile/edit"
-                  className={`absolute right-4 top-4 ${gameBtnGhost}`}
-                >
+                <Link to="/profile/edit" className="profile-edit-link">
                   Chỉnh sửa
                 </Link>
               ) : null}
 
-              <div className="space-y-1">
-                <div className={gameStatRow}>
-                  <span className={gameLabel}>Bio</span>
-                  <span className="max-w-[60%] text-right text-sm text-stone-700">
-                    {profile.bio?.trim() ? profile.bio : 'Chưa có mô tả.'}
-                  </span>
+              <div className="panel-head">
+                <div className="panel-icon icon-blue">
+                  <i className="bi bi-bar-chart-fill" aria-hidden="true" />
                 </div>
-                <div className={gameStatRow}>
-                  <span className={gameLabel}>Thời gian chơi</span>
-                  <span className="text-sm font-bold text-stone-800">
-                    {formatPlayTime(profile.total_played_seconds)}
-                  </span>
-                </div>
-                <div className={gameStatRow}>
-                  <span className={gameLabel}>Số ván</span>
-                  <span className="text-sm font-bold text-stone-800">{profile.total_games}</span>
-                </div>
-                <div className={gameStatRow}>
-                  <span className={gameLabel}>Thắng</span>
-                  <span className="text-sm font-bold text-stone-800">
-                    {profile.total_wins} ({formatWinRate(profile.total_wins, profile.total_games)})
-                  </span>
-                </div>
-                <div className={gameStatRow}>
-                  <span className={gameLabel}>Thua</span>
-                  <span className="text-sm font-bold text-stone-800">{profile.total_losses}</span>
+                <div>
+                  <div className="panel-title">Thống kê</div>
+                  <div className="panel-subtitle">Thành tích chơi Rune Race</div>
                 </div>
               </div>
-            </section>
+              <div className="panel-body">
+                <div className="profile-stat-list">
+                  <div className="profile-stat-row">
+                    <span className="profile-stat-label">Bio</span>
+                    <span className="profile-stat-value">
+                      {profile.bio?.trim() ? profile.bio : 'Chưa có mô tả.'}
+                    </span>
+                  </div>
+                  <div className="profile-stat-row">
+                    <span className="profile-stat-label">Thời gian chơi</span>
+                    <span className="profile-stat-value">
+                      {formatPlayTime(profile.total_played_seconds)}
+                    </span>
+                  </div>
+                  <div className="profile-stat-row">
+                    <span className="profile-stat-label">Số ván</span>
+                    <span className="profile-stat-value">{profile.total_games}</span>
+                  </div>
+                  <div className="profile-stat-row">
+                    <span className="profile-stat-label">Thắng</span>
+                    <span className="profile-stat-value">
+                      {profile.total_wins} ({formatWinRate(profile.total_wins, profile.total_games)})
+                    </span>
+                  </div>
+                  <div className="profile-stat-row">
+                    <span className="profile-stat-label">Thua</span>
+                    <span className="profile-stat-value">{profile.total_losses}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </>
         ) : null}
-      </div>
-    </div>
+      </SkyFormStage>
+    </SkyPageLayout>
   )
 }

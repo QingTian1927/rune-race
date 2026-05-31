@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { SkyRouteLayout } from './components/sky/SkyRouteLayout'
 import HomePage from './pages/HomePage'
 import LobbyPage from './pages/LobbyPage'
 import GuidePage from './pages/GuidePage'
@@ -18,13 +19,15 @@ function App() {
       }}
     >
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/guide" element={<GuidePage />} />
-        <Route path="/auth/login" element={<AuthLoginPage />} />
-        <Route path="/auth/signup" element={<AuthSignupPage />} />
-        <Route path="/profile/edit" element={<ProfileEditPage />} />
-        <Route path="/profile/:profileId" element={<ProfileViewPage />} />
-        <Route path="/lobby/:lobbyId" element={<LobbyPage />} />
+        <Route element={<SkyRouteLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/guide" element={<GuidePage />} />
+          <Route path="/auth/login" element={<AuthLoginPage />} />
+          <Route path="/auth/signup" element={<AuthSignupPage />} />
+          <Route path="/profile/edit" element={<ProfileEditPage />} />
+          <Route path="/profile/:profileId" element={<ProfileViewPage />} />
+          <Route path="/lobby/:lobbyId" element={<LobbyPage />} />
+        </Route>
         <Route path="/game/:gameId" element={<OnlineGamePage />} />
         <Route path="/play/local" element={<LocalGamePage />} />
       </Routes>

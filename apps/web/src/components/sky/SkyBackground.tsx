@@ -3,7 +3,19 @@ const CLOUD_CLASSES = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'] as const
 export function SkyBackground() {
   return (
     <>
-      <div className="clouds-layer" aria-hidden="true">
+      <div className="sky-gradient-stack" aria-hidden="true">
+        <div className="sky-layer sky-layer-day" />
+        <div className="sky-layer sky-layer-dusk" />
+        <div className="sky-layer sky-layer-night" />
+        <div className="sky-layer sky-layer-dawn" />
+      </div>
+
+      <div className="sky-celestials" aria-hidden="true">
+        <div className="sky-sun" />
+        <div className="sky-moon" />
+      </div>
+
+      <div className="clouds-layer">
         {[0, 1].map((pass) =>
           CLOUD_CLASSES.map((cls) => (
             <div key={`${pass}-${cls}`} className={`cloud ${cls}`} style={{ left: '-200px' }} />

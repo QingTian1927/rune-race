@@ -5,6 +5,19 @@ const NIGHT_DURATION = 30_000
 const DUSK_MS = 4_200
 const DAWN_MS = 4_200
 
+const SKY_PHASES = ['sky-phase-day', 'sky-phase-dusk', 'sky-phase-night', 'sky-phase-dawn'] as const
+type SkyPhase = (typeof SKY_PHASES)[number]
+
+function applySkyTiming() {
+  const ms = `${DUSK_MS}ms`
+  document.documentElement.style.setProperty('--sky-transition-ms', ms)
+}
+
+function setSkyPhase(phase: SkyPhase) {
+  document.body.classList.remove(...SKY_PHASES)
+  document.body.classList.add(phase)
+}
+
 function createStars(count: number) {
   const container = document.querySelector('.stars')
   if (!container) return
@@ -22,10 +35,16 @@ function createStars(count: number) {
   }
 }
 
+function clearStars() {
+  const stars = document.querySelector('.stars')
+  if (stars) stars.innerHTML = ''
+}
+
 export function useDayNightCycle(enabled = true) {
   useEffect(() => {
     if (!enabled) return
 
+    applySkyTiming()
     const timeouts: ReturnType<typeof setTimeout>[] = []
 
     const schedule = (fn: () => void, ms: number) => {
@@ -34,40 +53,30 @@ export function useDayNightCycle(enabled = true) {
     }
 
     const endNightTransition = () => {
-      const stars = document.querySelector('.stars') as HTMLElement | null
-      if (stars) {
-        stars.style.transition = 'opacity 3s ease'
-        stars.style.opacity = '0'
-        schedule(() => {
-          stars.innerHTML = ''
-          stars.style.transition = ''
-        }, 3200)
-      }
-      document.body.classList.add('dawn')
-      document.body.classList.remove('night')
+      setSkyPhase('sky-phase-dawn')
       schedule(() => {
-        document.body.classList.remove('dawn')
+        clearStars()
+        setSkyPhase('sky-phase-day')
         schedule(() => startNightTransition(), DAY_DURATION)
       }, DAWN_MS)
     }
 
     const startNightTransition = () => {
-      document.body.classList.add('dusk')
+      setSkyPhase('sky-phase-dusk')
+      createStars(80)
       schedule(() => {
-        createStars(80)
-        document.body.classList.add('night')
-        document.body.classList.remove('dusk')
+        setSkyPhase('sky-phase-night')
         schedule(() => endNightTransition(), NIGHT_DURATION)
       }, DUSK_MS)
     }
 
+    setSkyPhase('sky-phase-day')
     schedule(() => startNightTransition(), DAY_DURATION)
 
     return () => {
       timeouts.forEach(clearTimeout)
-      document.body.classList.remove('dusk', 'night', 'dawn')
-      const stars = document.querySelector('.stars')
-      if (stars) stars.innerHTML = ''
+      document.body.classList.remove(...SKY_PHASES)
+      clearStars()
     }
   }, [enabled])
 }

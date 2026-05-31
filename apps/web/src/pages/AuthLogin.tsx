@@ -2,24 +2,14 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
-import {
-  gameAlertError,
-  gameAuthFooter,
-  gameBtnGhostFull,
-  gameBtnPrimary,
-  gameContainerForm,
-  gameInput,
-  gameLabel,
-  gameNavLink,
-  gamePage,
-  gamePanel,
-  gameTagline,
-  gameTitle,
-} from '../lib/gameUiStyles'
+import { SkyFormStage } from '../components/sky/SkyFormStage'
+import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 export default function AuthLoginPage() {
   const navigate = useNavigate()
   const { user, loading, signIn, signInWithGoogle, signOut, isRegistered } = useAuth()
+  const { name, setName, onNameBlur } = useSkyPageName()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -56,101 +46,122 @@ export default function AuthLoginPage() {
 
   if (loading) {
     return (
-      <div className={`${gamePage} flex items-center justify-center`}>
-        <p className={gameTagline}>Đang tải...</p>
-      </div>
+      <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+        <p className="sky-loading-text">Đang tải...</p>
+      </SkyPageLayout>
     )
   }
 
   if (user && isRegistered) {
     return (
-      <div className={gamePage}>
-        <div className={gameContainerForm}>
-          <section className={gamePanel}>
-            <h1 className={gameTitle}>Đã đăng nhập</h1>
-            <p className={`mt-2 ${gameTagline}`}>{user.email ?? user.id}</p>
-            <div className="mt-6 space-y-2">
-              <button type="button" onClick={() => navigate('/')} className={gameBtnPrimary}>
-                Về trang chủ
+      <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+        <SkyFormStage backTo="/">
+          <div className="panel p-blue">
+            <div className="panel-head">
+              <div className="panel-icon icon-blue">
+                <i className="bi bi-person-check-fill" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="panel-title">Đã đăng nhập</div>
+                <div className="panel-subtitle">{user.email ?? user.id}</div>
+              </div>
+            </div>
+            <div className="panel-body sky-form-stack">
+              <button type="button" onClick={() => navigate('/')} className="game-btn btn-blue">
+                <span className="btn-icon">
+                  <i className="bi bi-house-door-fill" aria-hidden="true" />
+                </span>
+                <span>VỀ TRANG CHỦ</span>
               </button>
-              <button type="button" onClick={signOut} className={gameBtnGhostFull}>
-                Đăng xuất
+              <button type="button" onClick={() => void signOut()} className="btn-leave">
+                <i className="bi bi-box-arrow-right inline-icon" aria-hidden="true" /> Đăng xuất
               </button>
             </div>
-          </section>
-        </div>
-      </div>
+          </div>
+        </SkyFormStage>
+      </SkyPageLayout>
     )
   }
 
   return (
-    <div className={gamePage}>
-      <div className={gameContainerForm}>
-        <Link to="/" className={gameNavLink}>
-          ← Trang chủ
-        </Link>
+    <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
+      <SkyFormStage backTo="/">
+        {error ? <div className="sky-alert-error">{error}</div> : null}
 
-        <section className={`mt-6 ${gamePanel}`}>
-          <h1 className={gameTitle}>Đăng nhập</h1>
-          <p className={`mt-1 ${gameTagline}`}>Đăng nhập để lưu profile và thống kê</p>
-
-          {error ? <div className={`mt-4 ${gameAlertError}`}>{error}</div> : null}
-
-          <div className="mt-5 space-y-4">
-            <div>
-              <label htmlFor="login-email" className={gameLabel}>
-                Email
-              </label>
-              <input
-                id="login-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`mt-1.5 ${gameInput}`}
-              />
+        <div className="panel p-blue">
+          <div className="panel-head">
+            <div className="panel-icon icon-blue">
+              <i className="bi bi-box-arrow-in-right" aria-hidden="true" />
             </div>
             <div>
-              <label htmlFor="login-password" className={gameLabel}>
-                Mật khẩu
-              </label>
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`mt-1.5 ${gameInput}`}
-              />
+              <div className="panel-title">Đăng nhập</div>
+              <div className="panel-subtitle">Lưu profile và thống kê trên tài khoản của bạn</div>
             </div>
           </div>
+          <div className="panel-body sky-form-stack">
+            <div className="field-block">
+              <div className="field-label">Email</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-envelope-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="game-input"
+                  autoComplete="email"
+                />
+              </div>
+            </div>
+            <div className="field-block">
+              <div className="field-label">Mật khẩu</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-lock-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="login-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="game-input"
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
 
-          <button
-            type="button"
-            disabled={busy || !email || !password}
-            onClick={handleLogin}
-            className={`mt-5 ${gameBtnPrimary}`}
-          >
-            Đăng nhập
-          </button>
+            <button
+              type="button"
+              disabled={busy || !email || !password}
+              onClick={() => void handleLogin()}
+              className="game-btn btn-blue"
+            >
+              <span className="btn-icon">
+                <i className="bi bi-box-arrow-in-right" aria-hidden="true" />
+              </span>
+              <span>ĐĂNG NHẬP</span>
+            </button>
 
-          <div className="mt-4">
             <button
               type="button"
               disabled={busy}
-              onClick={handleGoogle}
-              className={gameBtnGhostFull}
+              onClick={() => void handleGoogle()}
+              className="game-btn btn-outline"
             >
-              Tiếp tục với Google
+              <span className="btn-icon">
+                <i className="bi bi-google" aria-hidden="true" />
+              </span>
+              <span>TIẾP TỤC VỚI GOOGLE</span>
             </button>
           </div>
-        </section>
+        </div>
 
-        <p className={`mt-6 text-center ${gameAuthFooter}`}>
-          Chưa có tài khoản?{' '}
-          <Link to="/auth/signup" className="font-semibold text-stone-700 hover:text-stone-900">
-            Đăng ký
-          </Link>
+        <p className="sky-auth-footer">
+          Chưa có tài khoản? <Link to="/auth/signup">Đăng ký</Link>
         </p>
-      </div>
-    </div>
+      </SkyFormStage>
+    </SkyPageLayout>
   )
 }
