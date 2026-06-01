@@ -1,8 +1,7 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
 # Deploy: Dashboard → New → Blueprint → connect repo, or `render blueprint launch`
 #
-# After first deploy, set rune-race-api → CLIENT_ORIGIN to both public URLs, comma-separated:
-#   https://<rune-race>.onrender.com,https://<rune-race-admin>.onrender.com
+# rune-race-api wires CLIENT_ORIGIN + ADMIN_ORIGIN from static sites (CORS + Socket.IO).
 
 services:
   # Game API + Socket.IO
@@ -26,9 +25,16 @@ services:
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
-      # Comma-separated: game client + admin (use each service's onrender.com URL)
       - key: CLIENT_ORIGIN
-        sync: false
+        fromService:
+          type: web
+          name: rune-race
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: ADMIN_ORIGIN
+        fromService:
+          type: web
+          name: rune-race-admin
+          envVarKey: RENDER_EXTERNAL_URL
       - key: ADMIN_USER_IDS
         sync: false
 
