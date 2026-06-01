@@ -66,6 +66,14 @@ export class GameStore {
     return this.playerGameIndex.get(playerId)
   }
 
+  getActiveGameCount(): number {
+    let count = 0
+    for (const game of this.games.values()) {
+      if (game.state.status !== 'finished') count += 1
+    }
+    return count
+  }
+
   roll(gameId: string, playerId: string): void {
     const session = this.games.get(gameId)
     if (!session) throw new Error('Game not found')

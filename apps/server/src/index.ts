@@ -13,6 +13,9 @@ import { MatchmakingQueue, registerMatchmakingRoutes } from './http/matchmaking'
 import { registerProfileRoutes } from './http/profile'
 import { registerPlayerRoutes } from './http/player'
 import { registerAuthRoutes } from './http/auth'
+import { getSupabaseAdminClient } from './lib/supabase-server'
+import { AnalyticsService } from './analytics/service'
+import { registerAdminAnalyticsRoutes } from './http/admin-analytics'
 
 const port = Number(process.env.PORT) || 3000
 const corsOrigins = process.env.CLIENT_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean)
@@ -25,8 +28,14 @@ const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(fastif
 const lobbyStore = new LobbyStore()
 const gameStore = new GameStore()
 const chatStore = new ChatStore()
+const analyticsService = new AnalyticsService({
+  supabase: getSupabaseAdminClient(),
+  logger: { error: (msg, err) => fastify.log.error({ err }, msg) },
+})
+analyticsService.start()
+void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 
-setupSocketHandlers(io, lobbyStore, gameStore, chatStore)
+setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService)
 
 const matchmaking = new MatchmakingQueue(lobbyStore)
 
@@ -35,6 +44,7 @@ registerMatchmakingRoutes(fastify, matchmaking)
 registerProfileRoutes(fastify)
 registerPlayerRoutes(fastify)
 registerAuthRoutes(fastify)
+registerAdminAnalyticsRoutes(fastify, analyticsService)
 
 fastify.get('/', async () => ({
   message: 'Rune Race Server',
@@ -56,6 +66,20 @@ fastify.post('/dev/create-room', async (request) => {
   return { roomId: snapshot.lobbyId, lobbyId: snapshot.lobbyId, joinCode: snapshot.joinCode }
 })
 
+const shutdown = async (signal: string) => {
+  fastify.log.info({ signal }, 'Shutting down')
+  analyticsService.stop()
+  try {
+    await fastify.close()
+  } catch (err) {
+    fastify.log.error(err)
+  }
+  process.exit(0)
+}
+
+process.on('SIGINT', () => void shutdown('SIGINT'))
+process.on('SIGTERM', () => void shutdown('SIGTERM'))
+
 const start = async () => {
   try {
     await fastify.register(cors, {
@@ -66,6 +90,7 @@ const start = async () => {
     console.log(`Server running on port ${port}`)
     console.log('Socket.IO attached to same host')
     console.log('API: GET/POST /api/rooms, POST /api/matchmaking/join')
+    console.log('Admin API: GET /api/admin/analytics/*')
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)

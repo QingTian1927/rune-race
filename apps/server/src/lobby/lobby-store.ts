@@ -432,6 +432,14 @@ export class LobbyStore {
     return this.playerLobbyIndex.get(playerId)
   }
 
+  getActiveLobbyCount(): number {
+    let count = 0
+    for (const lobby of this.lobbies.values()) {
+      if (lobby.players.length > 0) count += 1
+    }
+    return count
+  }
+
   /** Called when a game ends — return lobby to waiting state. */
   resetAfterGame(lobbyId: string): LobbySnapshot | null {
     const record = this.lobbies.get(lobbyId)
