@@ -10,6 +10,11 @@ export function useGameSocket(gameId: string, playerId: string, authToken?: stri
     usePresentationGameState()
 
   useEffect(() => {
+    if (!gameId || !playerId) {
+      setConnected(false)
+      return
+    }
+
     const socket = getSocket(authToken)
 
     const join = () => {

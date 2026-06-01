@@ -64,6 +64,11 @@ export function RoomChatPanel({
     if (last.id === seenLastIdRef.current) return
     seenLastIdRef.current = last.id
 
+    if (collapsed && last.kind === 'system') {
+      setUnreadCount((n) => n + 1)
+      return
+    }
+
     if (collapsed && last.playerId !== localPlayerId) {
       setUnreadCount((n) => n + 1)
     }
@@ -137,6 +142,14 @@ export function RoomChatPanel({
             <p className="room-chat-empty">Chưa có tin nhắn. Chào mọi người!</p>
           ) : (
             messages.map((message) => {
+              if (message.kind === 'system') {
+                return (
+                  <p key={message.id} className="room-chat-system">
+                    {message.text}
+                  </p>
+                )
+              }
+
               const isSelf = message.playerId === localPlayerId
               const colorStyles = message.playerColor
                 ? PLAYER_COLOR_MAP[message.playerColor]

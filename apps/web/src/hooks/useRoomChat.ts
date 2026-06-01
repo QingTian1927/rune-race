@@ -16,7 +16,9 @@ export function useRoomChat(
   lobbyId: string | undefined,
   playerId: string,
   authToken?: string | null,
+  options?: { enabled?: boolean },
 ) {
+  const enabled = options?.enabled ?? true
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
@@ -30,7 +32,7 @@ export function useRoomChat(
   }, [authToken, playerId])
 
   useEffect(() => {
-    if (!lobbyId || !playerId) {
+    if (!enabled || !lobbyId || !playerId) {
       setMessages([])
       setReady(false)
       return
@@ -73,7 +75,7 @@ export function useRoomChat(
       socket.off('chat:message', onMessage)
       socket.off('chat:error', onChatError)
     }
-  }, [authToken, lobbyId, playerId, requestSync])
+  }, [authToken, enabled, lobbyId, playerId, requestSync])
 
   const sendMessage = useCallback(
     (text: string) => {

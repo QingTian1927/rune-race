@@ -21,7 +21,7 @@ function GameLoadingScreen({ message }: { message: string }) {
 export default function OnlineGamePage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
-  const { playerId, accessToken, avatarEmoji } = usePlayerIdentity()
+  const { playerId, accessToken, avatarEmoji, identityReady } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
   const lobbyHref = lobbyId ? `/lobby/${lobbyId}` : '/'
 
@@ -33,7 +33,7 @@ export default function OnlineGamePage() {
     sendMessage: sendChatMessage,
     sendError: chatSendError,
     clearSendError: clearChatSendError,
-  } = useRoomChat(lobbyId ?? undefined, playerId, accessToken)
+  } = useRoomChat(lobbyId ?? undefined, playerId, accessToken, { enabled: identityReady })
 
   const handleLeaveGame = useCallback(() => {
     emitLeaveLobby(accessToken, playerId)

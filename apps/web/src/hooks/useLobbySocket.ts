@@ -15,12 +15,14 @@ export function useLobbySocket(
   password?: string,
   authToken?: string | null,
   options?: {
+    enabled?: boolean
     onRemoved?: (reason: LobbyRemovalReason) => void
   },
 ) {
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
+  const enabled = options?.enabled ?? true
   const onRemoved = options?.onRemoved
   const onRemovedRef = useRef(onRemoved)
   onRemovedRef.current = onRemoved
@@ -28,6 +30,11 @@ export function useLobbySocket(
   playerNameRef.current = playerName
 
   useEffect(() => {
+    if (!enabled || !lobbyId || !playerId) {
+      setConnected(false)
+      return
+    }
+
     const socket = getSocket(authToken)
 
     const onConnected = () => {
@@ -100,7 +107,7 @@ export function useLobbySocket(
       socket.off('lobby:removed', onTimedOut)
       socket.off('lobby:game_started', onGameStarted)
     }
-  }, [authToken, lobbyId, playerId, password])
+  }, [authToken, enabled, lobbyId, playerId, password])
 
   const setColor = useCallback(
     (color: PlayerColor) => {

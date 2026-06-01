@@ -35,7 +35,11 @@ export interface LobbyRecord {
 
 export type LobbyChangeListener = (lobbyId: string, snapshot: LobbySnapshot) => void
 export type LobbyDestroyListener = (lobbyId: string) => void
-export type LobbyPlayerTimedOutListener = (lobbyId: string, playerId: string) => void
+export type LobbyPlayerTimedOutListener = (
+  lobbyId: string,
+  player: { id: string; name: string; color: PlayerColor | null },
+  context: { wasInGame: boolean },
+) => void
 export type GameStartListener = (payload: {
   lobbyId: string
   gameId: string
@@ -197,6 +201,26 @@ export class LobbyStore {
     const snapshot = this.toSnapshot(record)
     this.emitChange(id, snapshot)
     return snapshot
+  }
+
+  /** Drop ghost rows created by pre-auth socket joins (`anon-*` local ids). */
+  removeLegacyLocalAnonPlayers(lobbyId: string): boolean {
+    const record = this.lobbies.get(lobbyId)
+    if (!record) return false
+
+    const legacyIds = record.players
+      .filter((p) => p.id.startsWith('anon-'))
+      .map((p) => p.id)
+
+    if (legacyIds.length === 0) return false
+
+    let removedAny = false
+    for (const id of legacyIds) {
+      if (this.leaveLobby(lobbyId, id)) {
+        removedAny = true
+      }
+    }
+    return removedAny
   }
 
   setColor(lobbyId: string, playerId: string, color: PlayerColor): LobbySnapshot {
@@ -363,8 +387,19 @@ export class LobbyStore {
 
     this.clearDisconnectTimer(player)
     player.disconnectTimer = setTimeout(() => {
+      const current = this.lobbies.get(lobbyId)
+      const currentPlayer = current?.players.find((p) => p.id === playerId)
+      if (!current || !currentPlayer) return
+
+      const wasInGame = current.status === 'in_game'
+      const playerInfo = {
+        id: currentPlayer.id,
+        name: currentPlayer.name,
+        color: currentPlayer.color,
+      }
+
       if (!this.leaveLobbyAfterDisconnectTimeout(lobbyId, playerId)) return
-      this.onPlayerTimedOut?.(lobbyId, playerId)
+      this.onPlayerTimedOut?.(lobbyId, playerInfo, { wasInGame })
     }, LOBBY_DISCONNECT_GRACE_MS)
 
     this.emitChange(lobbyId, this.toSnapshot(record))

@@ -1,5 +1,5 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io'
-import type { ClientToServerEvents, ServerToClientEvents } from '@rune-race/shared'
+import type { ClientToServerEvents, ServerToClientEvents, ChatSystemEvent, PlayerColor } from '@rune-race/shared'
 import { validateCommand } from '@rune-race/shared'
 import type { ChatStore } from '../chat/chat-store'
 import type { LobbyStore } from '../lobby/lobby-store'
@@ -25,11 +25,26 @@ function chatError(socket: AppSocket, message: string, code: string) {
   socket.emit('chat:error', { message, code })
 }
 
-function assertPlayerIdMatchesAuth(socket: AppSocket, playerId: string): void {
+function broadcastSystemChat(
+  io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
+  chatStore: ChatStore,
+  lobbyId: string,
+  player: { id: string; name: string; color: PlayerColor | null },
+  systemEvent: ChatSystemEvent,
+): void {
+  const message = chatStore.pushSystemEvent({
+    lobbyId,
+    playerId: player.id,
+    playerName: player.name,
+    playerColor: player.color,
+    systemEvent,
+  })
+  io.to(`lobby:${lobbyId}`).emit('chat:message', message)
+}
+
+function resolvePlayerId(socket: AppSocket, claimedPlayerId: string): string {
   const { userId } = socket.data as AuthSocketData
-  if (userId && userId !== playerId) {
-    throw new Error('Auth mismatch')
-  }
+  return userId ?? claimedPlayerId
 }
 
 function forfeitPlayerInActiveGame(
@@ -67,6 +82,8 @@ function notifyPlayerRemoved(
 }
 
 function removePlayerImmediately(
+  io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
+  chatStore: ChatStore,
   registry: PlayerSocketRegistry,
   lobbyStore: LobbyStore,
   gameStore: GameStore,
@@ -76,10 +93,20 @@ function removePlayerImmediately(
     forfeitGame: boolean
     notify?: { reason: 'kicked' | 'disconnect_timeout' }
     leavingSocket?: AppSocket
+    announceChat?: boolean
   },
 ): void {
+  const snapshot = lobbyStore.getSnapshot(lobbyId)
+  const player = snapshot?.players.find((p) => p.id === playerId)
+
   if (options.forfeitGame) {
     forfeitPlayerInActiveGame(lobbyStore, gameStore, playerId)
+  }
+
+  if (options.announceChat !== false && player && snapshot) {
+    const systemEvent: ChatSystemEvent =
+      snapshot.status === 'in_game' ? 'player_left_game' : 'player_left'
+    broadcastSystemChat(io, chatStore, lobbyId, player, systemEvent)
   }
 
   if (options.notify) {
@@ -124,8 +151,11 @@ export function setupSocketHandlers(
       chatStore.clearLobby(lobbyId)
       io.to(`lobby:${lobbyId}`).emit('lobby:closed', { lobbyId, reason: 'empty' })
     },
-    onPlayerTimedOut: (lobbyId, playerId) => {
-      notifyPlayerRemoved(socketRegistry, lobbyId, playerId, 'disconnect_timeout')
+    onPlayerTimedOut: (lobbyId, player, { wasInGame }) => {
+      notifyPlayerRemoved(socketRegistry, lobbyId, player.id, 'disconnect_timeout')
+      if (!wasInGame) {
+        broadcastSystemChat(io, chatStore, lobbyId, player, 'player_left')
+      }
     },
     onGameStart: ({ lobbyId, gameId, players, firstPlayerId }) => {
       lobbyStore.setInGame(lobbyId, gameId)
@@ -178,17 +208,32 @@ export function setupSocketHandlers(
     socket.on('lobby:join', (payload) => {
       try {
         const cmd = validateCommand('lobby:join', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const priorLobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         const snapshot = lobbyStore.joinLobby({
           lobbyId: cmd.lobbyId,
           joinCode: cmd.joinCode,
-          playerId: cmd.playerId,
+          playerId: playerId,
           playerName: cmd.playerName,
           password: cmd.password,
         })
-        trackLobby(snapshot.lobbyId, cmd.playerId)
-        socket.emit('lobby:connected', { playerId: cmd.playerId, lobbyId: snapshot.lobbyId })
-        io.to(`lobby:${snapshot.lobbyId}`).emit('lobby:snapshot', snapshot)
+        trackLobby(snapshot.lobbyId, playerId)
+        socket.emit('lobby:connected', { playerId, lobbyId: snapshot.lobbyId })
+
+        const { userId } = socket.data as AuthSocketData
+        if (userId) {
+          lobbyStore.removeLegacyLocalAnonPlayers(snapshot.lobbyId)
+        }
+        const latestSnapshot = lobbyStore.getSnapshot(snapshot.lobbyId) ?? snapshot
+        io.to(`lobby:${snapshot.lobbyId}`).emit('lobby:snapshot', latestSnapshot)
+
+        const isReconnect = priorLobbyId === snapshot.lobbyId
+        if (!isReconnect) {
+          const player = latestSnapshot.players.find((p) => p.id === playerId)
+          if (player) {
+            broadcastSystemChat(io, chatStore, snapshot.lobbyId, player, 'player_joined')
+          }
+        }
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Join failed', 'JOIN_FAILED')
       }
@@ -197,10 +242,10 @@ export function setupSocketHandlers(
     socket.on('lobby:set_color', (payload) => {
       try {
         const cmd = validateCommand('lobby:set_color', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
-        const snapshot = lobbyStore.setColor(lobbyId, cmd.playerId, cmd.color)
+        const snapshot = lobbyStore.setColor(lobbyId, playerId, cmd.color)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'SET_COLOR_FAILED')
@@ -210,11 +255,11 @@ export function setupSocketHandlers(
     socket.on('lobby:ready', (payload) => {
       try {
         const cmd = validateCommand('lobby:ready', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const wasCountdown = lobbyStore.getSnapshot(lobbyId)?.status === 'countdown'
-        const snapshot = lobbyStore.setReady(lobbyId, cmd.playerId, true)
+        const snapshot = lobbyStore.setReady(lobbyId, playerId, true)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
         if (!wasCountdown && snapshot.status === 'countdown') {
           io.to(`lobby:${lobbyId}`).emit('lobby:start_countdown', { seconds: 5 })
@@ -227,10 +272,10 @@ export function setupSocketHandlers(
     socket.on('lobby:unready', (payload) => {
       try {
         const cmd = validateCommand('lobby:unready', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
-        const snapshot = lobbyStore.setReady(lobbyId, cmd.playerId, false)
+        const snapshot = lobbyStore.setReady(lobbyId, playerId, false)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
         io.to(`lobby:${lobbyId}`).emit('lobby:start_countdown_cancelled', { reason: 'player_unready' })
       } catch (error) {
@@ -241,13 +286,22 @@ export function setupSocketHandlers(
     socket.on('lobby:leave', (payload) => {
       try {
         const cmd = validateCommand('lobby:leave', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) return
-        removePlayerImmediately(socketRegistry, lobbyStore, gameStore, lobbyId, cmd.playerId, {
-          forfeitGame: true,
-          leavingSocket: socket,
-        })
+        removePlayerImmediately(
+          io,
+          chatStore,
+          socketRegistry,
+          lobbyStore,
+          gameStore,
+          lobbyId,
+          playerId,
+          {
+            forfeitGame: true,
+            leavingSocket: socket,
+          },
+        )
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'LEAVE_FAILED')
       }
@@ -256,11 +310,16 @@ export function setupSocketHandlers(
     socket.on('lobby:kick', (payload) => {
       try {
         const cmd = validateCommand('lobby:kick', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
+        const snapshot = lobbyStore.getSnapshot(lobbyId)
+        const target = snapshot?.players.find((p) => p.id === cmd.targetPlayerId)
         notifyPlayerRemoved(socketRegistry, lobbyId, cmd.targetPlayerId, 'kicked')
-        lobbyStore.kickPlayer(lobbyId, cmd.playerId, cmd.targetPlayerId)
+        lobbyStore.kickPlayer(lobbyId, playerId, cmd.targetPlayerId)
+        if (target) {
+          broadcastSystemChat(io, chatStore, lobbyId, target, 'player_left')
+        }
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'KICK_FAILED')
       }
@@ -269,10 +328,10 @@ export function setupSocketHandlers(
     socket.on('lobby:cancel_countdown', (payload) => {
       try {
         const cmd = validateCommand('lobby:cancel_countdown', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
-        const snapshot = lobbyStore.cancelCountdownByHost(lobbyId, cmd.playerId)
+        const snapshot = lobbyStore.cancelCountdownByHost(lobbyId, playerId)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
         io.to(`lobby:${lobbyId}`).emit('lobby:start_countdown_cancelled', { reason: 'host_cancelled' })
       } catch (error) {
@@ -283,10 +342,10 @@ export function setupSocketHandlers(
     socket.on('lobby:update_settings', (payload) => {
       try {
         const cmd = validateCommand('lobby:update_settings', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
-        const snapshot = lobbyStore.updateSettings(lobbyId, cmd.playerId, {
+        const snapshot = lobbyStore.updateSettings(lobbyId, playerId, {
           name: cmd.name,
           password: cmd.password,
           clearPassword: cmd.clearPassword,
@@ -300,10 +359,10 @@ export function setupSocketHandlers(
     socket.on('lobby:transfer_host', (payload) => {
       try {
         const cmd = validateCommand('lobby:transfer_host', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
-        const snapshot = lobbyStore.transferHost(lobbyId, cmd.playerId, cmd.newHostPlayerId)
+        const snapshot = lobbyStore.transferHost(lobbyId, playerId, cmd.newHostPlayerId)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'TRANSFER_FAILED')
@@ -313,8 +372,8 @@ export function setupSocketHandlers(
     socket.on('lobby:sync_request', (payload) => {
       try {
         const cmd = validateCommand('lobby:sync_request', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const lobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.getSnapshot(lobbyId)
         if (snapshot) socket.emit('lobby:snapshot', snapshot)
@@ -326,10 +385,10 @@ export function setupSocketHandlers(
     socket.on('chat:send', (payload) => {
       try {
         const cmd = validateCommand('chat:send', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
         const message = chatStore.send({
           lobbyId: cmd.lobbyId,
-          playerId: cmd.playerId,
+          playerId: playerId,
           text: cmd.text,
           lobbyStore,
         })
@@ -349,8 +408,8 @@ export function setupSocketHandlers(
     socket.on('chat:sync_request', (payload) => {
       try {
         const cmd = validateCommand('chat:sync_request', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const memberLobbyId = lobbyStore.getLobbyIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const memberLobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (memberLobbyId !== cmd.lobbyId) {
           throw new Error('Not in this lobby')
         }
@@ -366,17 +425,17 @@ export function setupSocketHandlers(
     socket.on('game:join', (payload) => {
       try {
         const cmd = validateCommand('game:join', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
         const state = gameStore.getState(cmd.gameId)
         if (!state) throw new Error('Game not found')
-        if (!state.players.some((p) => p.id === cmd.playerId)) {
+        if (!state.players.some((p) => p.id === playerId)) {
           throw new Error('Player not in this game')
         }
         socket.join(`game:${cmd.gameId}`)
-        socketRegistry.track(socket, cmd.playerId)
+        socketRegistry.track(socket, playerId)
         ;(socket.data as { gameId?: string; playerId?: string }).gameId = cmd.gameId
-        ;(socket.data as { playerId?: string }).playerId = cmd.playerId
-        socket.emit('game:connected', { playerId: cmd.playerId, gameId: cmd.gameId })
+        ;(socket.data as { playerId?: string }).playerId = playerId
+        socket.emit('game:connected', { playerId: playerId, gameId: cmd.gameId })
         socket.emit('game:state_snapshot', { version: state.version, state, events: state.events })
       } catch (error) {
         gameError(socket, error instanceof Error ? error.message : 'Join failed', 'JOIN_FAILED')
@@ -386,10 +445,10 @@ export function setupSocketHandlers(
     socket.on('game:roll', (payload) => {
       try {
         const cmd = validateCommand('game:roll', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const gameId = gameStore.getGameIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
         if (!gameId) throw new Error('Not in a game')
-        gameStore.roll(gameId, cmd.playerId)
+        gameStore.roll(gameId, playerId)
       } catch (error) {
         gameError(socket, error instanceof Error ? error.message : 'Roll failed', 'ROLL_FAILED')
       }
@@ -398,10 +457,10 @@ export function setupSocketHandlers(
     socket.on('game:choose_move', (payload) => {
       try {
         const cmd = validateCommand('game:choose_move', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
-        const gameId = gameStore.getGameIdForPlayer(cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
         if (!gameId) throw new Error('Not in a game')
-        gameStore.chooseMove(gameId, cmd.playerId, cmd.moveId)
+        gameStore.chooseMove(gameId, playerId, cmd.moveId)
       } catch (error) {
         gameError(socket, error instanceof Error ? error.message : 'Move failed', 'MOVE_FAILED')
       }
@@ -410,9 +469,9 @@ export function setupSocketHandlers(
     socket.on('game:sync_request', (payload) => {
       try {
         const cmd = validateCommand('game:sync_request', payload)
-        assertPlayerIdMatchesAuth(socket, cmd.playerId)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
         const data = socket.data as { gameId?: string }
-        const gameId = gameStore.getGameIdForPlayer(cmd.playerId) ?? data.gameId
+        const gameId = gameStore.getGameIdForPlayer(playerId) ?? data.gameId
         if (!gameId) throw new Error('Not in a game')
         const state = gameStore.getState(gameId)
         if (!state) throw new Error('Game not found')
@@ -437,12 +496,19 @@ export function setupSocketHandlers(
       if (!data.lobbyId || !data.playerId) return
 
       const { lobbyId, playerId } = data
+      const snapshot = lobbyStore.getSnapshot(lobbyId)
+      const player = snapshot?.players.find((p) => p.id === playerId)
+
+      if (player && snapshot?.status === 'in_game') {
+        broadcastSystemChat(io, chatStore, lobbyId, player, 'player_left_game')
+      }
+
       forfeitPlayerInActiveGame(lobbyStore, gameStore, playerId)
       lobbyStore.markDisconnected(lobbyId, playerId)
 
-      const snapshot = lobbyStore.getSnapshot(lobbyId)
-      if (snapshot) {
-        io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+      const updatedSnapshot = lobbyStore.getSnapshot(lobbyId)
+      if (updatedSnapshot) {
+        io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', updatedSnapshot)
         io.to(`lobby:${lobbyId}`).emit('lobby:start_countdown_cancelled', {
           reason: 'disconnect',
         })

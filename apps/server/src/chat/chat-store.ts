@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { ChatMessage } from '@rune-race/shared'
+import type { ChatMessage, ChatSystemEvent, PlayerColor } from '@rune-race/shared'
 import {
   CHAT_BUFFER_MAX,
   CHAT_HISTORY_LIMIT,
   CHAT_MAX_TEXT_LENGTH,
   CHAT_RATE_LIMIT_MS,
+  formatSystemChatText,
 } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
 
@@ -69,6 +70,38 @@ export class ChatStore {
       text: trimmed,
       sentAt: new Date(now).toISOString(),
       kind: 'user',
+    }
+
+    const buffer = this.messagesByLobby.get(lobbyId) ?? []
+    buffer.push(message)
+    while (buffer.length > CHAT_BUFFER_MAX) {
+      buffer.shift()
+    }
+    this.messagesByLobby.set(lobbyId, buffer)
+
+    return message
+  }
+
+  pushSystemEvent(params: {
+    lobbyId: string
+    playerId: string
+    playerName: string
+    playerColor: PlayerColor | null
+    systemEvent: ChatSystemEvent
+  }): ChatMessage {
+    const { lobbyId, playerId, playerName, playerColor, systemEvent } = params
+    const now = Date.now()
+
+    const message: ChatMessage = {
+      id: randomUUID(),
+      lobbyId,
+      playerId,
+      playerName,
+      playerColor,
+      text: formatSystemChatText(systemEvent, playerName),
+      sentAt: new Date(now).toISOString(),
+      kind: 'system',
+      systemEvent,
     }
 
     const buffer = this.messagesByLobby.get(lobbyId) ?? []

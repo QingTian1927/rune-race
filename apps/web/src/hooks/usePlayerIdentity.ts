@@ -11,16 +11,22 @@ export type PlayerIdentity = {
   isRegistered: boolean
   isAnon: boolean
   canEditNameOnHome: boolean
+  /** False while auth is loading or playerId is not yet tied to the session token. */
+  identityReady: boolean
 }
 
 export function usePlayerIdentity(): PlayerIdentity {
-  const { user, accessToken, isRegistered } = useAuth()
+  const { user, accessToken, loading: authLoading, isRegistered } = useAuth()
   const { profile } = usePlayerProfile()
 
-  const playerId = user?.id ?? getOrCreatePlayerId()
+  const playerId = user?.id ?? (authLoading ? '' : getOrCreatePlayerId())
   const playerName = user ? getDisplayName(user) : getPlayerName()
   const avatarEmoji = isRegistered ? (profile?.avatar_emoji ?? null) : null
   const isAnon = isAnonUser(user)
+  const identityReady =
+    !authLoading &&
+    Boolean(playerId) &&
+    (!accessToken || Boolean(user?.id && user.id === playerId))
 
   return {
     playerId,
@@ -30,6 +36,7 @@ export function usePlayerIdentity(): PlayerIdentity {
     isRegistered,
     isAnon,
     canEditNameOnHome: isAnon,
+    identityReady,
   }
 }
 

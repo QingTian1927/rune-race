@@ -30,7 +30,7 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false)
   const [name, setName] = useState(getPlayerName())
 
-  const { playerId, playerName, accessToken, canEditNameOnHome } = usePlayerIdentity()
+  const { playerId, playerName, accessToken, canEditNameOnHome, identityReady } = usePlayerIdentity()
   const backRef = useLobbyBackButton(Boolean(lobbyId))
 
   const handleLobbyRemoved = useCallback(
@@ -52,6 +52,7 @@ export default function LobbyPage() {
     updateSettings,
     transferHost,
   } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken, {
+    enabled: identityReady && Boolean(lobbyId),
     onRemoved: handleLobbyRemoved,
   })
 
@@ -60,7 +61,9 @@ export default function LobbyPage() {
     sendMessage: sendChatMessage,
     sendError: chatSendError,
     clearSendError: clearChatSendError,
-  } = useRoomChat(snapshot ? lobbyId : undefined, playerId, accessToken)
+  } = useRoomChat(snapshot ? lobbyId : undefined, playerId, accessToken, {
+    enabled: identityReady,
+  })
 
   useEffect(() => {
     if (playerName) setName(playerName)
