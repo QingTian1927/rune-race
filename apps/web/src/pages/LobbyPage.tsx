@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
+import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { PLAYER_GRADIENT } from '../components/sky/skyColors'
 import { useLobbyBackButton } from '../components/sky/useLobbyBackButton'
 import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import { useLobbySocket } from '../hooks/useLobbySocket'
+import { useAuth } from '../hooks/useAuth'
+import { useFeatureFlags } from '../hooks/useFeatureFlags'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { markLobbyNudgeDismissed, wasLobbyNudgeDismissed } from '../lib/accountNudge'
 import { useRoomChat } from '../hooks/useRoomChat'
 import { isLikelySupabaseUserId } from '../lib/authUserId'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
@@ -28,8 +32,22 @@ export default function LobbyPage() {
   const [copied, setCopied] = useState(false)
   const [name, setName] = useState(getPlayerName())
 
+  const { loading: authLoading, isRegistered } = useAuth()
+  const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
   const { playerId, playerName, accessToken, canEditNameOnHome, identityReady } = usePlayerIdentity()
   const backRef = useLobbyBackButton(Boolean(lobbyId))
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const canShowNudge =
+    accountNudgeEnabled && !isRegistered && !authLoading && !flagsLoading
+
+  const closeLobbyNudge = useCallback(() => {
+    if (lobbyId) markLobbyNudgeDismissed(lobbyId)
+    setNudgeOpen(false)
+  }, [lobbyId])
+
+  useEffect(() => {
+    if (isRegistered) setNudgeOpen(false)
+  }, [isRegistered])
 
   const handleLobbyRemoved = useCallback(
     (_reason: 'closed' | 'kicked' | 'disconnect_timeout') => {
@@ -70,6 +88,13 @@ export default function LobbyPage() {
   useEffect(() => {
     void ensureOnlineSession(playerName).catch(() => {})
   }, [playerName])
+
+  useEffect(() => {
+    if (!lobbyId || !canShowNudge || wasLobbyNudgeDismissed(lobbyId)) return
+    if (!identityReady || !snapshot) return
+    const timer = window.setTimeout(() => setNudgeOpen(true), 400)
+    return () => window.clearTimeout(timer)
+  }, [lobbyId, identityReady, snapshot, canShowNudge])
 
   useEffect(() => {
     if (!lobbyId) return
@@ -153,6 +178,7 @@ export default function LobbyPage() {
       onPlayerNameChange={setName}
       onPlayerNameBlur={() => void saveAnonDisplayName()}
     >
+      <AccountNudgeModal open={nudgeOpen} onClose={closeLobbyNudge} />
       {snapshot ? (
         <RoomChatPanel
           placement="lobby"

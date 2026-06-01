@@ -7,6 +7,13 @@ Console nội bộ cho vận hành business (tách khỏi game client `apps/web`
 - Đăng nhập Supabase (cùng project với game)
 - Chỉ user có trong `ADMIN_USER_IDS` trên server mới gọi được API
 - Dashboard: live counters, timeseries 24h, top players
+- **Feature flags:** toggle popup khuyến khích đăng ký (anon) trên dashboard
+
+### Tắt popup đăng ký nhanh
+
+1. **Admin UI:** Dashboard → “Popup đăng nhập / đăng ký (anon)” → tắt.
+2. **Server env:** `ACCOUNT_NUDGE_ENABLED=false` (kill switch, ưu tiên hơn DB).
+3. **Client build:** `VITE_ACCOUNT_NUDGE_ENABLED=false` trong `.env` (không gọi API flags).
 
 ## Chạy local
 

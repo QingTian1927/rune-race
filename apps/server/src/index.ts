@@ -16,6 +16,8 @@ import { registerAuthRoutes } from './http/auth'
 import { getSupabaseAdminClient } from './lib/supabase-server'
 import { AnalyticsService } from './analytics/service'
 import { registerAdminAnalyticsRoutes } from './http/admin-analytics'
+import { registerFeatureFlagRoutes } from './http/feature-flags'
+import { registerAdminSettingsRoutes } from './http/admin-settings'
 
 const port = Number(process.env.PORT) || 3000
 const corsOrigins = process.env.CLIENT_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean)
@@ -45,6 +47,8 @@ registerProfileRoutes(fastify)
 registerPlayerRoutes(fastify)
 registerAuthRoutes(fastify)
 registerAdminAnalyticsRoutes(fastify, analyticsService)
+registerFeatureFlagRoutes(fastify)
+registerAdminSettingsRoutes(fastify)
 
 fastify.get('/', async () => ({
   message: 'Rune Race Server',

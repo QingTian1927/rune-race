@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
 import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { AUTH_FORM_PLACEHOLDERS } from '../lib/authFormPlaceholders'
 import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 export default function AuthLoginPage() {
@@ -55,7 +56,7 @@ export default function AuthLoginPage() {
   if (user && isRegistered) {
     return (
       <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
-        <SkyFormStage backTo="/">
+        <SkyFormStage backTo="/" className="sky-auth-form">
           <div className="panel p-blue">
             <div className="panel-head">
               <div className="panel-icon icon-blue">
@@ -85,7 +86,7 @@ export default function AuthLoginPage() {
 
   return (
     <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
-      <SkyFormStage backTo="/">
+      <SkyFormStage backTo="/" className="sky-auth-form">
         {error ? <div className="sky-alert-error">{error}</div> : null}
 
         <div className="panel p-blue">
@@ -112,6 +113,7 @@ export default function AuthLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="game-input"
                   autoComplete="email"
+                  placeholder={AUTH_FORM_PLACEHOLDERS.email}
                 />
               </div>
             </div>
@@ -128,6 +130,7 @@ export default function AuthLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="game-input"
                   autoComplete="current-password"
+                  placeholder={AUTH_FORM_PLACEHOLDERS.passwordLogin}
                 />
               </div>
             </div>

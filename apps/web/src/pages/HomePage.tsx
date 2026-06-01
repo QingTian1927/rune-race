@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
 import {
   createRoom,
   fetchPublicRooms,
@@ -9,7 +10,9 @@ import {
   resolveRoomByCode,
   type PublicRoom,
 } from '../lib/api'
+import { HOME_FORM_NUDGE_DELAY_MS } from '../lib/accountNudge'
 import { useAuth } from '../hooks/useAuth'
+import { useFeatureFlags } from '../hooks/useFeatureFlags'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
@@ -28,9 +31,25 @@ type MatchSearchSession = {
 export default function HomePage() {
   const navigate = useNavigate()
   const { playerName } = usePlayerIdentity()
-  const { isRegistered } = useAuth()
+  const { loading: authLoading, isRegistered } = useAuth()
+  const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
 
   const [name, setName] = useState(playerName || getPlayerName())
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const formNudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const canShowNudge =
+    accountNudgeEnabled && !isRegistered && !authLoading && !flagsLoading
+
+  const openNudge = useCallback(() => {
+    if (!canShowNudge) return
+    setNudgeOpen(true)
+  }, [canShowNudge])
+
+  const closeNudge = useCallback(() => setNudgeOpen(false), [])
+
+  useEffect(() => {
+    if (isRegistered) setNudgeOpen(false)
+  }, [isRegistered])
   const [homeView, setHomeView] = useState<HomeView>('menu')
   const [activeForm, setActiveForm] = useState<HomeForm>('join')
   const [joinCode, setJoinCode] = useState('')
@@ -49,6 +68,24 @@ export default function HomePage() {
   useEffect(() => {
     if (playerName) setName(playerName)
   }, [playerName])
+
+  useEffect(() => {
+    if (homeView !== 'menu' || !canShowNudge) return
+    const timer = window.setTimeout(() => openNudge(), 100)
+    return () => window.clearTimeout(timer)
+  }, [homeView, canShowNudge, openNudge])
+
+  useEffect(() => {
+    if (homeView !== 'form' || !canShowNudge) return
+    if (formNudgeTimerRef.current) window.clearTimeout(formNudgeTimerRef.current)
+    formNudgeTimerRef.current = window.setTimeout(() => {
+      openNudge()
+      formNudgeTimerRef.current = null
+    }, HOME_FORM_NUDGE_DELAY_MS)
+    return () => {
+      if (formNudgeTimerRef.current) window.clearTimeout(formNudgeTimerRef.current)
+    }
+  }, [homeView, activeForm, canShowNudge, openNudge])
 
   const refreshRooms = useCallback(async () => {
     try {
@@ -148,11 +185,13 @@ export default function HomePage() {
   }
 
   const showHomeMenu = () => {
+    setNudgeOpen(false)
     setHomeView('menu')
     setError(null)
   }
 
   const showHomeForm = (form: HomeForm) => {
+    setNudgeOpen(false)
     setActiveForm(form)
     setHomeView('form')
     setError(null)
@@ -269,6 +308,7 @@ export default function HomePage() {
       onPlayerNameBlur={() => void saveAnonDisplayName()}
       footer={footer}
     >
+      <AccountNudgeModal open={nudgeOpen} onClose={closeNudge} />
       <div
         className="screen active home-screen"
         data-home-state={homeView}

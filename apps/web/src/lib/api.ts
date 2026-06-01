@@ -33,6 +33,16 @@ function jsonHeaders(accessToken?: string | null) {
   return { 'Content-Type': 'application/json', ...authHeaders(accessToken) }
 }
 
+export type FeatureFlags = {
+  accountNudgeEnabled: boolean
+}
+
+export async function fetchFeatureFlags(): Promise<FeatureFlags> {
+  const res = await fetch(`${API_BASE}/api/public/feature-flags`)
+  if (!res.ok) throw new Error('Failed to load feature flags')
+  return res.json() as Promise<FeatureFlags>
+}
+
 export async function fetchPublicRooms(): Promise<PublicRoom[]> {
   const res = await fetch(`${API_BASE}/api/rooms`)
   if (!res.ok) throw new Error('Failed to load rooms')

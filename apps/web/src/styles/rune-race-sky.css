@@ -1905,6 +1905,47 @@ select.game-input {
   text-decoration: underline;
 }
 
+/* Login / signup — roomier form spacing */
+.sky-form-stage.sky-auth-form .panel-head {
+  padding: 18px 22px 16px;
+  gap: 14px;
+}
+
+.sky-form-stage.sky-auth-form .panel-subtitle {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.sky-form-stage.sky-auth-form .panel-body {
+  padding: 20px 22px 24px;
+}
+
+.sky-form-stage.sky-auth-form .sky-form-stack {
+  gap: 16px;
+}
+
+.sky-form-stage.sky-auth-form .panel-body .field-block + .field-block {
+  margin-top: 0;
+}
+
+.sky-form-stage.sky-auth-form .panel-body .field-label {
+  margin-bottom: 6px;
+}
+
+.sky-form-stage.sky-auth-form .sky-form-stack > .game-btn:first-of-type {
+  margin-top: 4px;
+}
+
+.sky-form-stage.sky-auth-form .sky-auth-footer {
+  margin-top: 20px;
+  padding-top: 4px;
+}
+
+.sky-form-stage.sky-auth-form .sky-alert-error,
+.sky-form-stage.sky-auth-form .sky-alert-success {
+  margin-bottom: 16px;
+}
+
 .game-textarea {
   width: 100%;
   min-height: 96px;
@@ -2845,4 +2886,152 @@ a.game-btn {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Account nudge overlay (anon → register) */
+.account-nudge-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: rgba(12, 28, 58, 0.55);
+  backdrop-filter: blur(6px);
+  animation: account-nudge-fade-in 0.22s ease;
+}
+
+@keyframes account-nudge-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.account-nudge-dialog {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(92vh, 720px);
+  overflow-y: auto;
+  box-shadow: 0 24px 48px rgba(20, 50, 100, 0.35);
+  animation: account-nudge-rise 0.28s ease;
+}
+
+.account-nudge-dialog .panel-head {
+  padding: 20px 22px 18px;
+  gap: 14px;
+}
+
+@keyframes account-nudge-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.account-nudge-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+  color: #3b5ba0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-nudge-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.account-nudge-lead {
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
+.account-nudge-alert {
+  margin: 0 22px 12px;
+}
+
+.account-nudge-body {
+  padding: 20px 22px 22px;
+  gap: 16px;
+}
+
+.account-nudge-body.sky-form-stack {
+  gap: 16px;
+}
+
+.account-nudge-dialog .field-block + .field-block {
+  margin-top: 0;
+}
+
+.account-nudge-cta-primary {
+  text-decoration: none;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+  box-shadow: 0 6px 0 #2a7a3a, 0 10px 20px rgba(40, 120, 60, 0.25);
+}
+
+.account-nudge-cta-primary:hover {
+  filter: brightness(1.03);
+}
+
+.account-nudge-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6a7fa8;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 6px 0 8px;
+}
+
+.account-nudge-divider::before,
+.account-nudge-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(90, 120, 170, 0.35);
+}
+
+.account-nudge-footer {
+  padding: 8px 22px 24px;
+  text-align: center;
+  border-top: 2px dashed rgba(255, 200, 60, 0.25);
+  margin-top: 4px;
+}
+
+.account-nudge-dismiss {
+  border: none;
+  background: none;
+  color: #7a8fb5;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 10px 12px;
+  max-width: 28em;
+}
+
+.account-nudge-dismiss:hover {
+  color: #5a7098;
 }

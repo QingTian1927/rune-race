@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { AuthResponse, Session, User } from '@supabase/supabase-js'
-import { displayNameFromMetadata } from '@rune-race/shared'
+import { displayNameFromMetadata, fullNameFromMetadata } from '@rune-race/shared'
 import { supabase } from '../lib/supabase'
 import { clearStoredPlayerId, syncPlayerIdFromAuth } from '../lib/playerSession'
 import { clearRememberedAnonUserId, linkAnonSessionIfNeeded, rememberAnonUserId } from '../lib/linkAnonSession'
@@ -15,6 +15,7 @@ type AuthContextValue = {
   signUp: (params: {
     email: string
     password: string
+    fullName: string
     displayName: string
     phone?: string
   }) => Promise<AuthResponse>
@@ -26,13 +27,16 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-function syncGoogleDisplayName(user: User): void {
+function syncGoogleUserMetadata(user: User): void {
   if (!isRegisteredUser(user)) return
   const meta = user.user_metadata as Record<string, unknown>
-  if (meta.display_name) return
-  const fromGoogle = displayNameFromMetadata(meta)
-  if (!fromGoogle) return
-  void supabase.auth.updateUser({ data: { display_name: fromGoogle } })
+  const displayName = displayNameFromMetadata(meta)
+  const fullName = fullNameFromMetadata(meta)
+  const patch: Record<string, string> = {}
+  if (!meta.display_name && displayName) patch.display_name = displayName
+  if (!meta.full_name && fullName) patch.full_name = fullName
+  if (Object.keys(patch).length === 0) return
+  void supabase.auth.updateUser({ data: patch })
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -48,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (next?.user) {
         syncPlayerIdFromAuth(next.user.id)
         if (next.user.user_metadata?.is_anon) rememberAnonUserId(next.user.id)
-        syncGoogleDisplayName(next.user)
+        syncGoogleUserMetadata(next.user)
       }
       setLoading(false)
     })
@@ -66,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             void linkAnonSessionIfNeeded(newSession.access_token, newSession.user.id)
           }
         }
-        syncGoogleDisplayName(newSession.user)
+        syncGoogleUserMetadata(newSession.user)
       }
     })
 
@@ -84,12 +88,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       accessToken: session?.access_token ?? null,
       loading,
       isRegistered: isRegisteredUser(user),
-      signUp: async ({ email, password, displayName, phone }) => {
+      signUp: async ({ email, password, fullName, displayName, phone }) => {
         return supabase.auth.signUp({
           email,
           password,
           options: {
             data: {
+              full_name: fullName.trim(),
               display_name: displayName.trim(),
               phone: phone?.trim() || null,
               is_anon: false,

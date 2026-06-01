@@ -34,9 +34,18 @@ export class ApiError extends Error {
   }
 }
 
-async function adminFetch<T>(path: string, accessToken: string): Promise<T> {
+async function adminFetch<T>(
+  path: string,
+  accessToken: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    ...init,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
@@ -64,6 +73,25 @@ export async function fetchTimeseries(
     accessToken,
   )
   return payload.points
+}
+
+export type AdminSettings = {
+  accountNudgeEnabled: boolean
+  accountNudgeEnvDisabled: boolean
+}
+
+export function fetchAdminSettings(accessToken: string): Promise<AdminSettings> {
+  return adminFetch<AdminSettings>('/api/admin/settings', accessToken)
+}
+
+export function updateAdminSettings(
+  accessToken: string,
+  patch: { accountNudgeEnabled: boolean },
+): Promise<AdminSettings> {
+  return adminFetch<AdminSettings>('/api/admin/settings', accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
 }
 
 export async function fetchTopPlayers(

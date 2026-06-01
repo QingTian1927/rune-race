@@ -36,6 +36,15 @@ const ALLOWED_AVATARS = new Set([
   '🥥',
 ])
 
+function fullNameFromUser(user: User): string | null {
+  const meta = user.user_metadata as Record<string, unknown>
+  const direct = meta.full_name
+  if (typeof direct === 'string' && direct.trim()) return direct.trim()
+  const name = meta.name ?? meta.full_name
+  if (typeof name === 'string' && name.trim()) return name.trim()
+  return null
+}
+
 async function resolveDisplayName(
   userId: string,
   row?: { display_name?: string | null },
@@ -85,7 +94,32 @@ async function ensureRegisteredProfileRow(
       if (updateError || !updated) {
         return { row: null, error: updateError?.message ?? 'Profile update failed', status: 500 }
       }
-      return { row: mapDbProfileRow(updated), error: null, status: 200 }
+      const updatedRow = mapDbProfileRow(updated)
+      const fullName = fullNameFromUser(user)
+      if (fullName && !updatedRow.full_name) {
+        const { data: updatedName, error: nameError } = await supabase
+          .from('profiles')
+          .update({ full_name: fullName })
+          .eq('id', user.id)
+          .select(PROFILE_SELECT_COLUMNS)
+          .single()
+        if (!nameError && updatedName) {
+          return { row: mapDbProfileRow(updatedName), error: null, status: 200 }
+        }
+      }
+      return { row: updatedRow, error: null, status: 200 }
+    }
+    const fullName = fullNameFromUser(user)
+    if (fullName && !row.full_name) {
+      const { data: named, error: nameError } = await supabase
+        .from('profiles')
+        .update({ full_name: fullName })
+        .eq('id', user.id)
+        .select(PROFILE_SELECT_COLUMNS)
+        .single()
+      if (!nameError && named) {
+        return { row: mapDbProfileRow(named), error: null, status: 200 }
+      }
     }
     return { row, error: null, status: 200 }
   }
@@ -95,6 +129,7 @@ async function ensureRegisteredProfileRow(
     .insert({
       id: user.id,
       phone: (user.user_metadata?.phone as string | undefined) ?? null,
+      full_name: fullNameFromUser(user),
       is_anon: false,
     })
     .select(PROFILE_SELECT_COLUMNS)
