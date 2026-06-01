@@ -35,7 +35,8 @@ export function usePlayerIdentity(): PlayerIdentity {
     avatarEmoji,
     isRegistered,
     isAnon,
-    canEditNameOnHome: isAnon,
+    /** Any non-registered visitor may edit the home name field; Supabase sync applies to anon sessions. */
+    canEditNameOnHome: !isRegistered,
     identityReady,
   }
 }

@@ -7,13 +7,12 @@ import {
   joinMatchmaking,
   leaveMatchmaking,
   resolveRoomByCode,
-  updateDisplayName,
   type PublicRoom,
 } from '../lib/api'
+import { useAuth } from '../hooks/useAuth'
+import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
-import { supabase } from '../lib/supabase'
-import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { PublicRoomCard } from '../components/sky/PublicRoomCard'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 
@@ -28,7 +27,8 @@ type MatchSearchSession = {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { playerName, accessToken, canEditNameOnHome } = usePlayerIdentity()
+  const { playerName } = usePlayerIdentity()
+  const { isRegistered } = useAuth()
 
   const [name, setName] = useState(playerName || getPlayerName())
   const [homeView, setHomeView] = useState<HomeView>('menu')
@@ -133,12 +133,12 @@ export default function HomePage() {
 
   const saveAnonDisplayName = async () => {
     saveLocalName()
-    if (!canEditNameOnHome || !accessToken) return
+    const trimmed = name.trim()
+    if (!trimmed || isRegistered) return
     try {
-      await updateDisplayName(accessToken, name.trim())
-      await supabase.auth.refreshSession()
+      await ensureOnlineSession(trimmed)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save name')
+      setError(e instanceof Error ? e.message : 'Không lưu được tên')
     }
   }
 

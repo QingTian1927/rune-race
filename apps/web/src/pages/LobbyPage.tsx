@@ -12,8 +12,6 @@ import { isLikelySupabaseUserId } from '../lib/authUserId'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
 import { getSocket, retainLobbyOnUnmount } from '../lib/socket'
-import { supabase } from '../lib/supabase'
-import { updateDisplayName } from '../lib/api'
 
 const COLOR_TITLES: Record<PlayerColor, string> = {
   red: 'Đỏ',
@@ -99,10 +97,10 @@ export default function LobbyPage() {
 
   const saveAnonDisplayName = async () => {
     setPlayerName(name)
-    if (!canEditNameOnHome || !accessToken) return
+    const trimmed = name.trim()
+    if (!trimmed || !canEditNameOnHome) return
     try {
-      await updateDisplayName(accessToken, name.trim())
-      await supabase.auth.refreshSession()
+      await ensureOnlineSession(trimmed)
     } catch {
       // ignore on lobby
     }

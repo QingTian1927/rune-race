@@ -1691,6 +1691,41 @@ a.nav-btn {
   transform: translateY(-1px);
 }
 
+.player-chip-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-chip-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 -6px 0 -2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(42, 111, 192, 0.12);
+  color: #2a6fc0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.player-chip-edit-btn:hover {
+  background: rgba(42, 111, 192, 0.22);
+  color: #1a5aa8;
+  transform: scale(1.05);
+}
+
+.player-chip-edit-btn:focus-visible {
+  outline: 2px solid #2a6fc0;
+  outline-offset: 2px;
+}
+
 .player-chip-input {
   border: none;
   background: transparent;
@@ -1701,6 +1736,12 @@ a.nav-btn {
   outline: none;
   min-width: 80px;
   max-width: 140px;
+}
+
+.player-chip-input--editing {
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 8px;
+  padding: 2px 8px;
 }
 
 .player-chip-link {
