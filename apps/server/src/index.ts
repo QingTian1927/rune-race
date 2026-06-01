@@ -18,13 +18,17 @@ import { AnalyticsService } from './analytics/service'
 import { registerAdminAnalyticsRoutes } from './http/admin-analytics'
 import { registerFeatureFlagRoutes } from './http/feature-flags'
 import { registerAdminSettingsRoutes } from './http/admin-settings'
+import { resolveCorsOrigins } from './lib/cors-origins'
 
 const port = Number(process.env.PORT) || 3000
-const corsOrigins = process.env.CLIENT_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean)
+const corsOrigins = resolveCorsOrigins()
 
 const fastify = Fastify({ logger: true })
 const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(fastify.server, {
-  cors: { origin: corsOrigins?.length ? corsOrigins : '*' },
+  cors: {
+    origin: corsOrigins === true ? '*' : corsOrigins,
+    credentials: true,
+  },
 })
 
 const lobbyStore = new LobbyStore()
@@ -91,9 +95,14 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'))
 const start = async () => {
   try {
     await fastify.register(cors, {
-      origin: corsOrigins?.length ? corsOrigins : true,
+      origin: corsOrigins,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true,
     })
+    if (corsOrigins !== true) {
+      fastify.log.info({ corsOrigins }, 'CORS allowed origins')
+    }
     await fastify.listen({ port, host: '0.0.0.0' })
     console.log(`Server running on port ${port}`)
     console.log('Socket.IO attached to same host')
