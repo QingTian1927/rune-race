@@ -20,6 +20,7 @@ export function useLobbySocket(
   },
 ) {
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null)
+  const [hostRoomPassword, setHostRoomPassword] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
   const enabled = options?.enabled ?? true
@@ -28,52 +29,88 @@ export function useLobbySocket(
   onRemovedRef.current = onRemoved
   const playerNameRef = useRef(playerName)
   playerNameRef.current = playerName
+  const mountedRef = useRef(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!enabled || !lobbyId || !playerId) {
-      setConnected(false)
       return
     }
 
     const socket = getSocket(authToken)
-
-    const onConnected = () => {
-      socket.emit('lobby:join', {
-        playerId,
-        playerName: playerNameRef.current,
-        lobbyId,
-        password,
-      })
-    }
-
-    const onLobbyConnected = () => {
-      setConnected(true)
+    if (mountedRef.current) {
       setError(null)
     }
 
+    const safeSetSnapshot = (value: LobbySnapshot | null) => {
+      if (mountedRef.current) setSnapshot(value)
+    }
+    const safeSetHostRoomPassword = (value: string | null) => {
+      if (mountedRef.current) setHostRoomPassword(value)
+    }
+    const safeSetError = (value: string | null) => {
+      if (mountedRef.current) setError(value)
+    }
+    const safeSetConnected = (value: boolean) => {
+      if (mountedRef.current) setConnected(value)
+    }
+
+    const onConnected = () => {
+      const payload: {
+        playerId: string
+        playerName: string
+        lobbyId: string
+        password?: string
+      } = {
+        playerId,
+        playerName: playerNameRef.current,
+        lobbyId,
+      }
+      const trimmedPassword = password?.trim()
+      if (trimmedPassword) {
+        payload.password = trimmedPassword
+      }
+      socket.emit('lobby:join', payload)
+    }
+
+    const onLobbyConnected = () => {
+      safeSetConnected(true)
+      safeSetError(null)
+    }
+
     const onSnapshot = (payload: LobbySnapshot) => {
-      setSnapshot(payload)
+      safeSetSnapshot(payload)
+    }
+
+    const onHostSecrets = (payload: { roomPassword: string | null }) => {
+      safeSetHostRoomPassword(payload.roomPassword)
     }
 
     const onLobbyError = (payload: { message: string }) => {
-      setError(payload.message)
+      safeSetError(payload.message)
     }
 
     const onClosed = (payload: { lobbyId: string }) => {
       if (payload.lobbyId !== lobbyId) return
-      setSnapshot(null)
+      safeSetSnapshot(null)
       onRemovedRef.current?.('closed')
     }
 
     const onKicked = (payload: { lobbyId: string }) => {
       if (payload.lobbyId !== lobbyId) return
-      setSnapshot(null)
+      safeSetSnapshot(null)
       onRemovedRef.current?.('kicked')
     }
 
     const onTimedOut = (payload: { lobbyId: string }) => {
       if (payload.lobbyId !== lobbyId) return
-      setSnapshot(null)
+      safeSetSnapshot(null)
       onRemovedRef.current?.('disconnect_timeout')
     }
 
@@ -90,6 +127,7 @@ export function useLobbySocket(
     }
 
     socket.on('lobby:connected', onLobbyConnected)
+    socket.on('lobby:host_secrets', onHostSecrets)
     socket.on('lobby:snapshot', onSnapshot)
     socket.on('lobby:error', onLobbyError)
     socket.on('lobby:closed', onClosed)
@@ -100,6 +138,7 @@ export function useLobbySocket(
     return () => {
       socket.off('connect', onConnected)
       socket.off('lobby:connected', onLobbyConnected)
+      socket.off('lobby:host_secrets', onHostSecrets)
       socket.off('lobby:snapshot', onSnapshot)
       socket.off('lobby:error', onLobbyError)
       socket.off('lobby:closed', onClosed)
@@ -108,6 +147,14 @@ export function useLobbySocket(
       socket.off('lobby:game_started', onGameStarted)
     }
   }, [authToken, enabled, lobbyId, playerId, password])
+
+  useEffect(() => {
+    if (enabled && lobbyId && playerId) return
+    setConnected(false)
+    setSnapshot(null)
+    setHostRoomPassword(null)
+    setError(null)
+  }, [enabled, lobbyId, playerId])
 
   const setColor = useCallback(
     (color: PlayerColor) => {
@@ -154,6 +201,7 @@ export function useLobbySocket(
 
   return {
     snapshot,
+    hostRoomPassword,
     error,
     connected,
     setColor,

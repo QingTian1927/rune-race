@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
 import {
   createRoom,
   fetchPublicRooms,
+  fetchRoomById,
   getMatchmakingStatus,
   joinMatchmaking,
   leaveMatchmaking,
@@ -30,6 +31,7 @@ type MatchSearchSession = {
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { playerName } = usePlayerIdentity()
   const { loading: authLoading, isRegistered } = useAuth()
   const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
@@ -54,6 +56,7 @@ export default function HomePage() {
   const [activeForm, setActiveForm] = useState<HomeForm>('join')
   const [joinCode, setJoinCode] = useState('')
   const [roomPassword, setRoomPassword] = useState('')
+  const [passwordPromptLobbyId, setPasswordPromptLobbyId] = useState<string | null>(null)
   const [createPassword, setCreatePassword] = useState('')
   const [roomName, setRoomName] = useState('')
   const [rooms, setRooms] = useState<PublicRoom[]>([])
@@ -68,6 +71,13 @@ export default function HomePage() {
   useEffect(() => {
     if (playerName) setName(playerName)
   }, [playerName])
+
+  useEffect(() => {
+    const lobbyError = (location.state as { lobbyError?: string } | null)?.lobbyError
+    if (!lobbyError) return
+    setError(lobbyError)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (homeView !== 'menu' || !canShowNudge) return
@@ -113,6 +123,32 @@ export default function HomePage() {
         if (cancelled) return
 
         if (status.status === 'matched' && status.lobbyId) {
+          try {
+            await fetchRoomById(status.lobbyId)
+          } catch {
+            const rejoin = await joinMatchmaking(
+              matchSearch.playerId,
+              matchSearch.playerName,
+              matchSearch.accessToken,
+            )
+            if (rejoin.status === 'matched' && rejoin.lobbyId) {
+              try {
+                await fetchRoomById(rejoin.lobbyId)
+                setIsSearching(false)
+                setMatchSearch(null)
+                navigate(`/lobby/${rejoin.lobbyId}`)
+              } catch {
+                setQueueSize(rejoin.queueSize)
+                setWaitedSeconds(rejoin.waitedSeconds)
+              }
+              return
+            }
+            if (rejoin.status === 'queued') {
+              setQueueSize(rejoin.queueSize)
+              setWaitedSeconds(rejoin.waitedSeconds)
+            }
+            return
+          }
           setIsSearching(false)
           setMatchSearch(null)
           navigate(`/lobby/${status.lobbyId}`)
@@ -212,7 +248,9 @@ export default function HomePage() {
         },
         session.accessToken,
       )
-      navigate(`/lobby/${result.lobbyId}`)
+      navigate(`/lobby/${result.lobbyId}`, {
+        state: { password: createPassword.trim() || undefined },
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed')
     } finally {
@@ -223,11 +261,16 @@ export default function HomePage() {
   const handleJoinCode = async () => {
     if (!joinCode.trim()) return
     setError(null)
+    const password = roomPassword.trim()
     setLoading(true)
     try {
       await prepareOnline()
-      const { lobbyId } = await resolveRoomByCode(joinCode.trim())
-      navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
+      const room = await resolveRoomByCode(joinCode.trim())
+      if (room.hasPassword && !password) {
+        setError('Phòng này có mật khẩu — nhập mật khẩu bên dưới.')
+        return
+      }
+      navigate(`/lobby/${room.lobbyId}`, { state: { password: password || undefined } })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Room not found')
     } finally {
@@ -235,12 +278,18 @@ export default function HomePage() {
     }
   }
 
-  const handleJoinLobby = async (lobbyId: string) => {
+  const handleJoinLobby = async (room: PublicRoom) => {
     setError(null)
+    const password = roomPassword.trim()
+    if (room.hasPassword && !password) {
+      setPasswordPromptLobbyId(room.lobbyId)
+      return
+    }
+    setPasswordPromptLobbyId(null)
     setLoading(true)
     try {
       await prepareOnline()
-      navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
+      navigate(`/lobby/${room.lobbyId}`, { state: { password: password || undefined } })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Join failed')
     } finally {
@@ -261,7 +310,12 @@ export default function HomePage() {
       )
 
       if (joined.status === 'matched' && joined.lobbyId) {
-        navigate(`/lobby/${joined.lobbyId}`)
+        try {
+          await fetchRoomById(joined.lobbyId)
+          navigate(`/lobby/${joined.lobbyId}`)
+        } catch {
+          setError('Phòng ghép trận không còn — hãy tìm trận lại.')
+        }
         return
       }
 
@@ -566,7 +620,10 @@ export default function HomePage() {
                         key={room.lobbyId}
                         room={room}
                         loading={loading}
-                        onJoin={(id) => void handleJoinLobby(id)}
+                        needsPasswordPrompt={passwordPromptLobbyId === room.lobbyId}
+                        roomPassword={roomPassword}
+                        onRoomPasswordChange={setRoomPassword}
+                        onJoin={() => void handleJoinLobby(room)}
                       />
                     ))}
                   </div>

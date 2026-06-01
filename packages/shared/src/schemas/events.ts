@@ -34,12 +34,16 @@ export const LobbyKickSchema = z.object({
   targetPlayerId: z.string().min(1),
 })
 
-export const LobbyUpdateSettingsSchema = z.object({
-  playerId: z.string().min(1),
-  name: z.string().min(1).max(80).optional(),
-  password: z.string().min(1).max(64).optional(),
-  clearPassword: z.boolean().optional(),
-})
+export const LobbyUpdateSettingsSchema = z
+  .object({
+    playerId: z.string().min(1),
+    name: z.string().min(1).max(80).optional(),
+    password: z.string().min(1).max(64).optional(),
+    clearPassword: z.boolean().optional(),
+  })
+  .refine((d) => d.name !== undefined || d.password !== undefined || d.clearPassword === true, {
+    message: 'At least one setting field is required',
+  })
 
 export const LobbyTransferHostSchema = z.object({
   playerId: z.string().min(1),

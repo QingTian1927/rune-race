@@ -25,12 +25,22 @@ export class MatchmakingQueue {
   }
 
   join(playerId: string, playerName: string): void {
+    this.matchedResults.delete(playerId)
     if (this.queue.some((e) => e.playerId === playerId)) return
     this.queue.push({ playerId, playerName, joinedAt: Date.now() })
   }
 
   leave(playerId: string): void {
     this.queue = this.queue.filter((e) => e.playerId !== playerId)
+    this.matchedResults.delete(playerId)
+  }
+
+  clearMatchesForLobby(lobbyId: string): void {
+    for (const [playerId, result] of this.matchedResults) {
+      if (result.lobbyId === lobbyId) {
+        this.matchedResults.delete(playerId)
+      }
+    }
   }
 
   getStatus(playerId: string): {
@@ -42,12 +52,17 @@ export class MatchmakingQueue {
   } {
     const matched = this.matchedResults.get(playerId)
     if (matched) {
-      return {
-        status: 'matched',
-        waitedSeconds: 0,
-        queueSize: this.queue.length,
-        lobbyId: matched.lobbyId,
-        joinCode: matched.joinCode,
+      const lobbyStillExists = Boolean(this.lobbyStore.getSnapshot(matched.lobbyId))
+      if (!lobbyStillExists) {
+        this.matchedResults.delete(playerId)
+      } else {
+        return {
+          status: 'matched',
+          waitedSeconds: 0,
+          queueSize: this.queue.length,
+          lobbyId: matched.lobbyId,
+          joinCode: matched.joinCode,
+        }
       }
     }
 

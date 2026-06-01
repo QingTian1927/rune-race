@@ -5,6 +5,7 @@ import type { ChatStore } from '../chat/chat-store'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
 import type { AnalyticsService } from '../analytics/service'
+import type { MatchmakingQueue } from '../http/matchmaking'
 import { getUserFromAccessToken } from '../lib/supabase-server'
 import { PlayerSocketRegistry } from './player-socket-registry'
 
@@ -46,6 +47,18 @@ function broadcastSystemChat(
 function resolvePlayerId(socket: AppSocket, claimedPlayerId: string): string {
   const { userId } = socket.data as AuthSocketData
   return userId ?? claimedPlayerId
+}
+
+function emitHostRoomPassword(
+  registry: PlayerSocketRegistry,
+  lobbyStore: LobbyStore,
+  lobbyId: string,
+  hostPlayerId: string,
+): void {
+  const roomPassword = lobbyStore.getHostRoomPassword(lobbyId, hostPlayerId)
+  for (const target of registry.getSockets(hostPlayerId)) {
+    target.emit('lobby:host_secrets', { roomPassword })
+  }
 }
 
 function forfeitPlayerInActiveGame(
@@ -133,6 +146,7 @@ export function setupSocketHandlers(
   gameStore: GameStore,
   chatStore: ChatStore,
   analyticsService: AnalyticsService,
+  matchmakingQueue?: MatchmakingQueue,
 ): void {
   const socketRegistry = new PlayerSocketRegistry()
 
@@ -151,6 +165,7 @@ export function setupSocketHandlers(
     },
     onDestroy: (lobbyId) => {
       chatStore.clearLobby(lobbyId)
+      matchmakingQueue?.clearMatchesForLobby(lobbyId)
       io.to(`lobby:${lobbyId}`).emit('lobby:closed', { lobbyId, reason: 'empty' })
     },
     onPlayerTimedOut: (lobbyId, player, { wasInGame }) => {
@@ -251,6 +266,10 @@ export function setupSocketHandlers(
         }
         const latestSnapshot = lobbyStore.getSnapshot(snapshot.lobbyId) ?? snapshot
         io.to(`lobby:${snapshot.lobbyId}`).emit('lobby:snapshot', latestSnapshot)
+
+        if (latestSnapshot.players.find((p) => p.id === playerId)?.isHost) {
+          emitHostRoomPassword(socketRegistry, lobbyStore, snapshot.lobbyId, playerId)
+        }
 
         const isReconnect = priorLobbyId === snapshot.lobbyId
         if (!isReconnect) {
@@ -386,6 +405,7 @@ export function setupSocketHandlers(
           clearPassword: cmd.clearPassword,
         })
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        emitHostRoomPassword(socketRegistry, lobbyStore, lobbyId, playerId)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'SETTINGS_FAILED')
       }
@@ -399,6 +419,7 @@ export function setupSocketHandlers(
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.transferHost(lobbyId, playerId, cmd.newHostPlayerId)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        emitHostRoomPassword(socketRegistry, lobbyStore, lobbyId, cmd.newHostPlayerId)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'TRANSFER_FAILED')
       }

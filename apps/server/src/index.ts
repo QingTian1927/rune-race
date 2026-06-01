@@ -37,9 +37,11 @@ const analyticsService = new AnalyticsService({
 analyticsService.start()
 void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 
-setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService)
-
 const matchmaking = new MatchmakingQueue(lobbyStore)
+
+setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService, matchmaking)
+
+lobbyStore.startCleanupTimer()
 
 registerRoomRoutes(fastify, lobbyStore)
 registerMatchmakingRoutes(fastify, matchmaking)
@@ -73,6 +75,8 @@ fastify.post('/dev/create-room', async (request) => {
 const shutdown = async (signal: string) => {
   fastify.log.info({ signal }, 'Shutting down')
   analyticsService.stop()
+  matchmaking.shutdown()
+  lobbyStore.stopCleanupTimer()
   try {
     await fastify.close()
   } catch (err) {

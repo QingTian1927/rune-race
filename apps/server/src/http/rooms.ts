@@ -11,7 +11,7 @@ export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbySt
         lobbyId: l.lobbyId,
         joinCode: l.joinCode,
         name: l.settings.name,
-        playerCount: l.playerCount,
+        playerCount: l.players.filter((p) => p.connected).length,
         maxPlayers: l.settings.maxPlayers,
         hasPassword: l.settings.hasPassword,
         status: l.status,
@@ -25,6 +25,23 @@ export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbySt
     if (!lobbyId) {
       return reply.status(404).send({ error: 'Room not found' })
     }
+    const snapshot = lobbyStore.getSnapshot(lobbyId)
+    if (!snapshot) {
+      return reply.status(404).send({ error: 'Room not found' })
+    }
+    return {
+      lobbyId: snapshot.lobbyId,
+      joinCode: snapshot.joinCode,
+      name: snapshot.settings.name,
+      playerCount: snapshot.playerCount,
+      maxPlayers: snapshot.settings.maxPlayers,
+      hasPassword: snapshot.settings.hasPassword,
+      status: snapshot.status,
+    }
+  })
+
+  fastify.get('/api/rooms/:lobbyId', async (request, reply) => {
+    const { lobbyId } = request.params as { lobbyId: string }
     const snapshot = lobbyStore.getSnapshot(lobbyId)
     if (!snapshot) {
       return reply.status(404).send({ error: 'Room not found' })
