@@ -1,5 +1,8 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
 # Deploy: Dashboard → New → Blueprint → connect repo, or `render blueprint launch`
+#
+# After first deploy, set rune-race-api → CLIENT_ORIGIN to both public URLs, comma-separated:
+#   https://<rune-race>.onrender.com,https://<rune-race-admin>.onrender.com
 
 services:
   # Game API + Socket.IO
@@ -23,7 +26,10 @@ services:
         sync: false
       - key: SUPABASE_SECRET_KEY
         sync: false
+      # Comma-separated: game client + admin (use each service's onrender.com URL)
       - key: CLIENT_ORIGIN
+        sync: false
+      - key: ADMIN_USER_IDS
         sync: false
 
   # Vite static client (React + R3F)
@@ -50,4 +56,30 @@ services:
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+
+  # Internal admin dashboard (analytics, feature flags)
+  - type: web
+    name: rune-race-admin
+    runtime: static
+    buildCommand: >-
+      corepack prepare pnpm@latest --activate &&
+      corepack pnpm install --frozen-lockfile &&
+      corepack pnpm build:admin
+    staticPublishPath: apps/admin/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: rune-race-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
         sync: false
