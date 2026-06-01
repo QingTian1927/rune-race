@@ -12,16 +12,18 @@
   "scripts": {
     "setup": "pnpm install",
     "dev:web": "pnpm --filter @rune-race/web dev",
+    "dev:admin": "pnpm --filter @rune-race/admin dev",
     "dev:server": "pnpm --filter @rune-race/server dev",
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "build:web": "pnpm --filter @rune-race/web build",
+    "build:admin": "pnpm --filter @rune-race/admin build",
     "build:server": "pnpm build:shared && pnpm build:game-engine && pnpm --filter @rune-race/server build",
     "build:render": "pnpm build:shared && pnpm build:game-engine && pnpm build:server && pnpm build:web",
     "build:shared": "pnpm --filter @rune-race/shared build",
     "build:game-engine": "pnpm --filter @rune-race/game-engine build",
     "test:game-engine": "pnpm --filter @rune-race/game-engine test",
     "test:server": "pnpm --filter @rune-race/server test",
-    "type-check": "pnpm --filter @rune-race/web type-check"
+    "type-check": "pnpm --filter @rune-race/web type-check && pnpm --filter @rune-race/admin type-check"
   }
 }

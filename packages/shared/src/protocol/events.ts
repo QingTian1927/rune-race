@@ -13,6 +13,8 @@ import type { PlayerColor } from '../types/game'
 export interface ServerToClientEvents {
   // --- Lobby ---
   'lobby:connected': (payload: { playerId: string; lobbyId: string }) => void
+  /** Host only — current room password for display (not broadcast to other players). */
+  'lobby:host_secrets': (payload: { roomPassword: string | null }) => void
   'lobby:snapshot': (payload: LobbySnapshot) => void
   'lobby:start_countdown': (payload: { seconds: number }) => void
   'lobby:start_countdown_cancelled': (payload: { reason: string }) => void

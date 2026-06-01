@@ -870,6 +870,68 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
 }
 .room-meta { font-size:12px; font-weight:700; color:var(--text-mid); margin-top:1px; }
 
+.room-card-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: min(180px, 42vw);
+}
+
+.room-card-password-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.room-card-password-hint {
+  margin: 0;
+  font-size: 11px;
+  text-align: right;
+}
+
+.lobby-password-gate {
+  margin: 0 auto 1rem;
+  max-width: 420px;
+}
+
+.lobby-settings-hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.host-password-wrap {
+  position: relative;
+}
+
+.host-password-input {
+  padding-right: 44px !important;
+}
+
+.host-password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #5a7ab8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.host-password-toggle:hover {
+  color: #3d5f9e;
+  background: rgba(255, 255, 255, 0.95);
+}
+
 .join-btn {
   background: linear-gradient(160deg,#52D475,#28944C);
   border: none;
@@ -1691,6 +1753,41 @@ a.nav-btn {
   transform: translateY(-1px);
 }
 
+.player-chip-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-chip-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: 0 -6px 0 -2px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(42, 111, 192, 0.12);
+  color: #2a6fc0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.player-chip-edit-btn:hover {
+  background: rgba(42, 111, 192, 0.22);
+  color: #1a5aa8;
+  transform: scale(1.05);
+}
+
+.player-chip-edit-btn:focus-visible {
+  outline: 2px solid #2a6fc0;
+  outline-offset: 2px;
+}
+
 .player-chip-input {
   border: none;
   background: transparent;
@@ -1701,6 +1798,12 @@ a.nav-btn {
   outline: none;
   min-width: 80px;
   max-width: 140px;
+}
+
+.player-chip-input--editing {
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 8px;
+  padding: 2px 8px;
 }
 
 .player-chip-link {
@@ -1862,6 +1965,47 @@ select.game-input {
 
 .sky-auth-footer a:hover {
   text-decoration: underline;
+}
+
+/* Login / signup — roomier form spacing */
+.sky-form-stage.sky-auth-form .panel-head {
+  padding: 18px 22px 16px;
+  gap: 14px;
+}
+
+.sky-form-stage.sky-auth-form .panel-subtitle {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.sky-form-stage.sky-auth-form .panel-body {
+  padding: 20px 22px 24px;
+}
+
+.sky-form-stage.sky-auth-form .sky-form-stack {
+  gap: 16px;
+}
+
+.sky-form-stage.sky-auth-form .panel-body .field-block + .field-block {
+  margin-top: 0;
+}
+
+.sky-form-stage.sky-auth-form .panel-body .field-label {
+  margin-bottom: 6px;
+}
+
+.sky-form-stage.sky-auth-form .sky-form-stack > .game-btn:first-of-type {
+  margin-top: 4px;
+}
+
+.sky-form-stage.sky-auth-form .sky-auth-footer {
+  margin-top: 20px;
+  padding-top: 4px;
+}
+
+.sky-form-stage.sky-auth-form .sky-alert-error,
+.sky-form-stage.sky-auth-form .sky-alert-success {
+  margin-bottom: 16px;
 }
 
 .game-textarea {
@@ -2804,4 +2948,152 @@ a.game-btn {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Account nudge overlay (anon → register) */
+.account-nudge-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: rgba(12, 28, 58, 0.55);
+  backdrop-filter: blur(6px);
+  animation: account-nudge-fade-in 0.22s ease;
+}
+
+@keyframes account-nudge-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.account-nudge-dialog {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(92vh, 720px);
+  overflow-y: auto;
+  box-shadow: 0 24px 48px rgba(20, 50, 100, 0.35);
+  animation: account-nudge-rise 0.28s ease;
+}
+
+.account-nudge-dialog .panel-head {
+  padding: 20px 22px 18px;
+  gap: 14px;
+}
+
+@keyframes account-nudge-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.account-nudge-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+  color: #3b5ba0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-nudge-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.account-nudge-lead {
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
+.account-nudge-alert {
+  margin: 0 22px 12px;
+}
+
+.account-nudge-body {
+  padding: 20px 22px 22px;
+  gap: 16px;
+}
+
+.account-nudge-body.sky-form-stack {
+  gap: 16px;
+}
+
+.account-nudge-dialog .field-block + .field-block {
+  margin-top: 0;
+}
+
+.account-nudge-cta-primary {
+  text-decoration: none;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
+  box-shadow: 0 6px 0 #2a7a3a, 0 10px 20px rgba(40, 120, 60, 0.25);
+}
+
+.account-nudge-cta-primary:hover {
+  filter: brightness(1.03);
+}
+
+.account-nudge-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6a7fa8;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 6px 0 8px;
+}
+
+.account-nudge-divider::before,
+.account-nudge-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(90, 120, 170, 0.35);
+}
+
+.account-nudge-footer {
+  padding: 8px 22px 24px;
+  text-align: center;
+  border-top: 2px dashed rgba(255, 200, 60, 0.25);
+  margin-top: 4px;
+}
+
+.account-nudge-dismiss {
+  border: none;
+  background: none;
+  color: #7a8fb5;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 10px 12px;
+  max-width: 28em;
+}
+
+.account-nudge-dismiss:hover {
+  color: #5a7098;
 }

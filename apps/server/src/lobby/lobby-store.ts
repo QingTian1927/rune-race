@@ -27,6 +27,8 @@ export interface LobbyRecord {
   settings: LobbySettings
   players: InternalLobbyPlayer[]
   passwordHash: string | null
+  /** Plaintext for host display only — never included in lobby snapshots. */
+  passwordPlaintext: string | null
   currentGameId: string | null
   countdownSeconds: number | null
   countdownTimer: ReturnType<typeof setInterval> | null
@@ -56,6 +58,8 @@ function buildSettings(name: string): LobbySettings {
   }
 }
 
+const DEFAULT_LOBBY_CLEANUP_INTERVAL_MS = 30_000
+
 export class LobbyStore {
   private lobbies = new Map<string, LobbyRecord>()
   private joinCodeIndex = new Map<string, string>()
@@ -64,6 +68,7 @@ export class LobbyStore {
   private onDestroy: LobbyDestroyListener | null = null
   private onPlayerTimedOut: LobbyPlayerTimedOutListener | null = null
   private onGameStart: GameStartListener | null = null
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null
 
   setListeners(listeners: {
     onChange?: LobbyChangeListener
@@ -75,6 +80,42 @@ export class LobbyStore {
     this.onDestroy = listeners.onDestroy ?? null
     this.onPlayerTimedOut = listeners.onPlayerTimedOut ?? null
     this.onGameStart = listeners.onGameStart ?? null
+  }
+
+  startCleanupTimer(intervalMs = DEFAULT_LOBBY_CLEANUP_INTERVAL_MS): void {
+    if (this.cleanupTimer) return
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupStaleLobbies()
+    }, intervalMs)
+  }
+
+  stopCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+  }
+
+  /** Removes empty lobbies and abandoned waiting rooms (no connected players). */
+  cleanupStaleLobbies(): number {
+    let removed = 0
+    for (const lobbyId of [...this.lobbies.keys()]) {
+      const record = this.lobbies.get(lobbyId)
+      if (!record) continue
+
+      if (record.players.length === 0) {
+        this.destroyLobby(lobbyId)
+        removed += 1
+        continue
+      }
+
+      const anyConnected = record.players.some((p) => p.connected)
+      if (!anyConnected && record.status === 'lobby') {
+        this.destroyLobby(lobbyId)
+        removed += 1
+      }
+    }
+    return removed
   }
 
   createLobby(options: {
@@ -91,7 +132,8 @@ export class LobbyStore {
     }
 
     const settings = buildSettings(options.name ?? `Room ${joinCode}`)
-    const passwordHash = options.password ? hashPassword(options.password) : null
+    const roomPassword = options.password?.trim() || null
+    const passwordHash = roomPassword ? hashPassword(roomPassword) : null
     if (passwordHash) {
       settings.hasPassword = true
     }
@@ -101,7 +143,7 @@ export class LobbyStore {
       name: options.hostName,
       color: null,
       ready: false,
-      connected: true,
+      connected: false,
       isHost: true,
       disconnectTimer: null,
     }
@@ -114,6 +156,7 @@ export class LobbyStore {
       settings,
       players: [host],
       passwordHash,
+      passwordPlaintext: roomPassword,
       currentGameId: null,
       countdownSeconds: null,
       countdownTimer: null,
@@ -146,7 +189,12 @@ export class LobbyStore {
 
   listPublicLobbies(): LobbySnapshot[] {
     return [...this.lobbies.values()]
-      .filter((l) => l.visibility === 'public' && l.status === 'lobby')
+      .filter(
+        (l) =>
+          l.visibility === 'public' &&
+          l.status === 'lobby' &&
+          l.players.some((p) => p.connected),
+      )
       .map((l) => this.toSnapshot(l))
   }
 
@@ -167,11 +215,15 @@ export class LobbyStore {
       throw new Error('Game already in progress')
     }
 
-    if (record.passwordHash && !verifyPassword(params.password ?? '', record.passwordHash)) {
+    const existing = record.players.find((p) => p.id === params.playerId)
+    if (
+      !existing &&
+      record.passwordHash &&
+      !verifyPassword(params.password ?? '', record.passwordHash)
+    ) {
       throw new Error('Invalid password')
     }
 
-    const existing = record.players.find((p) => p.id === params.playerId)
     if (existing) {
       this.clearDisconnectTimer(existing)
       existing.connected = true
@@ -191,7 +243,7 @@ export class LobbyStore {
       name: params.playerName,
       color: null,
       ready: false,
-      connected: true,
+      connected: false,
       isHost: false,
       disconnectTimer: null,
     })
@@ -333,15 +385,24 @@ export class LobbyStore {
     }
     if (patch.clearPassword) {
       record.passwordHash = null
+      record.passwordPlaintext = null
       record.settings.hasPassword = false
     } else if (patch.password) {
-      record.passwordHash = hashPassword(patch.password)
+      const roomPassword = patch.password.trim()
+      record.passwordHash = hashPassword(roomPassword)
+      record.passwordPlaintext = roomPassword
       record.settings.hasPassword = true
     }
 
     const snapshot = this.toSnapshot(record)
     this.emitChange(lobbyId, snapshot)
     return snapshot
+  }
+
+  getHostRoomPassword(lobbyId: string, playerId: string): string | null {
+    const record = this.lobbies.get(lobbyId)
+    if (!record || record.hostPlayerId !== playerId) return null
+    return record.passwordPlaintext
   }
 
   transferHost(lobbyId: string, hostId: string, newHostId: string): LobbySnapshot {
@@ -430,6 +491,14 @@ export class LobbyStore {
 
   getLobbyIdForPlayer(playerId: string): string | undefined {
     return this.playerLobbyIndex.get(playerId)
+  }
+
+  getActiveLobbyCount(): number {
+    let count = 0
+    for (const lobby of this.lobbies.values()) {
+      if (lobby.players.length > 0) count += 1
+    }
+    return count
   }
 
   /** Called when a game ends — return lobby to waiting state. */

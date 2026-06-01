@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useMyProfilePath, usePlayerIdentity } from '../../hooks/usePlayerIdentity'
+import { AnonNameField } from './AnonNameField'
 
 type GameHeaderProps = {
   name: string
@@ -9,8 +10,8 @@ type GameHeaderProps = {
 }
 
 export function GameHeader({ name, onNameChange, onNameBlur }: GameHeaderProps) {
-  const { signOut, isRegistered } = useAuth()
-  const { playerName, avatarEmoji, canEditNameOnHome } = usePlayerIdentity()
+  const { signOut, isRegistered, loading: authLoading } = useAuth()
+  const { avatarEmoji, isAnon } = usePlayerIdentity()
   const profilePath = useMyProfilePath()
 
   return (
@@ -64,11 +65,13 @@ export function GameHeader({ name, onNameChange, onNameBlur }: GameHeaderProps) 
           )}
           {isRegistered ? (
             <>
-              <span>{playerName}</span>
+              <span className="player-chip-name">{name.trim() || 'Player'}</span>
               <Link to="/profile/edit" className="player-chip-link">
                 Sửa
               </Link>
             </>
+          ) : isAnon && !authLoading ? (
+            <AnonNameField name={name} onNameChange={onNameChange} onNameBlur={onNameBlur} />
           ) : (
             <input
               className="player-chip-input"
@@ -78,7 +81,6 @@ export function GameHeader({ name, onNameChange, onNameBlur }: GameHeaderProps) 
               placeholder="Player"
               maxLength={50}
               aria-label="Tên hiển thị"
-              disabled={!canEditNameOnHome && Boolean(playerName)}
             />
           )}
         </div>

@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
+import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { PLAYER_GRADIENT } from '../components/sky/skyColors'
 import { useLobbyBackButton } from '../components/sky/useLobbyBackButton'
 import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import { useLobbySocket } from '../hooks/useLobbySocket'
+import { useAuth } from '../hooks/useAuth'
+import { useFeatureFlags } from '../hooks/useFeatureFlags'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { markLobbyNudgeDismissed, wasLobbyNudgeDismissed } from '../lib/accountNudge'
 import { useRoomChat } from '../hooks/useRoomChat'
 import { isLikelySupabaseUserId } from '../lib/authUserId'
+import { fetchRoomById, leaveMatchmaking } from '../lib/api'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
 import { getSocket, retainLobbyOnUnmount } from '../lib/socket'
-import { supabase } from '../lib/supabase'
-import { updateDisplayName } from '../lib/api'
 
 const COLOR_TITLES: Record<PlayerColor, string> = {
   red: 'Đỏ',
@@ -26,12 +29,60 @@ export default function LobbyPage() {
   const { lobbyId } = useParams<{ lobbyId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const password = (location.state as { password?: string } | null)?.password
+  const routePassword = (location.state as { password?: string } | null)?.password?.trim() ?? ''
+  const [joinPassword, setJoinPassword] = useState(routePassword)
+  const [roomHasPassword, setRoomHasPassword] = useState<boolean | null>(null)
   const [copied, setCopied] = useState(false)
   const [name, setName] = useState(getPlayerName())
 
+  useEffect(() => {
+    setJoinPassword(routePassword)
+  }, [routePassword, lobbyId])
+
+  useEffect(() => {
+    if (!lobbyId) return
+    let cancelled = false
+    void fetchRoomById(lobbyId)
+      .then((room) => {
+        if (!cancelled) setRoomHasPassword(room.hasPassword)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRoomHasPassword(null)
+          navigate('/', {
+            replace: true,
+            state: { lobbyError: 'Phòng không còn tồn tại — có thể đã bị đóng.' },
+          })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [lobbyId, navigate])
+
+  const resolvedPassword = joinPassword.trim() || undefined
+  const needsPassword = roomHasPassword === true
+  const canAttemptJoin =
+    Boolean(lobbyId) &&
+    roomHasPassword !== null &&
+    (!needsPassword || Boolean(resolvedPassword))
+
+  const { loading: authLoading, isRegistered } = useAuth()
+  const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
   const { playerId, playerName, accessToken, canEditNameOnHome, identityReady } = usePlayerIdentity()
   const backRef = useLobbyBackButton(Boolean(lobbyId))
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const canShowNudge =
+    accountNudgeEnabled && !isRegistered && !authLoading && !flagsLoading
+
+  const closeLobbyNudge = useCallback(() => {
+    if (lobbyId) markLobbyNudgeDismissed(lobbyId)
+    setNudgeOpen(false)
+  }, [lobbyId])
+
+  useEffect(() => {
+    if (isRegistered) setNudgeOpen(false)
+  }, [isRegistered])
 
   const handleLobbyRemoved = useCallback(
     (_reason: 'closed' | 'kicked' | 'disconnect_timeout') => {
@@ -42,6 +93,7 @@ export default function LobbyPage() {
 
   const {
     snapshot,
+    hostRoomPassword,
     error,
     connected,
     setColor,
@@ -51,10 +103,16 @@ export default function LobbyPage() {
     cancelCountdown,
     updateSettings,
     transferHost,
-  } = useLobbySocket(lobbyId ?? '', playerId, playerName, password, accessToken, {
-    enabled: identityReady && Boolean(lobbyId),
+  } = useLobbySocket(lobbyId ?? '', playerId, playerName, resolvedPassword, accessToken, {
+    enabled: identityReady && canAttemptJoin,
     onRemoved: handleLobbyRemoved,
   })
+
+  const passwordMismatch = /invalid password/i.test(error ?? '')
+  const showPasswordGate =
+    Boolean(lobbyId) &&
+    !snapshot &&
+    ((needsPassword && !resolvedPassword) || passwordMismatch)
 
   const {
     messages: chatMessages,
@@ -72,6 +130,13 @@ export default function LobbyPage() {
   useEffect(() => {
     void ensureOnlineSession(playerName).catch(() => {})
   }, [playerName])
+
+  useEffect(() => {
+    if (!lobbyId || !canShowNudge || wasLobbyNudgeDismissed(lobbyId)) return
+    if (!identityReady || !snapshot) return
+    const timer = window.setTimeout(() => setNudgeOpen(true), 400)
+    return () => window.clearTimeout(timer)
+  }, [lobbyId, identityReady, snapshot, canShowNudge])
 
   useEffect(() => {
     if (!lobbyId) return
@@ -99,10 +164,10 @@ export default function LobbyPage() {
 
   const saveAnonDisplayName = async () => {
     setPlayerName(name)
-    if (!canEditNameOnHome || !accessToken) return
+    const trimmed = name.trim()
+    if (!trimmed || !canEditNameOnHome) return
     try {
-      await updateDisplayName(accessToken, name.trim())
-      await supabase.auth.refreshSession()
+      await ensureOnlineSession(trimmed)
     } catch {
       // ignore on lobby
     }
@@ -121,6 +186,9 @@ export default function LobbyPage() {
 
   const handleGoHome = () => {
     leave()
+    if (playerId) {
+      void leaveMatchmaking(playerId, accessToken)
+    }
     navigate('/')
   }
 
@@ -155,6 +223,7 @@ export default function LobbyPage() {
       onPlayerNameChange={setName}
       onPlayerNameBlur={() => void saveAnonDisplayName()}
     >
+      <AccountNudgeModal open={nudgeOpen} onClose={closeLobbyNudge} />
       {snapshot ? (
         <RoomChatPanel
           placement="lobby"
@@ -206,9 +275,57 @@ export default function LobbyPage() {
           </div>
         </div>
 
-        {error ? <div className="sky-alert-error">{error}</div> : null}
+        {error && !showPasswordGate ? <div className="sky-alert-error">{error}</div> : null}
 
-        {!snapshot && !error ? (
+        {showPasswordGate ? (
+          <div className="panel p-blue lobby-password-gate">
+            <div className="panel-head">
+              <div className="panel-icon icon-blue">
+                <i className="bi bi-lock-fill" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="panel-title">Mật khẩu phòng</div>
+                <div className="panel-subtitle">
+                  {passwordMismatch
+                    ? 'Mật khẩu không đúng — thử lại'
+                    : 'Phòng này được bảo vệ bằng mật khẩu'}
+                </div>
+              </div>
+            </div>
+            <div className="panel-body">
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-key-fill" aria-hidden="true" />
+                </span>
+                <input
+                  type="password"
+                  className="game-input"
+                  placeholder="Nhập mật khẩu"
+                  value={joinPassword}
+                  onChange={(e) => setJoinPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && joinPassword.trim()) {
+                      e.preventDefault()
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+              <button
+                type="button"
+                className="game-btn btn-blue"
+                disabled={!joinPassword.trim() || !identityReady}
+                onClick={() => {
+                  if (!joinPassword.trim()) return
+                }}
+              >
+                Vào phòng
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!snapshot && !error && !showPasswordGate ? (
           <p className="room-list-empty">Đang tải phòng...</p>
         ) : null}
 
@@ -323,6 +440,8 @@ export default function LobbyPage() {
                     onTransferHost={transferHost}
                     players={players}
                     currentName={snapshot.settings.name ?? ''}
+                    hasPassword={snapshot.settings.hasPassword}
+                    roomPassword={hostRoomPassword}
                   />
                 ) : null}
 
@@ -369,12 +488,35 @@ function HostPanel({
   onTransferHost,
   players,
   currentName,
+  hasPassword,
+  roomPassword,
 }: {
   onUpdateSettings: (p: { name?: string; password?: string; clearPassword?: boolean }) => void
   onTransferHost: (id: string) => void
   players: Array<{ id: string; name: string; isHost: boolean }>
   currentName: string
+  hasPassword: boolean
+  roomPassword: string | null
 }) {
+  const [draftPassword, setDraftPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (roomPassword !== null) {
+      setDraftPassword(roomPassword)
+    } else if (!hasPassword) {
+      setDraftPassword('')
+    }
+  }, [roomPassword, hasPassword])
+
+  const handleClearPassword = () => {
+    setDraftPassword('')
+    setShowPassword(false)
+    onUpdateSettings({ clearPassword: true })
+    setSettingsMessage('Đã xóa mật khẩu phòng')
+  }
+
   return (
     <div className="panel p-green lobby-panel-host">
       <div className="panel-head">
@@ -400,26 +542,47 @@ function HostPanel({
           />
         </div>
         <div>
-          <div className="field-label">Mật khẩu mới</div>
-          <div className="input-wrap">
+          <div className="field-label">Mật khẩu phòng</div>
+          <div className="input-wrap host-password-wrap">
             <span className="input-icon">
               <i className="bi bi-key-fill" aria-hidden="true" />
             </span>
             <input
               id="host-room-password"
-              type="password"
-              placeholder="Để trống nếu không đổi"
-              className="game-input"
-              onBlur={(e) => {
-                if (e.target.value) onUpdateSettings({ password: e.target.value })
+              type={showPassword ? 'text' : 'password'}
+              placeholder={hasPassword ? 'Mật khẩu hiện tại' : 'Đặt mật khẩu phòng'}
+              className="game-input host-password-input"
+              value={draftPassword}
+              onChange={(e) => setDraftPassword(e.target.value)}
+              onBlur={() => {
+                const trimmed = draftPassword.trim()
+                if (!trimmed) return
+                if (trimmed === (roomPassword ?? '')) return
+                onUpdateSettings({ password: trimmed })
+                setSettingsMessage('Đã cập nhật mật khẩu phòng')
               }}
+              autoComplete="off"
             />
+            <button
+              type="button"
+              className="host-password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              aria-pressed={showPassword}
+            >
+              <i
+                className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}
+                aria-hidden="true"
+              />
+            </button>
           </div>
         </div>
+        {settingsMessage ? <p className="muted lobby-settings-hint">{settingsMessage}</p> : null}
         <button
           type="button"
           className="text-link-btn"
-          onClick={() => onUpdateSettings({ clearPassword: true })}
+          disabled={!hasPassword && !draftPassword.trim()}
+          onClick={handleClearPassword}
         >
           Xóa mật khẩu
         </button>

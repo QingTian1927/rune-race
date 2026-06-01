@@ -4,6 +4,8 @@ import { validateCommand } from '@rune-race/shared'
 import type { ChatStore } from '../chat/chat-store'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
+import type { AnalyticsService } from '../analytics/service'
+import type { MatchmakingQueue } from '../http/matchmaking'
 import { getUserFromAccessToken } from '../lib/supabase-server'
 import { PlayerSocketRegistry } from './player-socket-registry'
 
@@ -45,6 +47,18 @@ function broadcastSystemChat(
 function resolvePlayerId(socket: AppSocket, claimedPlayerId: string): string {
   const { userId } = socket.data as AuthSocketData
   return userId ?? claimedPlayerId
+}
+
+function emitHostRoomPassword(
+  registry: PlayerSocketRegistry,
+  lobbyStore: LobbyStore,
+  lobbyId: string,
+  hostPlayerId: string,
+): void {
+  const roomPassword = lobbyStore.getHostRoomPassword(lobbyId, hostPlayerId)
+  for (const target of registry.getSockets(hostPlayerId)) {
+    target.emit('lobby:host_secrets', { roomPassword })
+  }
 }
 
 function forfeitPlayerInActiveGame(
@@ -131,6 +145,8 @@ export function setupSocketHandlers(
   lobbyStore: LobbyStore,
   gameStore: GameStore,
   chatStore: ChatStore,
+  analyticsService: AnalyticsService,
+  matchmakingQueue?: MatchmakingQueue,
 ): void {
   const socketRegistry = new PlayerSocketRegistry()
 
@@ -149,10 +165,23 @@ export function setupSocketHandlers(
     },
     onDestroy: (lobbyId) => {
       chatStore.clearLobby(lobbyId)
+      matchmakingQueue?.clearMatchesForLobby(lobbyId)
       io.to(`lobby:${lobbyId}`).emit('lobby:closed', { lobbyId, reason: 'empty' })
     },
     onPlayerTimedOut: (lobbyId, player, { wasInGame }) => {
       notifyPlayerRemoved(socketRegistry, lobbyId, player.id, 'disconnect_timeout')
+      analyticsService.onLobbyLeft(player.id, lobbyId, 'disconnect_timeout')
+      if (socketRegistry.getSockets(player.id).length === 0) {
+        analyticsService.onPresenceDisconnected(player.id, lobbyId, 'disconnect_timeout')
+      }
+      if (wasInGame) {
+        analyticsService.onGameForfeit(
+          lobbyStore.getSnapshot(lobbyId)?.currentGameId ?? '',
+          lobbyId,
+          player.id,
+        )
+      }
+      void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
       if (!wasInGame) {
         broadcastSystemChat(io, chatStore, lobbyId, player, 'player_left')
       }
@@ -160,6 +189,12 @@ export function setupSocketHandlers(
     onGameStart: ({ lobbyId, gameId, players, firstPlayerId }) => {
       lobbyStore.setInGame(lobbyId, gameId)
       const state = gameStore.createGame({ gameId, lobbyId, players, firstPlayerId })
+      analyticsService.onGameStarted(
+        gameId,
+        lobbyId,
+        players.map((player) => player.id),
+      )
+      void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 
       io.to(`lobby:${lobbyId}`).emit('lobby:game_started', {
         gameId,
@@ -192,6 +227,8 @@ export function setupSocketHandlers(
         events: state.events,
       })
       lobbyStore.resetAfterGame(lobbyId)
+      analyticsService.onGameFinished(gameId, lobbyId, state)
+      void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
     },
   })
 
@@ -218,6 +255,9 @@ export function setupSocketHandlers(
           password: cmd.password,
         })
         trackLobby(snapshot.lobbyId, playerId)
+        analyticsService.onPresenceConnected(playerId, snapshot.lobbyId)
+        analyticsService.onLobbyJoined(playerId, snapshot.lobbyId)
+        void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
         socket.emit('lobby:connected', { playerId, lobbyId: snapshot.lobbyId })
 
         const { userId } = socket.data as AuthSocketData
@@ -226,6 +266,10 @@ export function setupSocketHandlers(
         }
         const latestSnapshot = lobbyStore.getSnapshot(snapshot.lobbyId) ?? snapshot
         io.to(`lobby:${snapshot.lobbyId}`).emit('lobby:snapshot', latestSnapshot)
+
+        if (latestSnapshot.players.find((p) => p.id === playerId)?.isHost) {
+          emitHostRoomPassword(socketRegistry, lobbyStore, snapshot.lobbyId, playerId)
+        }
 
         const isReconnect = priorLobbyId === snapshot.lobbyId
         if (!isReconnect) {
@@ -289,6 +333,9 @@ export function setupSocketHandlers(
         const playerId = resolvePlayerId(socket, cmd.playerId)
         const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
         if (!lobbyId) return
+        const lobbySnapshot = lobbyStore.getSnapshot(lobbyId)
+        const forfeitGameId =
+          lobbySnapshot?.status === 'in_game' ? lobbySnapshot.currentGameId : undefined
         removePlayerImmediately(
           io,
           chatStore,
@@ -302,6 +349,11 @@ export function setupSocketHandlers(
             leavingSocket: socket,
           },
         )
+        analyticsService.onLobbyLeft(playerId, lobbyId, 'leave')
+        if (forfeitGameId) {
+          analyticsService.onGameForfeit(forfeitGameId, lobbyId, playerId)
+        }
+        void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'LEAVE_FAILED')
       }
@@ -317,6 +369,8 @@ export function setupSocketHandlers(
         const target = snapshot?.players.find((p) => p.id === cmd.targetPlayerId)
         notifyPlayerRemoved(socketRegistry, lobbyId, cmd.targetPlayerId, 'kicked')
         lobbyStore.kickPlayer(lobbyId, playerId, cmd.targetPlayerId)
+        analyticsService.onLobbyLeft(cmd.targetPlayerId, lobbyId, 'kick')
+        void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
         if (target) {
           broadcastSystemChat(io, chatStore, lobbyId, target, 'player_left')
         }
@@ -351,6 +405,7 @@ export function setupSocketHandlers(
           clearPassword: cmd.clearPassword,
         })
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        emitHostRoomPassword(socketRegistry, lobbyStore, lobbyId, playerId)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'SETTINGS_FAILED')
       }
@@ -364,6 +419,7 @@ export function setupSocketHandlers(
         if (!lobbyId) throw new Error('Not in a lobby')
         const snapshot = lobbyStore.transferHost(lobbyId, playerId, cmd.newHostPlayerId)
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        emitHostRoomPassword(socketRegistry, lobbyStore, lobbyId, cmd.newHostPlayerId)
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'TRANSFER_FAILED')
       }
@@ -490,14 +546,16 @@ export function setupSocketHandlers(
     })
 
     socket.on('disconnect', () => {
+      const data = socket.data as { lobbyId?: string; playerId?: string }
       socketRegistry.untrack(socket)
 
-      const data = socket.data as { lobbyId?: string; playerId?: string }
       if (!data.lobbyId || !data.playerId) return
 
       const { lobbyId, playerId } = data
       const snapshot = lobbyStore.getSnapshot(lobbyId)
       const player = snapshot?.players.find((p) => p.id === playerId)
+      const forfeitGameId =
+        snapshot?.status === 'in_game' ? snapshot.currentGameId : undefined
 
       if (player && snapshot?.status === 'in_game') {
         broadcastSystemChat(io, chatStore, lobbyId, player, 'player_left_game')
@@ -505,6 +563,15 @@ export function setupSocketHandlers(
 
       forfeitPlayerInActiveGame(lobbyStore, gameStore, playerId)
       lobbyStore.markDisconnected(lobbyId, playerId)
+
+      const stillConnected = socketRegistry.getSockets(playerId).length > 0
+      if (!stillConnected) {
+        analyticsService.onPresenceDisconnected(playerId, lobbyId, 'disconnect')
+        if (forfeitGameId) {
+          analyticsService.onGameForfeit(forfeitGameId, lobbyId, playerId)
+        }
+      }
+      void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 
       const updatedSnapshot = lobbyStore.getSnapshot(lobbyId)
       if (updatedSnapshot) {

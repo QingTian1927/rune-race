@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
 import {
   createRoom,
   fetchPublicRooms,
+  fetchRoomById,
   getMatchmakingStatus,
   joinMatchmaking,
   leaveMatchmaking,
   resolveRoomByCode,
-  updateDisplayName,
   type PublicRoom,
 } from '../lib/api'
+import { HOME_FORM_NUDGE_DELAY_MS } from '../lib/accountNudge'
+import { useAuth } from '../hooks/useAuth'
+import { useFeatureFlags } from '../hooks/useFeatureFlags'
+import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
-import { supabase } from '../lib/supabase'
-import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
 import { PublicRoomCard } from '../components/sky/PublicRoomCard'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 
@@ -28,13 +31,32 @@ type MatchSearchSession = {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { playerName, accessToken, canEditNameOnHome } = usePlayerIdentity()
+  const location = useLocation()
+  const { playerName } = usePlayerIdentity()
+  const { loading: authLoading, isRegistered } = useAuth()
+  const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
 
   const [name, setName] = useState(playerName || getPlayerName())
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const formNudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const canShowNudge =
+    accountNudgeEnabled && !isRegistered && !authLoading && !flagsLoading
+
+  const openNudge = useCallback(() => {
+    if (!canShowNudge) return
+    setNudgeOpen(true)
+  }, [canShowNudge])
+
+  const closeNudge = useCallback(() => setNudgeOpen(false), [])
+
+  useEffect(() => {
+    if (isRegistered) setNudgeOpen(false)
+  }, [isRegistered])
   const [homeView, setHomeView] = useState<HomeView>('menu')
   const [activeForm, setActiveForm] = useState<HomeForm>('join')
   const [joinCode, setJoinCode] = useState('')
   const [roomPassword, setRoomPassword] = useState('')
+  const [passwordPromptLobbyId, setPasswordPromptLobbyId] = useState<string | null>(null)
   const [createPassword, setCreatePassword] = useState('')
   const [roomName, setRoomName] = useState('')
   const [rooms, setRooms] = useState<PublicRoom[]>([])
@@ -49,6 +71,31 @@ export default function HomePage() {
   useEffect(() => {
     if (playerName) setName(playerName)
   }, [playerName])
+
+  useEffect(() => {
+    const lobbyError = (location.state as { lobbyError?: string } | null)?.lobbyError
+    if (!lobbyError) return
+    setError(lobbyError)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (homeView !== 'menu' || !canShowNudge) return
+    const timer = window.setTimeout(() => openNudge(), 100)
+    return () => window.clearTimeout(timer)
+  }, [homeView, canShowNudge, openNudge])
+
+  useEffect(() => {
+    if (homeView !== 'form' || !canShowNudge) return
+    if (formNudgeTimerRef.current) window.clearTimeout(formNudgeTimerRef.current)
+    formNudgeTimerRef.current = window.setTimeout(() => {
+      openNudge()
+      formNudgeTimerRef.current = null
+    }, HOME_FORM_NUDGE_DELAY_MS)
+    return () => {
+      if (formNudgeTimerRef.current) window.clearTimeout(formNudgeTimerRef.current)
+    }
+  }, [homeView, activeForm, canShowNudge, openNudge])
 
   const refreshRooms = useCallback(async () => {
     try {
@@ -76,6 +123,32 @@ export default function HomePage() {
         if (cancelled) return
 
         if (status.status === 'matched' && status.lobbyId) {
+          try {
+            await fetchRoomById(status.lobbyId)
+          } catch {
+            const rejoin = await joinMatchmaking(
+              matchSearch.playerId,
+              matchSearch.playerName,
+              matchSearch.accessToken,
+            )
+            if (rejoin.status === 'matched' && rejoin.lobbyId) {
+              try {
+                await fetchRoomById(rejoin.lobbyId)
+                setIsSearching(false)
+                setMatchSearch(null)
+                navigate(`/lobby/${rejoin.lobbyId}`)
+              } catch {
+                setQueueSize(rejoin.queueSize)
+                setWaitedSeconds(rejoin.waitedSeconds)
+              }
+              return
+            }
+            if (rejoin.status === 'queued') {
+              setQueueSize(rejoin.queueSize)
+              setWaitedSeconds(rejoin.waitedSeconds)
+            }
+            return
+          }
           setIsSearching(false)
           setMatchSearch(null)
           navigate(`/lobby/${status.lobbyId}`)
@@ -133,12 +206,12 @@ export default function HomePage() {
 
   const saveAnonDisplayName = async () => {
     saveLocalName()
-    if (!canEditNameOnHome || !accessToken) return
+    const trimmed = name.trim()
+    if (!trimmed || isRegistered) return
     try {
-      await updateDisplayName(accessToken, name.trim())
-      await supabase.auth.refreshSession()
+      await ensureOnlineSession(trimmed)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save name')
+      setError(e instanceof Error ? e.message : 'Không lưu được tên')
     }
   }
 
@@ -148,11 +221,13 @@ export default function HomePage() {
   }
 
   const showHomeMenu = () => {
+    setNudgeOpen(false)
     setHomeView('menu')
     setError(null)
   }
 
   const showHomeForm = (form: HomeForm) => {
+    setNudgeOpen(false)
     setActiveForm(form)
     setHomeView('form')
     setError(null)
@@ -173,7 +248,9 @@ export default function HomePage() {
         },
         session.accessToken,
       )
-      navigate(`/lobby/${result.lobbyId}`)
+      navigate(`/lobby/${result.lobbyId}`, {
+        state: { password: createPassword.trim() || undefined },
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Create failed')
     } finally {
@@ -184,11 +261,16 @@ export default function HomePage() {
   const handleJoinCode = async () => {
     if (!joinCode.trim()) return
     setError(null)
+    const password = roomPassword.trim()
     setLoading(true)
     try {
       await prepareOnline()
-      const { lobbyId } = await resolveRoomByCode(joinCode.trim())
-      navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
+      const room = await resolveRoomByCode(joinCode.trim())
+      if (room.hasPassword && !password) {
+        setError('Phòng này có mật khẩu — nhập mật khẩu bên dưới.')
+        return
+      }
+      navigate(`/lobby/${room.lobbyId}`, { state: { password: password || undefined } })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Room not found')
     } finally {
@@ -196,12 +278,18 @@ export default function HomePage() {
     }
   }
 
-  const handleJoinLobby = async (lobbyId: string) => {
+  const handleJoinLobby = async (room: PublicRoom) => {
     setError(null)
+    const password = roomPassword.trim()
+    if (room.hasPassword && !password) {
+      setPasswordPromptLobbyId(room.lobbyId)
+      return
+    }
+    setPasswordPromptLobbyId(null)
     setLoading(true)
     try {
       await prepareOnline()
-      navigate(`/lobby/${lobbyId}`, { state: { password: roomPassword || undefined } })
+      navigate(`/lobby/${room.lobbyId}`, { state: { password: password || undefined } })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Join failed')
     } finally {
@@ -222,7 +310,12 @@ export default function HomePage() {
       )
 
       if (joined.status === 'matched' && joined.lobbyId) {
-        navigate(`/lobby/${joined.lobbyId}`)
+        try {
+          await fetchRoomById(joined.lobbyId)
+          navigate(`/lobby/${joined.lobbyId}`)
+        } catch {
+          setError('Phòng ghép trận không còn — hãy tìm trận lại.')
+        }
         return
       }
 
@@ -269,6 +362,7 @@ export default function HomePage() {
       onPlayerNameBlur={() => void saveAnonDisplayName()}
       footer={footer}
     >
+      <AccountNudgeModal open={nudgeOpen} onClose={closeNudge} />
       <div
         className="screen active home-screen"
         data-home-state={homeView}
@@ -526,7 +620,10 @@ export default function HomePage() {
                         key={room.lobbyId}
                         room={room}
                         loading={loading}
-                        onJoin={(id) => void handleJoinLobby(id)}
+                        needsPasswordPrompt={passwordPromptLobbyId === room.lobbyId}
+                        roomPassword={roomPassword}
+                        onRoomPasswordChange={setRoomPassword}
+                        onJoin={() => void handleJoinLobby(room)}
                       />
                     ))}
                   </div>

@@ -33,6 +33,16 @@ function jsonHeaders(accessToken?: string | null) {
   return { 'Content-Type': 'application/json', ...authHeaders(accessToken) }
 }
 
+export type FeatureFlags = {
+  accountNudgeEnabled: boolean
+}
+
+export async function fetchFeatureFlags(): Promise<FeatureFlags> {
+  const res = await fetch(`${API_BASE}/api/public/feature-flags`)
+  if (!res.ok) throw new Error('Failed to load feature flags')
+  return res.json() as Promise<FeatureFlags>
+}
+
 export async function fetchPublicRooms(): Promise<PublicRoom[]> {
   const res = await fetch(`${API_BASE}/api/rooms`)
   if (!res.ok) throw new Error('Failed to load rooms')
@@ -58,11 +68,19 @@ export async function createRoom(
   return res.json()
 }
 
-export async function resolveRoomByCode(joinCode: string): Promise<{ lobbyId: string }> {
+export async function resolveRoomByCode(
+  joinCode: string,
+): Promise<Pick<PublicRoom, 'lobbyId' | 'hasPassword'>> {
   const res = await fetch(`${API_BASE}/api/rooms/by-code/${encodeURIComponent(joinCode)}`)
   if (!res.ok) throw new Error('Room not found')
-  const data = await res.json()
-  return { lobbyId: data.lobbyId as string }
+  const data = (await res.json()) as PublicRoom
+  return { lobbyId: data.lobbyId, hasPassword: data.hasPassword }
+}
+
+export async function fetchRoomById(lobbyId: string): Promise<PublicRoom> {
+  const res = await fetch(`${API_BASE}/api/rooms/${encodeURIComponent(lobbyId)}`)
+  if (!res.ok) throw new Error('Room not found')
+  return res.json() as Promise<PublicRoom>
 }
 
 export async function joinMatchmaking(

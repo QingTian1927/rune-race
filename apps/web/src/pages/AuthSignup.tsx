@@ -4,12 +4,14 @@ import { useAuth } from '../hooks/useAuth'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
 import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import { AUTH_FORM_PLACEHOLDERS } from '../lib/authFormPlaceholders'
 import { useSkyPageName } from '../components/sky/useSkyPageName'
 
 export default function AuthSignupPage() {
   const navigate = useNavigate()
   const { signUp } = useAuth()
   const { name, setName, onNameBlur } = useSkyPageName()
+  const [fullName, setFullName] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -23,10 +25,13 @@ export default function AuthSignupPage() {
     setError(null)
     setInfo(null)
     try {
+      const trimmedFullName = fullName.trim()
+      const trimmedDisplay = displayName.trim() || trimmedFullName || 'Player'
       const result = await signUp({
         email,
         password,
-        displayName: displayName.trim() || 'Player',
+        fullName: trimmedFullName,
+        displayName: trimmedDisplay,
         phone: phone.trim() || undefined,
       })
       if (result.error) throw result.error
@@ -48,7 +53,7 @@ export default function AuthSignupPage() {
 
   return (
     <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
-      <SkyFormStage backTo="/">
+      <SkyFormStage backTo="/" className="sky-auth-form">
         {error ? <div className="sky-alert-error">{error}</div> : null}
         {info ? <div className="sky-alert-success">{info}</div> : null}
 
@@ -64,6 +69,24 @@ export default function AuthSignupPage() {
           </div>
           <div className="panel-body sky-form-stack">
             <div className="field-block">
+              <div className="field-label">Họ và tên</div>
+              <div className="input-wrap">
+                <span className="input-icon">
+                  <i className="bi bi-person-vcard-fill" aria-hidden="true" />
+                </span>
+                <input
+                  id="signup-full-name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="game-input"
+                  maxLength={100}
+                  autoComplete="name"
+                  placeholder={AUTH_FORM_PLACEHOLDERS.fullName}
+                  required
+                />
+              </div>
+            </div>
+            <div className="field-block">
               <div className="field-label">Tên hiển thị</div>
               <div className="input-wrap">
                 <span className="input-icon">
@@ -75,6 +98,7 @@ export default function AuthSignupPage() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="game-input"
                   maxLength={50}
+                  placeholder={AUTH_FORM_PLACEHOLDERS.displayName}
                 />
               </div>
             </div>
@@ -91,6 +115,7 @@ export default function AuthSignupPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="game-input"
                   autoComplete="email"
+                  placeholder={AUTH_FORM_PLACEHOLDERS.email}
                 />
               </div>
             </div>
@@ -106,6 +131,7 @@ export default function AuthSignupPage() {
                   onChange={(e) => setPhone(e.target.value)}
                   className="game-input"
                   autoComplete="tel"
+                  placeholder={AUTH_FORM_PLACEHOLDERS.phone}
                 />
               </div>
             </div>
@@ -122,13 +148,14 @@ export default function AuthSignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="game-input"
                   autoComplete="new-password"
+                  placeholder={AUTH_FORM_PLACEHOLDERS.passwordSignup}
                 />
               </div>
             </div>
 
             <button
               type="button"
-              disabled={busy || !email || !password}
+              disabled={busy || !fullName.trim() || !email || !password}
               onClick={() => void handleSignup()}
               className="game-btn btn-green"
             >

@@ -20,3 +20,14 @@ export function displayNameFromMetadata(
   if (typeof full === 'string' && full.trim()) return full.trim()
   return null
 }
+
+export function fullNameFromMetadata(
+  metadata: Record<string, unknown> | undefined | null,
+): string | null {
+  if (!metadata) return null
+  const direct = metadata.full_name
+  if (typeof direct === 'string' && direct.trim()) return direct.trim()
+  const name = metadata.name
+  if (typeof name === 'string' && name.trim()) return name.trim()
+  return displayNameFromMetadata(metadata)
+}

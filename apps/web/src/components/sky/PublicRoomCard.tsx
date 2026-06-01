@@ -4,10 +4,20 @@ import { roomPawnDots } from './skyColors'
 type PublicRoomCardProps = {
   room: PublicRoom
   loading: boolean
-  onJoin: (lobbyId: string) => void
+  needsPasswordPrompt?: boolean
+  roomPassword?: string
+  onRoomPasswordChange?: (value: string) => void
+  onJoin: () => void
 }
 
-export function PublicRoomCard({ room, loading, onJoin }: PublicRoomCardProps) {
+export function PublicRoomCard({
+  room,
+  loading,
+  needsPasswordPrompt,
+  roomPassword = '',
+  onRoomPasswordChange,
+  onJoin,
+}: PublicRoomCardProps) {
   const dots = roomPawnDots(room.playerCount, room.maxPlayers)
   const isFull = room.playerCount >= room.maxPlayers
 
@@ -35,22 +45,37 @@ export function PublicRoomCard({ room, loading, onJoin }: PublicRoomCardProps) {
           </div>
         </div>
       </div>
-      <button
-        type="button"
-        className="join-btn"
-        disabled={loading || isFull}
-        onClick={() => onJoin(room.lobbyId)}
-      >
-        {isFull ? (
-          <>
-            Xem <i className="bi bi-eye-fill inline-icon" aria-hidden="true" />
-          </>
-        ) : (
-          <>
-            Vào <i className="bi bi-arrow-right-short inline-icon" aria-hidden="true" />
-          </>
-        )}
-      </button>
+      <div className="room-card-actions">
+        {needsPasswordPrompt ? (
+          <div className="room-card-password-prompt">
+            <input
+              type="password"
+              className="game-input"
+              placeholder="Mật khẩu phòng"
+              value={roomPassword}
+              onChange={(e) => onRoomPasswordChange?.(e.target.value)}
+              autoFocus
+            />
+            <p className="muted room-card-password-hint">Phòng này yêu cầu mật khẩu</p>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="join-btn"
+          disabled={loading || isFull}
+          onClick={onJoin}
+        >
+          {isFull ? (
+            <>
+              Xem <i className="bi bi-eye-fill inline-icon" aria-hidden="true" />
+            </>
+          ) : (
+            <>
+              Vào <i className="bi bi-arrow-right-short inline-icon" aria-hidden="true" />
+            </>
+          )}
+        </button>
+      </div>
     </div>
   )
 }
