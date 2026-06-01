@@ -7,7 +7,6 @@ import BoardPieces from '../components/BoardPieces'
 import DiceShaker from '../components/DiceShaker'
 import { useSceneShadowsEnabled } from '../hooks/useSceneShadowsEnabled'
 import getMockSnapshot from '../mock/getMockSnapshot'
-import { CloudField } from './environment/CloudField'
 import { SkyDome } from './environment/SkyDome'
 import { SceneLighting } from './lighting/SceneLighting'
 import { SceneRendererSetup } from './SceneRendererSetup'
@@ -262,7 +261,6 @@ export default function BoardScene({
       />
 
       <SkyDome />
-      <CloudField />
 
       <Suspense fallback={null}>
         <BoardModel shadowsEnabled={shadowsEnabled} />
@@ -279,8 +277,6 @@ export default function BoardScene({
           shadowsEnabled={shadowsEnabled}
         />
       </Suspense>
-
-      <fog attach="fog" args={['#f5ecd8', 38, 72]} />
 
       <SceneLighting shadowsEnabled={shadowsEnabled} />
 

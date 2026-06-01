@@ -110,6 +110,66 @@ function normalizeCenteredModel(
   return { object: clone, halfHeight: scaledSize.y * 0.5 }
 }
 
+function setBucketPresentation(
+  object: THREE.Object3D,
+  opacity: number,
+  shadowsEnabled: boolean,
+) {
+  const clamped = THREE.MathUtils.clamp(opacity, 0, 1)
+  const visible = clamped > 0
+  const fullOpacity = clamped >= 0.999
+
+  object.scale.setScalar(
+    !visible ? 0.0001 : fullOpacity ? 1 : Math.max(0.0001, clamped),
+  )
+
+  object.traverse((node) => {
+    if (!(node as THREE.Mesh).isMesh) {
+      return
+    }
+
+    const mesh = node as THREE.Mesh
+    const applyMaterial = (material: THREE.Material) => {
+      material.transparent = true
+      material.opacity = clamped
+      material.depthWrite = clamped >= 0.98
+      material.needsUpdate = true
+    }
+
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach(applyMaterial)
+    } else if (mesh.material) {
+      applyMaterial(mesh.material)
+    }
+
+    const cast = shadowsEnabled && visible
+    mesh.castShadow = cast
+    if (!cast || fullOpacity) {
+      mesh.customDepthMaterial = undefined
+      return
+    }
+
+    const sourceMaterial = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+    if (!sourceMaterial) {
+      return
+    }
+
+    type DepthCache = { bucketDepth?: THREE.MeshDepthMaterial }
+    const cache = sourceMaterial.userData as DepthCache
+    if (!cache.bucketDepth) {
+      cache.bucketDepth = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.RGBADepthPacking,
+      })
+    }
+
+    const depth = cache.bucketDepth
+    depth.opacity = clamped
+    depth.transparent = true
+    depth.needsUpdate = true
+    mesh.customDepthMaterial = depth
+  })
+}
+
 function setOpacity(object: THREE.Object3D, opacity: number) {
   object.traverse((node) => {
     if (!(node as THREE.Mesh).isMesh) {
@@ -260,7 +320,7 @@ export default function DiceShaker({
           diceVisual.position.set(0, -restBounds.min.y, 0)
         }
       }
-      setOpacity(bucket, 0)
+      setBucketPresentation(bucket, 0, shadowsEnabled)
       setOpacity(dice, 1)
       return
     }
@@ -353,7 +413,7 @@ export default function DiceShaker({
       }
     }
 
-    setOpacity(bucket, bucketOpacity)
+    setBucketPresentation(bucket, bucketOpacity, shadowsEnabled)
     setOpacity(dice, 1)
   })
 

@@ -11,14 +11,18 @@ export const SUN_CONFIG = {
   /** Slightly less saturated than pure gold — warm, not yellow wash. */
   color: '#ffe4a8',
   shadowMapSize: 2048,
-  shadowRadius: 1.25,
+  /** PCFSoft penumbra — not too low (ragged) or high (mushy). */
+  shadowRadius: 1.28,
+  /** More taps = smoother shadow edges (Three.js PCFSoft). */
+  shadowBlurSamples: 12,
   shadowBias: -0.0001,
-  shadowNormalBias: 0.0012,
+  shadowNormalBias: 0.001,
+  /** Tighter frustum = more texels on the board (~14u wide). */
   shadowCamera: {
-    left: -13,
-    right: 13,
-    top: 13,
-    bottom: -13,
+    left: -12.5,
+    right: 12.5,
+    top: 12.5,
+    bottom: -12.5,
     near: 2.5,
     far: 40,
   },

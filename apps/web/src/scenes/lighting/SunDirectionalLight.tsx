@@ -25,6 +25,7 @@ export function SunDirectionalLight({ shadowsEnabled }: SunDirectionalLightProps
     const shadow = light.shadow
     shadow.mapSize.set(SUN_CONFIG.shadowMapSize, SUN_CONFIG.shadowMapSize)
     shadow.radius = SUN_CONFIG.shadowRadius
+    shadow.blurSamples = SUN_CONFIG.shadowBlurSamples
     shadow.bias = SUN_CONFIG.shadowBias
     shadow.normalBias = SUN_CONFIG.shadowNormalBias
 
