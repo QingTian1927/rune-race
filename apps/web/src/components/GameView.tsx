@@ -17,6 +17,8 @@ import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
 import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
 import { ConfirmDialog } from './ui/ConfirmDialog'
+import { GameSettingsOverlay } from './hud/GameSettingsOverlay'
+import { useGraphicsQuality } from '../hooks/useGraphicsQuality'
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -72,6 +74,8 @@ export default function GameView({
   const { active, progress } = useProgress()
   const defaultBoardImpactFeedback = useBoardImpactFeedback()
   const boardImpactFeedback = boardImpactFeedbackProp ?? defaultBoardImpactFeedback
+  const { quality: graphicsQuality, setQuality: setGraphicsQuality } = useGraphicsQuality()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [showDevMenu, setShowDevMenu] = useState(false)
   const [cameraDebugInfo, setCameraDebugInfo] = useState<CameraDebugInfo | null>(null)
@@ -531,6 +535,7 @@ export default function GameView({
         onSelectToken={handleSelectToken}
         freezeTokenAnimations={isPresentingDice}
         boardImpactFeedback={boardImpactFeedback}
+        graphicsQuality={graphicsQuality}
         editorData={editorData}
         editorMode={editorMode}
         editorSelectedPlayer={editorSelectedPlayer}
@@ -543,9 +548,19 @@ export default function GameView({
         {!showEndOverlay ? (
           <>
             <div className="game-hud-slot game-hud-slot--exit">
-              <button type="button" onClick={handleExitClick} className="game-hud-exit-btn">
-                {onLeave ? 'Rời game' : 'Thoát'}
-              </button>
+              <div className="game-hud-exit-row">
+                <button type="button" onClick={handleExitClick} className="game-hud-exit-btn">
+                  {onLeave ? 'Rời game' : 'Thoát'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  className="game-hud-settings-btn"
+                  aria-label="Cài đặt"
+                >
+                  <i className="bi bi-gear-fill" aria-hidden="true" />
+                </button>
+              </div>
             </div>
             <CurrentTurnPanel
               player={displayedTurnPlayer}
@@ -610,6 +625,13 @@ export default function GameView({
         returnDestinationLabel={returnDestinationLabel}
         avatarsByPlayerId={avatarsByPlayerId}
         onLeave={handleLeaveNow}
+      />
+
+      <GameSettingsOverlay
+        open={settingsOpen}
+        quality={graphicsQuality}
+        onQualityChange={setGraphicsQuality}
+        onClose={() => setSettingsOpen(false)}
       />
 
       <ConfirmDialog

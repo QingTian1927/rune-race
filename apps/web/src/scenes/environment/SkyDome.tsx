@@ -31,7 +31,11 @@ void main() {
 }
 `
 
-export function SkyDome() {
+type SkyDomeProps = {
+  enabled?: boolean
+}
+
+export function SkyDome({ enabled = true }: SkyDomeProps) {
   const material = useMemo(() => {
     const shader = new THREE.ShaderMaterial({
       uniforms: {
@@ -47,6 +51,10 @@ export function SkyDome() {
     })
     return shader
   }, [])
+
+  if (!enabled) {
+    return null
+  }
 
   return (
     <mesh material={material} renderOrder={-20} frustumCulled={false}>

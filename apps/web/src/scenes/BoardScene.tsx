@@ -5,7 +5,8 @@ import * as THREE from 'three'
 import BoardModel from '../components/BoardModel'
 import BoardPieces from '../components/BoardPieces'
 import DiceShaker from '../components/DiceShaker'
-import { useSceneShadowsEnabled } from '../hooks/useSceneShadowsEnabled'
+import type { GraphicsQuality } from '../lib/graphicsQuality'
+import { getGraphicsQualityFlags } from '../lib/graphicsQuality'
 import getMockSnapshot from '../mock/getMockSnapshot'
 import { SkyDome } from './environment/SkyDome'
 import { SceneLighting } from './lighting/SceneLighting'
@@ -34,6 +35,7 @@ interface BoardSceneProps {
   onEditorDataChange?: (data: BoardLayoutData) => void
   editorMouseMode?: 'draw' | 'camera'
   setEditorMouseMode?: (v: 'draw' | 'camera') => void
+  graphicsQuality?: GraphicsQuality
 }
 
 function toFixedNumber(value: number, digits = 3): number {
@@ -237,6 +239,7 @@ export default function BoardScene({
   onEditorDataChange,
   editorMouseMode,
   setEditorMouseMode,
+  graphicsQuality = 'high',
 }: BoardSceneProps) {
   const controlsRef = useRef<any>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number; z: number } | null>(null)
@@ -244,13 +247,39 @@ export default function BoardScene({
 
   const mockSnapshot = useMemo(() => getMockSnapshot(), [])
   const activeGameState = gameState ?? mockSnapshot
-  const shadowsEnabled = useSceneShadowsEnabled()
+  const qualityFlags = getGraphicsQualityFlags(graphicsQuality)
+  const {
+    shadows: shadowsEnabled,
+    richLighting,
+    minimalLighting,
+    skyDome,
+    toneMapping,
+    antialias,
+    basicMaterials,
+    dpr,
+  } = qualityFlags
+  const canvasBackground = '#f0ecd8'
 
   return (
-    <Canvas shadows dpr={[1, 1.75]} className="h-full w-full">
-      <color attach="background" args={['#f0ecd8']} />
+    <Canvas
+      key={graphicsQuality}
+      shadows={shadowsEnabled}
+      dpr={dpr}
+      gl={{
+        antialias,
+        powerPreference: 'high-performance',
+        alpha: false,
+        stencil: false,
+        depth: true,
+      }}
+      className="h-full w-full"
+    >
+      <color attach="background" args={[canvasBackground]} />
 
-      <SceneRendererSetup shadowsEnabled={shadowsEnabled} />
+      <SceneRendererSetup
+        shadowsEnabled={shadowsEnabled}
+        toneMappingEnabled={toneMapping}
+      />
 
       <PerspectiveCamera
         makeDefault
@@ -260,25 +289,32 @@ export default function BoardScene({
         far={CAMERA_CONFIG.far}
       />
 
-      <SkyDome />
+      <SkyDome enabled={skyDome} />
 
       <Suspense fallback={null}>
-        <BoardModel shadowsEnabled={shadowsEnabled} />
+        <BoardModel shadowsEnabled={shadowsEnabled} graphicsQuality={graphicsQuality} />
         <BoardPieces
           gameState={activeGameState}
           selectableTokenIds={selectableTokenIds}
           onSelectToken={onSelectToken}
           freezeTokenAnimations={freezeTokenAnimations}
           boardImpactFeedback={boardImpactFeedback}
+          graphicsQuality={graphicsQuality}
+          shadowsEnabled={shadowsEnabled}
         />
         <DiceShaker
           gameState={activeGameState}
           rollTrigger={rollTrigger}
           shadowsEnabled={shadowsEnabled}
+          graphicsQuality={graphicsQuality}
         />
       </Suspense>
 
-      <SceneLighting shadowsEnabled={shadowsEnabled} />
+      <SceneLighting
+        shadowsEnabled={shadowsEnabled}
+        richLighting={richLighting}
+        minimalLighting={minimalLighting}
+      />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} userData={{ editorInteractionSurface: true }}>
         <planeGeometry args={[14, 14]} />
@@ -287,7 +323,11 @@ export default function BoardScene({
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]} receiveShadow={shadowsEnabled}>
         <planeGeometry args={[42, 42]} />
-        <meshLambertMaterial color="#a8eca8" />
+        {basicMaterials ? (
+          <meshBasicMaterial color="#b8f0b8" />
+        ) : (
+          <meshLambertMaterial color="#a8eca8" />
+        )}
       </mesh>
 
       <CameraDebugReporter controlsRef={controlsRef} onDebugInfoChange={onDebugInfoChange} />

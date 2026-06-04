@@ -2212,6 +2212,99 @@ a.game-btn {
   max-width: none;
 }
 
+.game-hud-exit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-hud-settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  color: #3b5ba0;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: all 0.15s;
+  box-shadow: 0 2px 8px rgba(60, 100, 180, 0.15);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.game-hud-settings-btn:hover {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(60, 100, 180, 0.25);
+}
+
+.game-hud-settings-label {
+  margin-top: 16px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+}
+
+.game-hud-quality-toggle {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.game-hud-quality-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(91, 130, 200, 0.35);
+  border-radius: 14px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: #3b5ba0;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 2px 0 rgba(91, 130, 200, 0.12);
+}
+
+.game-hud-quality-option:hover {
+  background: white;
+  transform: translateY(-1px);
+}
+
+.game-hud-quality-option--active {
+  background: linear-gradient(160deg, #fffef5 0%, #fff0b8 100%);
+  border-color: #f5c518;
+  box-shadow: 0 3px 0 #e8b800, 0 6px 14px rgba(245, 197, 24, 0.25);
+  color: #2a4080;
+}
+
+.game-hud-quality-option-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.game-hud-settings-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+
 .game-hud-slot--turn {
   top: 56px;
   left: 16px;

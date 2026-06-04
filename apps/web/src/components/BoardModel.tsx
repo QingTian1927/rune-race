@@ -3,17 +3,31 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import {
   applyCartoonMaterialsToObject,
+  toBoardBasicMaterial,
   toBoardCartoonMaterial,
+  toBoardSimpleMaterial,
 } from '../lib/sceneMaterials'
+import type { GraphicsQuality } from '../lib/graphicsQuality'
+import { getGraphicsQualityFlags } from '../lib/graphicsQuality'
 
 const MODEL_PATH = '/assets/models/glb_scene.glb'
 
 type BoardModelProps = {
   shadowsEnabled?: boolean
+  graphicsQuality?: GraphicsQuality
 }
 
-export default function BoardModel({ shadowsEnabled = true }: BoardModelProps) {
+export default function BoardModel({
+  shadowsEnabled = true,
+  graphicsQuality = 'high',
+}: BoardModelProps) {
   const { scene } = useGLTF(MODEL_PATH)
+  const { cartoonMaterials, basicMaterials } = getGraphicsQualityFlags(graphicsQuality)
+  const toBoardMaterial = cartoonMaterials
+    ? toBoardCartoonMaterial
+    : basicMaterials
+      ? toBoardBasicMaterial
+      : toBoardSimpleMaterial
 
   const normalizedScene = useMemo(() => {
     const clone = scene.clone(true)
@@ -26,13 +40,13 @@ export default function BoardModel({ shadowsEnabled = true }: BoardModelProps) {
         mesh.userData.boardSurface = true
 
         if (!mesh.material) {
-          mesh.material = toBoardCartoonMaterial()
+          mesh.material = toBoardMaterial()
         }
 
         if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((mat) => toBoardCartoonMaterial(mat))
+          mesh.material = mesh.material.map((mat) => toBoardMaterial(mat))
         } else {
-          mesh.material = toBoardCartoonMaterial(mesh.material)
+          mesh.material = toBoardMaterial(mesh.material)
         }
       }
     })
@@ -41,12 +55,14 @@ export default function BoardModel({ shadowsEnabled = true }: BoardModelProps) {
       variant: 'board',
       castShadow: shadowsEnabled,
       receiveShadow: shadowsEnabled,
+      cartoonMaterials,
+      basicMaterials,
     })
 
     if (meshCount === 0) {
       const fallback = new THREE.Mesh(
         new THREE.BoxGeometry(4, 0.6, 4),
-        toBoardCartoonMaterial(),
+        toBoardMaterial(),
       )
       fallback.position.set(0, 0.3, 0)
       fallback.userData.boardSurface = true
@@ -74,7 +90,7 @@ export default function BoardModel({ shadowsEnabled = true }: BoardModelProps) {
 
     clone.position.set(-scaledCenter.x, -scaledBox.min.y, -scaledCenter.z)
     return clone
-  }, [scene, shadowsEnabled])
+  }, [scene, shadowsEnabled, graphicsQuality, cartoonMaterials, basicMaterials])
 
   return <primitive object={normalizedScene} />
 }
