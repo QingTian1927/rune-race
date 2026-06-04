@@ -1,7 +1,7 @@
 /** Default gameplay camera — edit values here, then verify in-game with F3 dev menu. */
 export const CAMERA_CONFIG = {
-  position: [-0.83, 3.1, 6.56] as [number, number, number],
-  target: [-0.741, -0.904, 0.582] as [number, number, number],
+  position: [1.559, 4.213, -4.702] as [number, number, number],
+  target: [-0.35, -0.5, 0.739] as [number, number, number],
   fov: 28,
   near: 0.1,
   far: 200,

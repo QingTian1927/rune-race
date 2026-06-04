@@ -4,18 +4,22 @@ import * as THREE from 'three'
 
 type SceneRendererSetupProps = {
   shadowsEnabled: boolean
+  toneMappingEnabled: boolean
 }
 
-export function SceneRendererSetup({ shadowsEnabled }: SceneRendererSetupProps) {
+export function SceneRendererSetup({
+  shadowsEnabled,
+  toneMappingEnabled,
+}: SceneRendererSetupProps) {
   const gl = useThree((state) => state.gl)
 
   useLayoutEffect(() => {
     gl.shadowMap.enabled = shadowsEnabled
     gl.shadowMap.type = THREE.PCFSoftShadowMap
-    gl.toneMapping = THREE.ACESFilmicToneMapping
-    gl.toneMappingExposure = 1.32
+    gl.toneMapping = toneMappingEnabled ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping
+    gl.toneMappingExposure = toneMappingEnabled ? 1.32 : 1
     gl.outputColorSpace = THREE.SRGBColorSpace
-  }, [gl, shadowsEnabled])
+  }, [gl, shadowsEnabled, toneMappingEnabled])
 
   return null
 }

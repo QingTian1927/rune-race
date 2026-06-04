@@ -34,9 +34,21 @@ export function getPawnModelPath(playerIndex: number) {
   return PLAYER_MODEL_PATHS[((playerIndex % PLAYER_MODEL_PATHS.length) + PLAYER_MODEL_PATHS.length) % PLAYER_MODEL_PATHS.length]
 }
 
+export type NormalizePawnModelOptions = {
+  targetSize?: { x: number; y: number; z: number }
+  castShadow?: boolean
+  cartoonMaterials?: boolean
+  basicMaterials?: boolean
+}
+
 export function normalizePawnModel(
   scene: THREE.Group,
-  targetSize: { x: number; y: number; z: number } = { x: 0.28, y: 0.24, z: 0.28 },
+  {
+    targetSize = { x: 0.28, y: 0.24, z: 0.28 },
+    castShadow = true,
+    cartoonMaterials = true,
+    basicMaterials = false,
+  }: NormalizePawnModelOptions = {},
 ) {
   const clone = cloneScene(scene)
   const box = new THREE.Box3().setFromObject(clone)
@@ -64,8 +76,10 @@ export function normalizePawnModel(
   clone.position.set(-center.x, -scaledBox.min.y - 0.004, -center.z)
   applyCartoonMaterialsToObject(clone, {
     variant: 'pawn',
-    castShadow: true,
+    castShadow,
     receiveShadow: false,
+    cartoonMaterials,
+    basicMaterials,
   })
   return clone
 }

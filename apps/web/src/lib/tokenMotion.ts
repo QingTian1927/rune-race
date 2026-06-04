@@ -16,6 +16,9 @@ export function getDeltaEventsSinceVersion(
   if (state.version !== versionCursor.version) {
     return state.events.slice(versionCursor.eventCount)
   }
+  if (state.events.length > versionCursor.eventCount) {
+    return state.events.slice(versionCursor.eventCount)
+  }
   return []
 }
 

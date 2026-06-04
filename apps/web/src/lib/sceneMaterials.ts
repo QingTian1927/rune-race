@@ -123,10 +123,73 @@ export function toPropMaterial(source?: THREE.Material): THREE.MeshLambertMateri
   return mat
 }
 
+export function toBoardSimpleMaterial(source?: THREE.Material): THREE.MeshLambertMaterial {
+  const { color, map, opacity, transparent } = extractSourceMaps(source)
+
+  const mat = new THREE.MeshLambertMaterial({
+    color: tuneColor(color, { lightness: 0.14, saturation: -0.02 }),
+    map,
+    transparent,
+    opacity,
+  })
+  enableFlatShading(mat)
+  return mat
+}
+
+export function toPawnSimpleMaterial(source?: THREE.Material): THREE.MeshLambertMaterial {
+  const { color, map, opacity, transparent } = extractSourceMaps(source)
+
+  const mat = new THREE.MeshLambertMaterial({
+    color: tuneColor(color, { lightness: 0.08, saturation: 0.22 }),
+    map,
+    transparent,
+    opacity,
+  })
+  enableFlatShading(mat)
+  return mat
+}
+
+export function toBoardBasicMaterial(source?: THREE.Material): THREE.MeshBasicMaterial {
+  const { color, map, opacity, transparent } = extractSourceMaps(source)
+
+  return new THREE.MeshBasicMaterial({
+    color: tuneColor(color, { lightness: 0.16, saturation: 0.02 }),
+    map,
+    transparent,
+    opacity,
+  })
+}
+
+export function toPawnBasicMaterial(source?: THREE.Material): THREE.MeshBasicMaterial {
+  const { color, map, opacity, transparent } = extractSourceMaps(source)
+
+  return new THREE.MeshBasicMaterial({
+    color: tuneColor(color, { lightness: 0.1, saturation: 0.28 }),
+    map,
+    transparent,
+    opacity,
+  })
+}
+
+export function toPropBasicMaterial(source?: THREE.Material): THREE.MeshBasicMaterial {
+  const { color, map, opacity, transparent } = extractSourceMaps(source)
+
+  return new THREE.MeshBasicMaterial({
+    color: tuneColor(color, { lightness: 0.12, saturation: 0.24 }),
+    map,
+    transparent,
+    opacity,
+  })
+}
+
 export type ApplyCartoonMaterialsOptions = {
   castShadow?: boolean
   receiveShadow?: boolean
   variant?: 'board' | 'pawn' | 'prop'
+  /** When false, use flat Lambert materials (performance preset). */
+  cartoonMaterials?: boolean
+  /** Unlit basic materials — fastest; pair with brighter ambient in low preset. */
+  basicMaterials?: boolean
 }
 
 export function applyCartoonMaterialsToObject(
@@ -137,14 +200,25 @@ export function applyCartoonMaterialsToObject(
     castShadow = false,
     receiveShadow = false,
     variant = 'board',
+    cartoonMaterials = true,
+    basicMaterials = false,
   } = options
 
-  const toMaterial =
-    variant === 'pawn'
+  const toMaterial = cartoonMaterials
+    ? variant === 'pawn'
       ? toPawnCartoonMaterial
       : variant === 'prop'
         ? toPropMaterial
         : toBoardCartoonMaterial
+    : basicMaterials
+      ? variant === 'pawn'
+        ? toPawnBasicMaterial
+        : variant === 'prop'
+          ? toPropBasicMaterial
+          : toBoardBasicMaterial
+      : variant === 'pawn'
+        ? toPawnSimpleMaterial
+        : toBoardSimpleMaterial
 
   object.traverse((node) => {
     if (!(node as THREE.Mesh).isMesh) {

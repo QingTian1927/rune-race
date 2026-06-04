@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Billboard, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
@@ -16,6 +16,8 @@ import type { ImpactPuffKind } from '../lib/boardImpact'
 import ImpactPuffPool, { type SpawnImpactPuff } from './board/ImpactPuffPool'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { applyMaterialOpacity, getBoardGradientMap } from '../lib/sceneMaterials'
+import type { GraphicsQuality } from '../lib/graphicsQuality'
+import { getGraphicsQualityFlags } from '../lib/graphicsQuality'
 import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
 import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
 
@@ -38,6 +40,8 @@ interface BoardPiecesProps {
   freezeTokenAnimations?: boolean
   /** SFX / reduced-motion hooks (see lib/boardImpact.ts). */
   boardImpactFeedback?: BoardImpactFeedback
+  graphicsQuality?: GraphicsQuality
+  shadowsEnabled?: boolean
 }
 
 type CaptureMotion = {
@@ -387,7 +391,19 @@ function captureMotionFromEvent(
   }
 }
 
-function HousePlaceholder({ box, color = '#ffffff' }: { box: any; color?: string }) {
+function HousePlaceholder({
+  box,
+  color = '#ffffff',
+  cartoonMaterials = true,
+  basicMaterials = false,
+  castShadow = true,
+}: {
+  box: any
+  color?: string
+  cartoonMaterials?: boolean
+  basicMaterials?: boolean
+  castShadow?: boolean
+}) {
   if (!box) return null
   const cx = (box.minX + box.maxX) / 2
   const cy = (box.minY + box.maxY) / 2
@@ -400,22 +416,45 @@ function HousePlaceholder({ box, color = '#ffffff' }: { box: any; color?: string
   const baseColor = new THREE.Color(color)
   const roofColor = baseColor.clone().offsetHSL(0, 0, -0.18).getStyle()
   const chimneyColor = baseColor.clone().offsetHSL(0, -0.4, -0.45).getStyle()
-  const gradientMap = getBoardGradientMap()
+  const gradientMap = cartoonMaterials ? getBoardGradientMap() : undefined
+
+  const BaseMat = cartoonMaterials ? (
+    <meshToonMaterial color={color} gradientMap={gradientMap} />
+  ) : basicMaterials ? (
+    <meshBasicMaterial color={color} />
+  ) : (
+    <meshLambertMaterial color={color} />
+  )
+  const RoofMat = cartoonMaterials ? (
+    <meshToonMaterial color={roofColor} gradientMap={gradientMap} />
+  ) : basicMaterials ? (
+    <meshBasicMaterial color={roofColor} />
+  ) : (
+    <meshLambertMaterial color={roofColor} />
+  )
+  const ChimneyMat = cartoonMaterials ? (
+    <meshToonMaterial color={chimneyColor} gradientMap={gradientMap} />
+  ) : basicMaterials ? (
+    <meshBasicMaterial color={chimneyColor} />
+  ) : (
+    <meshLambertMaterial color={chimneyColor} />
+  )
+
   return (
     <group position={[cx, cy, cz]} rotation-y={box.rotationY ?? 0}>
-      <mesh position={[0, -h * 0.12, 0]} castShadow>
+      <mesh position={[0, -h * 0.12, 0]} castShadow={castShadow}>
         <boxGeometry args={[w * 0.9, h * 0.6, d * 0.9]} />
-        <meshToonMaterial color={color} gradientMap={gradientMap} />
+        {BaseMat}
       </mesh>
 
-      <mesh position={[0, h * 0.18, 0]} rotation={[0, 0, 0]} castShadow>
+      <mesh position={[0, h * 0.18, 0]} rotation={[0, 0, 0]} castShadow={castShadow}>
         <boxGeometry args={[w * 0.98, h * 0.2, d * 0.98]} />
-        <meshToonMaterial color={roofColor} gradientMap={gradientMap} />
+        {RoofMat}
       </mesh>
 
-      <mesh position={[w * 0.28, h * 0.22, -d * 0.18]} castShadow>
+      <mesh position={[w * 0.28, h * 0.22, -d * 0.18]} castShadow={castShadow}>
         <boxGeometry args={[w * 0.12, h * 0.18, d * 0.12]} />
-        <meshToonMaterial color={chimneyColor} gradientMap={gradientMap} />
+        {ChimneyMat}
       </mesh>
     </group>
   )
@@ -439,6 +478,11 @@ function PawnInstance({
   animationDurationMs = 300,
   spawnImpact,
   moveFromState,
+  onMoveAnimationDone,
+  cartoonMaterials = true,
+  basicMaterials = false,
+  reduceMeshDetail = false,
+  castShadow = true,
 }: {
   token: Token
   playerIndex: number
@@ -457,7 +501,13 @@ function PawnInstance({
   animationDurationMs?: number
   spawnImpact?: SpawnImpactPuff | null
   moveFromState?: MockPathStep['state']
+  onMoveAnimationDone?: (motionPlanKey: string) => void
+  cartoonMaterials?: boolean
+  basicMaterials?: boolean
+  reduceMeshDetail?: boolean
+  castShadow?: boolean
 }) {
+  const pickSphereSegments = reduceMeshDetail ? 8 : 16
   const modelRef = useRef<THREE.Group | null>(null)
   const effectRef = useRef<THREE.Group | null>(null)
   const arrowRef = useRef<THREE.Mesh | null>(null)
@@ -473,10 +523,26 @@ function PawnInstance({
   const capturePhaseRef = useRef<'idle' | 'hit' | 'return' | 'done'>('idle')
   const segmentsLandedRef = useRef(0)
   const captureImpactFiredRef = useRef(false)
+  const onMoveAnimationDoneRef = useRef(onMoveAnimationDone)
+  onMoveAnimationDoneRef.current = onMoveAnimationDone
+
+  const isMoveAnimationActive = () =>
+    queueRef.current.length > 0 || segmentStartTimeRef.current >= 0
+
+  const settleKey = `${token.id}:${token.state}:${token.position}`
   const pawnModelPath = getPawnModelPath(playerIndex)
   const pawnScene = useGLTF(pawnModelPath).scene
 
-  const normalizedPawn = useMemo(() => normalizePawnModel(pawnScene, { x: 0.28, y: 0.24, z: 0.28 }), [pawnScene])
+  const normalizedPawn = useMemo(
+    () =>
+      normalizePawnModel(pawnScene, {
+        targetSize: { x: 0.28, y: 0.24, z: 0.28 },
+        castShadow,
+        cartoonMaterials,
+        basicMaterials,
+      }),
+    [pawnScene, castShadow, cartoonMaterials, basicMaterials],
+  )
 
   // If the pawn was just captured, ensure the model appears at the hit source
   // as soon as it's mounted so it doesn't briefly appear at its base slot.
@@ -519,9 +585,10 @@ function PawnInstance({
       return
     }
 
-    const settleKey = `${token.id}:${token.state}:${token.position}`
-
     if (!motionPlanKey || !motionPlan || motionPlan.length === 0) {
+      if (isMoveAnimationActive()) {
+        return
+      }
       if (motionKeyRef.current === settleKey) {
         return
       }
@@ -552,7 +619,7 @@ function PawnInstance({
     segmentTargetRef.current.copy(queueRef.current[0]?.position ?? new THREE.Vector3(targetX, targetY, targetZ))
     segmentTargetStepRef.current = queueRef.current[0]?.step ?? null
     segmentStartTimeRef.current = -1
-  }, [captureMotion, motionPlan, motionPlanKey, targetX, targetY, targetZ, token, playerIndex])
+  }, [captureMotion, motionPlan, motionPlanKey, targetX, targetY, targetZ, token, playerIndex, settleKey])
 
   useFrame((state, delta) => {
     if (!modelRef.current) return
@@ -657,10 +724,15 @@ function PawnInstance({
 
       if (queueRef.current.length === 0) {
         segmentStartTimeRef.current = -1
+        const finishedKey = motionKeyRef.current
+        motionKeyRef.current = settleKey
         if (!nearVector(modelRef.current.position, targetX, targetY, targetZ)) {
           modelRef.current.position.set(targetX, targetY, targetZ)
         }
         modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getTokenFacingYaw(token, playerIndex), Math.min(1, delta * 10))
+        if (finishedKey && finishedKey !== settleKey) {
+          onMoveAnimationDoneRef.current?.(finishedKey)
+        }
         if (arrowRef.current) {
           const pulse = isHovered ? 0.07 * (1 + Math.sin(state.clock.elapsedTime * 5.5)) : 0
           const scale = arrowBaseScale * (1 + pulse)
@@ -686,7 +758,7 @@ function PawnInstance({
             onPointerOver={onPointerOver}
             onPointerOut={onPointerOut}
           >
-            <sphereGeometry args={[0.24, 16, 16]} />
+            <sphereGeometry args={[0.24, pickSphereSegments, pickSphereSegments]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} />
           </mesh>
         ) : null}
@@ -720,13 +792,21 @@ export default function BoardPieces({
   onSelectToken,
   freezeTokenAnimations = false,
   boardImpactFeedback,
+  graphicsQuality = 'high',
+  shadowsEnabled = true,
 }: BoardPiecesProps) {
+  const { cartoonMaterials, basicMaterials, reduceMeshDetail } =
+    getGraphicsQualityFlags(graphicsQuality)
   const layout = boardLayout as any
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null)
   const spawnImpactRef = useRef<SpawnImpactPuff | null>(null)
   const selectableTokenSet = useMemo(() => new Set(selectableTokenIds ?? []), [selectableTokenIds])
   const versionCursorRef = useRef({ version: -1, eventCount: 0 })
   const skipHistoryAnimationRef = useRef(true)
+  const consumedMotionKeysRef = useRef(new Set<string>())
+  const activeMoveByTokenIdRef = useRef(
+    new Map<string, { key: string; plan: MotionWaypoint[] }>(),
+  )
 
   const deltaEvents = useMemo(() => {
     if (skipHistoryAnimationRef.current) {
@@ -736,9 +816,9 @@ export default function BoardPieces({
       return []
     }
     return getDeltaEventsSinceVersion(gameState, versionCursorRef.current)
-  }, [freezeTokenAnimations, gameState.version, gameState.events])
+  }, [freezeTokenAnimations, gameState.version, gameState.events.length])
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (freezeTokenAnimations) {
       return
     }
@@ -768,17 +848,35 @@ export default function BoardPieces({
     [deltaEvents],
   )
 
+  const handleMoveAnimationDone = useCallback((tokenId: string, motionPlanKey: string) => {
+    consumedMotionKeysRef.current.add(motionPlanKey)
+    activeMoveByTokenIdRef.current.delete(tokenId)
+  }, [])
+
   const tokensWithTargets = useMemo(() => {
     return gameState.tokens.map((token) => {
       const playerIndex = playerIndexById[token.playerId] ?? 0
       const targetPosition = tokenStateToWorldPosition(token, playerIndex)
       const movePayload = moveEventByTokenId.get(token.id)
-      const motionPlan = movePayload
-        ? motionPlanFromEvent(movePayload.details, playerIndex)
-        : null
-      const motionPlanKey = movePayload
+      const rawMotionPlanKey = movePayload
         ? `${token.id}:move:${gameState.version}:${movePayload.timestamp}:${movePayload.details.path.length}`
         : null
+
+      if (
+        rawMotionPlanKey &&
+        movePayload &&
+        !consumedMotionKeysRef.current.has(rawMotionPlanKey)
+      ) {
+        const plan = motionPlanFromEvent(movePayload.details, playerIndex)
+        if (plan && plan.length > 0) {
+          activeMoveByTokenIdRef.current.set(token.id, { key: rawMotionPlanKey, plan })
+        }
+      }
+
+      const activeMove = activeMoveByTokenIdRef.current.get(token.id)
+      const motionPlanKey =
+        activeMove && !consumedMotionKeysRef.current.has(activeMove.key) ? activeMove.key : null
+      const motionPlan = motionPlanKey ? activeMove?.plan ?? null : null
       const moveFromState = movePayload?.details.from.state
       const captureMotion = token.state === 'in_base'
         ? captureMotionFromEvent(captureMoveByCapturedTokenId.get(token.id), playerIndexById, token)
@@ -824,7 +922,16 @@ export default function BoardPieces({
       {gameState.players.map((p) => {
         const slot = boardSlotForPlayer(gameState.players, p.id)
         const home = layout.players?.[slot]?.home ?? null
-        return <HousePlaceholder key={`house-${p.id}`} box={home} color={PLAYER_COLOR_HEX[p.color] ?? '#ddd'} />
+        return (
+          <HousePlaceholder
+            key={`house-${p.id}`}
+            box={home}
+            color={PLAYER_COLOR_HEX[p.color] ?? '#ddd'}
+            cartoonMaterials={cartoonMaterials}
+            basicMaterials={basicMaterials}
+            castShadow={shadowsEnabled}
+          />
+        )
       })}
 
       {/* Pawns */}
@@ -844,6 +951,7 @@ export default function BoardPieces({
             isHovered={isSelectable && hoveredTokenId === token.id}
             spawnImpact={freezeTokenAnimations ? null : spawnImpactRef.current}
             moveFromState={moveFromState}
+            onMoveAnimationDone={(key) => handleMoveAnimationDone(token.id, key)}
             onPointerDown={(event) => {
               if (!isSelectable || !onSelectToken) {
                 return
@@ -866,6 +974,10 @@ export default function BoardPieces({
               setHoveredTokenId((current) => (current === token.id ? null : current))
             }}
             animationDurationMs={animationDurationMs}
+            cartoonMaterials={cartoonMaterials}
+            basicMaterials={basicMaterials}
+            reduceMeshDetail={reduceMeshDetail}
+            castShadow={shadowsEnabled}
           />
         </group>
       ))}

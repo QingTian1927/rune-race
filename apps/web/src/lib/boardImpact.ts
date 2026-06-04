@@ -18,7 +18,7 @@ export type BoardImpactFeedback = {
   onImpact?: (event: BoardImpactEvent) => void
   /**
    * When true, skip puff meshes but still call `onImpact` (for optional quiet SFX later).
-   * Read via `readReducedMotionPreference()` — settings UI not implemented yet.
+   * Low graphics preset sets this via in-game settings (see `graphicsQuality.ts`).
    */
   reducedMotion?: boolean
 }
