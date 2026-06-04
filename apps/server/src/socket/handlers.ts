@@ -6,7 +6,9 @@ import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
 import type { AnalyticsService } from '../analytics/service'
 import type { MatchmakingQueue } from '../http/matchmaking'
-import { getUserFromAccessToken } from '../lib/supabase-server'
+import { isUuidLike } from '../analytics/event-writer'
+import { ensureProfileRow } from '../lib/ensure-profile'
+import { getSupabaseAdminClient, getUserFromAccessToken } from '../lib/supabase-server'
 import { PlayerSocketRegistry } from './player-socket-registry'
 
 type AuthSocketData = {
@@ -255,6 +257,12 @@ export function setupSocketHandlers(
           password: cmd.password,
         })
         trackLobby(snapshot.lobbyId, playerId)
+
+        if (isUuidLike(playerId)) {
+          const supabase = getSupabaseAdminClient()
+          if (supabase) void ensureProfileRow(supabase, playerId)
+        }
+
         analyticsService.onPresenceConnected(playerId, snapshot.lobbyId)
         analyticsService.onLobbyJoined(playerId, snapshot.lobbyId)
         void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())

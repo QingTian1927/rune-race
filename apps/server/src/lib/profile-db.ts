@@ -5,6 +5,8 @@
 export type ProfileRow = {
   id: string
   full_name: string | null
+  /** Value from profiles.display_name (in-game name chosen by user). */
+  stored_display_name: string | null
   phone: string | null
   bio: string | null
   avatar_emoji: string | null
@@ -18,7 +20,7 @@ export type ProfileRow = {
 
 /** Columns present on both legacy and v2 schemas (safe to select). */
 export const PROFILE_SELECT_COLUMNS =
-  'id, full_name, phone, bio, avatar_emoji, is_anon, total_games, total_wins, total_losses, total_played_hours, total_played_seconds, last_played_at'
+  'id, full_name, display_name, phone, bio, avatar_emoji, is_anon, total_games, total_wins, total_losses, total_played_hours, total_played_seconds, last_played_at'
 
 type DbProfileRow = {
   id: string
@@ -47,6 +49,7 @@ export function mapDbProfileRow(row: DbProfileRow): ProfileRow {
   return {
     id: row.id,
     full_name: typeof row.full_name === 'string' && row.full_name.trim() ? row.full_name.trim() : null,
+    stored_display_name: legacyDisplayNameFromRow(row),
     phone: row.phone,
     bio: row.bio,
     avatar_emoji: row.avatar_emoji,

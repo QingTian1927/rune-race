@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { AuthResponse, Session, User } from '@supabase/supabase-js'
-import { displayNameFromMetadata, fullNameFromMetadata } from '@rune-race/shared'
+import { fullNameFromMetadata } from '@rune-race/shared'
 import { supabase } from '../lib/supabase'
 import { clearStoredPlayerId, syncPlayerIdFromAuth } from '../lib/playerSession'
 import { clearRememberedAnonUserId, linkAnonSessionIfNeeded, rememberAnonUserId } from '../lib/linkAnonSession'
@@ -30,10 +30,9 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 function syncGoogleUserMetadata(user: User): void {
   if (!isRegisteredUser(user)) return
   const meta = user.user_metadata as Record<string, unknown>
-  const displayName = displayNameFromMetadata(meta)
+  if (meta.custom_display_name === true) return
   const fullName = fullNameFromMetadata(meta)
-  const patch: Record<string, string> = {}
-  if (!meta.display_name && displayName) patch.display_name = displayName
+  const patch: Record<string, string | boolean> = {}
   if (!meta.full_name && fullName) patch.full_name = fullName
   if (Object.keys(patch).length === 0) return
   void supabase.auth.updateUser({ data: patch })

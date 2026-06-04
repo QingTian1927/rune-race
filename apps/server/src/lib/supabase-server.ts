@@ -1,3 +1,4 @@
+import { displayNameFromMetadata } from '@rune-race/shared'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 
 let adminClient: SupabaseClient | null = null
@@ -27,8 +28,7 @@ export async function getAuthDisplayName(userId: string): Promise<string | null>
   const { data, error } = await supabase.auth.admin.getUserById(userId)
   if (error || !data.user) return null
   const meta = data.user.user_metadata as Record<string, unknown>
-  const name = meta.display_name ?? meta.full_name ?? meta.name
-  return typeof name === 'string' && name.trim() ? name.trim() : null
+  return displayNameFromMetadata(meta)
 }
 
 export async function setAuthDisplayName(userId: string, displayName: string): Promise<void> {
@@ -37,8 +37,13 @@ export async function setAuthDisplayName(userId: string, displayName: string): P
   const { data, error: fetchError } = await supabase.auth.admin.getUserById(userId)
   if (fetchError || !data.user) throw new Error(fetchError?.message ?? 'User not found')
   const existing = data.user.user_metadata ?? {}
+  const trimmed = displayName.trim()
   const { error } = await supabase.auth.admin.updateUserById(userId, {
-    user_metadata: { ...existing, display_name: displayName.trim() || null },
+    user_metadata: {
+      ...existing,
+      display_name: trimmed || null,
+      custom_display_name: trimmed ? true : null,
+    },
   })
   if (error) throw new Error(error.message)
 }

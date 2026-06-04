@@ -3,7 +3,6 @@ import type { User } from '@supabase/supabase-js'
 import { isRegisteredAccount } from '@rune-race/shared'
 import { isRegisteredUser, requireAuthUser } from '../lib/auth'
 import {
-  legacyDisplayNameFromRow,
   mapDbProfileRow,
   PROFILE_SELECT_COLUMNS,
   type ProfileRow,
@@ -16,7 +15,7 @@ export type ProfileResponse = ProfileRow & {
   display_name: string | null
 }
 
-export type PublicProfileResponse = Omit<ProfileRow, 'is_anon' | 'phone'> & {
+export type PublicProfileResponse = Omit<ProfileRow, 'is_anon' | 'phone' | 'stored_display_name'> & {
   display_name: string | null
 }
 
@@ -45,21 +44,13 @@ function fullNameFromUser(user: User): string | null {
   return null
 }
 
-async function resolveDisplayName(
-  userId: string,
-  row?: { display_name?: string | null },
-): Promise<string | null> {
-  const fromAuth = await getAuthDisplayName(userId)
-  if (fromAuth) return fromAuth
-  if (row) return legacyDisplayNameFromRow(row as Parameters<typeof legacyDisplayNameFromRow>[0])
-  return null
+async function resolveDisplayName(userId: string, row?: ProfileRow): Promise<string | null> {
+  if (row?.stored_display_name) return row.stored_display_name
+  return getAuthDisplayName(userId)
 }
 
-async function toProfileResponse(
-  row: ProfileRow,
-  legacyRow?: { display_name?: string | null },
-): Promise<ProfileResponse> {
-  const display_name = await resolveDisplayName(row.id, legacyRow)
+async function toProfileResponse(row: ProfileRow): Promise<ProfileResponse> {
+  const display_name = await resolveDisplayName(row.id, row)
   return { ...row, display_name }
 }
 
@@ -189,14 +180,11 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
       return reply.status(404).send({ error: 'Profile not found' })
     }
 
-    let display_name = await getAuthDisplayName(id)
+    let display_name = row.stored_display_name
     if (!display_name) {
-      const legacy = await supabase.from('profiles').select('display_name').eq('id', id).maybeSingle()
-      if (!legacy.error && legacy.data) {
-        display_name = legacyDisplayNameFromRow(legacy.data as Parameters<typeof legacyDisplayNameFromRow>[0])
-      }
+      display_name = await getAuthDisplayName(id)
     }
-    const { phone: _phone, is_anon: _isAnon, ...publicRow } = row
+    const { phone: _phone, is_anon: _isAnon, stored_display_name: _stored, ...publicRow } = row
     const response: PublicProfileResponse = { ...publicRow, display_name }
     return response
   })
@@ -230,8 +218,12 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
     }
 
     if (typeof body.displayName === 'string') {
+      const trimmedDisplayName = body.displayName.trim()
+      if (!trimmedDisplayName) {
+        return reply.status(400).send({ error: 'displayName cannot be empty' })
+      }
       try {
-        await setAuthDisplayName(user.id, body.displayName)
+        await setAuthDisplayName(user.id, trimmedDisplayName)
       } catch (err) {
         return reply.status(500).send({
           error: err instanceof Error ? err.message : 'Failed to update display name',
@@ -239,7 +231,15 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
       }
     }
 
-    const patch: { bio?: string | null; avatar_emoji?: string | null; phone?: string | null } = {}
+    const patch: {
+      bio?: string | null
+      avatar_emoji?: string | null
+      phone?: string | null
+      display_name?: string | null
+    } = {}
+    if (typeof body.displayName === 'string') {
+      patch.display_name = body.displayName.trim() || null
+    }
     if (typeof body.bio === 'string') {
       const bio = body.bio.trim()
       if (bio.length > MAX_BIO_LENGTH) {

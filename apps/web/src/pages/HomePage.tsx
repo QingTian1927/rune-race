@@ -9,8 +9,11 @@ import {
   joinMatchmaking,
   leaveMatchmaking,
   resolveRoomByCode,
+  updateDisplayName,
   type PublicRoom,
 } from '../lib/api'
+import { getDisplayName } from '../lib/authUser'
+import { supabase } from '../lib/supabase'
 import { HOME_FORM_NUDGE_DELAY_MS } from '../lib/accountNudge'
 import { useAuth } from '../hooks/useAuth'
 import { useFeatureFlags } from '../hooks/useFeatureFlags'
@@ -208,8 +211,15 @@ export default function HomePage() {
     saveLocalName()
     const trimmed = name.trim()
     if (!trimmed || isRegistered) return
+    // Chỉ lưu local; không tạo user anon / profile DB cho đến khi vào phòng hoặc tìm trận.
+    const { data: sessionData } = await supabase.auth.getSession()
+    const session = sessionData.session
+    if (!session?.user || session.user.user_metadata?.is_anon !== true) return
     try {
-      await ensureOnlineSession(trimmed)
+      const current = getDisplayName(session.user)
+      if (current === trimmed) return
+      await updateDisplayName(session.access_token, trimmed)
+      await supabase.auth.refreshSession()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Không lưu được tên')
     }
