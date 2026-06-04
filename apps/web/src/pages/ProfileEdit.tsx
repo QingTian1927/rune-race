@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchProfile, updateProfile } from '../lib/api'
 import { getDisplayName } from '../lib/authUser'
+import { supabase } from '../lib/supabase'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
 import { useAuth } from '../hooks/useAuth'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
@@ -64,6 +65,7 @@ export default function ProfileEditPage() {
         avatarEmoji,
         phone: phone.trim(),
       })
+      await supabase.auth.refreshSession()
       await refetchProfile()
       navigate(`/profile/${user?.id ?? ''}`)
     } catch (err) {

@@ -20,7 +20,11 @@ export function usePlayerIdentity(): PlayerIdentity {
   const { profile } = usePlayerProfile()
 
   const playerId = user?.id ?? (authLoading ? '' : getOrCreatePlayerId())
-  const playerName = user ? getDisplayName(user) : getPlayerName()
+  const playerName = user
+    ? isRegistered && profile?.display_name
+      ? profile.display_name
+      : getDisplayName(user)
+    : getPlayerName()
   const avatarEmoji = isRegistered ? (profile?.avatar_emoji ?? null) : null
   const isAnon = isAnonUser(user)
   const identityReady =

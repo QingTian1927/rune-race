@@ -1,5 +1,6 @@
 import type { GameState } from '@rune-race/shared'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { ensureProfileRow } from '../lib/ensure-profile'
 import { AnalyticsEventWriter, isUuidLike } from './event-writer'
 import { LiveCounters } from './live-counters'
 import { runAnalyticsRollup } from './rollup'
@@ -206,6 +207,8 @@ export class AnalyticsService {
     }
 
     for (const [playerId, stats] of totals) {
+      if (!(await ensureProfileRow(supabase, playerId))) continue
+
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('total_played_seconds')
@@ -246,6 +249,8 @@ export class AnalyticsService {
     const hasWinner = isUuidLike(state.winnerId)
     for (const player of state.players) {
       if (!isUuidLike(player.id)) continue
+      if (!(await ensureProfileRow(this.supabase, player.id))) continue
+
       const { data: profile, error } = await this.supabase
         .from('profiles')
         .select('total_games,total_wins,total_losses,last_played_at')
