@@ -1,6 +1,6 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io'
 import type { ClientToServerEvents, ServerToClientEvents, ChatSystemEvent, PlayerColor } from '@rune-race/shared'
-import { validateCommand } from '@rune-race/shared'
+import { buildClientGameSnapshot, validateCommand } from '@rune-race/shared'
 import type { ChatStore } from '../chat/chat-store'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
@@ -190,7 +190,9 @@ export function setupSocketHandlers(
     },
     onGameStart: ({ lobbyId, gameId, players, firstPlayerId }) => {
       lobbyStore.setInGame(lobbyId, gameId)
-      const state = gameStore.createGame({ gameId, lobbyId, players, firstPlayerId })
+      const lobbySnapshot = lobbyStore.getSnapshot(lobbyId)
+      const runesEnabled = lobbySnapshot?.settings.runesEnabled ?? true
+      const state = gameStore.createGame({ gameId, lobbyId, players, firstPlayerId, runesEnabled })
       analyticsService.onGameStarted(
         gameId,
         lobbyId,
@@ -206,28 +208,31 @@ export function setupSocketHandlers(
 
       io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', lobbyStore.getSnapshot(lobbyId)!)
 
-      io.to(`game:${gameId}`).emit('game:state_snapshot', {
-        version: state.version,
-        state,
-        events: state.events,
-      })
+      broadcastGameSnapshot(io, gameId, state, state.events)
     },
   })
 
+  function broadcastGameSnapshot(
+    server: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
+    gameId: string,
+    state: import('@rune-race/shared').GameState,
+    events: import('@rune-race/shared').GameEvent[],
+  ) {
+    void server.in(`game:${gameId}`).fetchSockets().then((sockets) => {
+      for (const sock of sockets) {
+        const playerId = (sock.data as { playerId?: string }).playerId
+        if (!playerId) continue
+        sock.emit('game:state_snapshot', buildClientGameSnapshot(state, playerId, events))
+      }
+    })
+  }
+
   gameStore.setListeners({
     onChange: (gameId, state, events) => {
-      io.to(`game:${gameId}`).emit('game:state_snapshot', {
-        version: state.version,
-        state,
-        events,
-      })
+      broadcastGameSnapshot(io, gameId, state, events)
     },
     onFinished: (gameId, lobbyId, state) => {
-      io.to(`game:${gameId}`).emit('game:state_snapshot', {
-        version: state.version,
-        state,
-        events: state.events,
-      })
+      broadcastGameSnapshot(io, gameId, state, state.events)
       lobbyStore.resetAfterGame(lobbyId)
       analyticsService.onGameFinished(gameId, lobbyId, state)
       void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
@@ -411,6 +416,7 @@ export function setupSocketHandlers(
           name: cmd.name,
           password: cmd.password,
           clearPassword: cmd.clearPassword,
+          runesEnabled: cmd.runesEnabled,
         })
         io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
         emitHostRoomPassword(socketRegistry, lobbyStore, lobbyId, playerId)
@@ -492,15 +498,37 @@ export function setupSocketHandlers(
         const playerId = resolvePlayerId(socket, cmd.playerId)
         const state = gameStore.getState(cmd.gameId)
         if (!state) throw new Error('Game not found')
-        if (!state.players.some((p) => p.id === playerId)) {
+        const player = state.players.find((p) => p.id === playerId)
+        if (!player) {
           throw new Error('Player not in this game')
         }
         socket.join(`game:${cmd.gameId}`)
         socketRegistry.track(socket, playerId)
         ;(socket.data as { gameId?: string; playerId?: string }).gameId = cmd.gameId
         ;(socket.data as { playerId?: string }).playerId = playerId
+
+        const lobbyId = gameStore.getLobbyId(cmd.gameId)
+        if (lobbyId) {
+          try {
+            lobbyStore.joinLobby({
+              lobbyId,
+              playerId,
+              playerName: player.name,
+            })
+            trackLobby(lobbyId, playerId)
+          } catch {
+            const memberLobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
+            if (memberLobbyId === lobbyId) {
+              trackLobby(lobbyId, playerId)
+            }
+          }
+        }
+
         socket.emit('game:connected', { playerId: playerId, gameId: cmd.gameId })
-        socket.emit('game:state_snapshot', { version: state.version, state, events: state.events })
+        socket.emit(
+          'game:state_snapshot',
+          buildClientGameSnapshot(state, playerId, state.events),
+        )
       } catch (error) {
         gameError(socket, error instanceof Error ? error.message : 'Join failed', 'JOIN_FAILED')
       }
@@ -530,6 +558,54 @@ export function setupSocketHandlers(
       }
     })
 
+    socket.on('game:draw_cards', (payload) => {
+      try {
+        const cmd = validateCommand('game:draw_cards', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.drawCards(gameId, playerId, cmd.count)
+      } catch (error) {
+        gameError(socket, error instanceof Error ? error.message : 'Draw failed', 'DRAW_FAILED')
+      }
+    })
+
+    socket.on('game:finish_draw', (payload) => {
+      try {
+        const cmd = validateCommand('game:finish_draw', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.finishDraw(gameId, playerId)
+      } catch (error) {
+        gameError(socket, error instanceof Error ? error.message : 'Finish draw failed', 'FINISH_DRAW_FAILED')
+      }
+    })
+
+    socket.on('game:place_marker', (payload) => {
+      try {
+        const cmd = validateCommand('game:place_marker', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.placeMarker(gameId, playerId, cmd.heldCardId, cmd.cellId, cmd.displayedIdentityId)
+      } catch (error) {
+        gameError(socket, error instanceof Error ? error.message : 'Place failed', 'PLACE_FAILED')
+      }
+    })
+
+    socket.on('game:choose_swap', (payload) => {
+      try {
+        const cmd = validateCommand('game:choose_swap', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.chooseSwap(gameId, playerId, cmd.targetTokenId)
+      } catch (error) {
+        gameError(socket, error instanceof Error ? error.message : 'Swap failed', 'SWAP_FAILED')
+      }
+    })
+
     socket.on('game:sync_request', (payload) => {
       try {
         const cmd = validateCommand('game:sync_request', payload)
@@ -539,7 +615,10 @@ export function setupSocketHandlers(
         if (!gameId) throw new Error('Not in a game')
         const state = gameStore.getState(gameId)
         if (!state) throw new Error('Game not found')
-        socket.emit('game:state_snapshot', { version: state.version, state, events: state.events })
+        socket.emit(
+          'game:state_snapshot',
+          buildClientGameSnapshot(state, playerId, state.events),
+        )
       } catch (error) {
         gameError(socket, error instanceof Error ? error.message : 'Sync failed', 'SYNC_FAILED')
       }
@@ -560,6 +639,9 @@ export function setupSocketHandlers(
       if (!data.lobbyId || !data.playerId) return
 
       const { lobbyId, playerId } = data
+      const stillConnected = socketRegistry.getSockets(playerId).length > 0
+      if (stillConnected) return
+
       const snapshot = lobbyStore.getSnapshot(lobbyId)
       const player = snapshot?.players.find((p) => p.id === playerId)
       const forfeitGameId =
@@ -572,12 +654,9 @@ export function setupSocketHandlers(
       forfeitPlayerInActiveGame(lobbyStore, gameStore, playerId)
       lobbyStore.markDisconnected(lobbyId, playerId)
 
-      const stillConnected = socketRegistry.getSockets(playerId).length > 0
-      if (!stillConnected) {
-        analyticsService.onPresenceDisconnected(playerId, lobbyId, 'disconnect')
-        if (forfeitGameId) {
-          analyticsService.onGameForfeit(forfeitGameId, lobbyId, playerId)
-        }
+      analyticsService.onPresenceDisconnected(playerId, lobbyId, 'disconnect')
+      if (forfeitGameId) {
+        analyticsService.onGameForfeit(forfeitGameId, lobbyId, playerId)
       }
       void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 

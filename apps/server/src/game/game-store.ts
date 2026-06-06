@@ -2,6 +2,10 @@ import type { GameState } from '@rune-race/shared'
 import {
   createInitialGameState,
   handleChooseMove,
+  handleChooseSwap,
+  handleDrawCards,
+  handleFinishDraw,
+  handlePlaceMarker,
   handlePlayerLeft,
   handleRoll,
 } from '@rune-race/game-engine'
@@ -34,11 +38,13 @@ export class GameStore {
     lobbyId: string
     players: Parameters<typeof createInitialGameState>[0]['players']
     firstPlayerId: string
+    runesEnabled?: boolean
   }): GameState {
     const state = createInitialGameState({
       gameId: params.gameId,
       players: params.players,
       firstPlayerId: params.firstPlayerId,
+      runesEnabled: params.runesEnabled ?? true,
     })
 
     this.games.set(params.gameId, {
@@ -102,6 +108,51 @@ export class GameStore {
     this.playerGameIndex.delete(playerId)
     this.onChange?.(gameId, session.state, result.events)
 
+    if (session.state.status === 'finished') {
+      this.onFinished?.(gameId, session.lobbyId, session.state)
+    }
+  }
+
+  drawCards(gameId: string, playerId: string, count: number): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleDrawCards(session.state, playerId, count)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+  }
+
+  finishDraw(gameId: string, playerId: string): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleFinishDraw(session.state, playerId)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+  }
+
+  placeMarker(
+    gameId: string,
+    playerId: string,
+    heldCardId: string,
+    cellId: number,
+    displayedIdentityId: string,
+  ): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handlePlaceMarker(session.state, playerId, heldCardId, cellId, displayedIdentityId)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+  }
+
+  chooseSwap(gameId: string, playerId: string, targetTokenId: string): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleChooseSwap(session.state, playerId, targetTokenId)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
     if (session.state.status === 'finished') {
       this.onFinished?.(gameId, session.lobbyId, session.state)
     }

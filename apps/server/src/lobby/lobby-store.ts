@@ -55,6 +55,7 @@ function buildSettings(name: string): LobbySettings {
     hasPassword: false,
     maxPlayers: LOBBY_MAX_PLAYERS,
     minPlayersToStart: LOBBY_MIN_PLAYERS_TO_START,
+    runesEnabled: true,
   }
 }
 
@@ -211,11 +212,11 @@ export class LobbyStore {
     }
 
     const record = this.lobbies.get(id)!
-    if (record.status === 'in_game') {
+    const existing = record.players.find((p) => p.id === params.playerId)
+
+    if (record.status === 'in_game' && !existing) {
       throw new Error('Game already in progress')
     }
-
-    const existing = record.players.find((p) => p.id === params.playerId)
     if (
       !existing &&
       record.passwordHash &&
@@ -373,7 +374,7 @@ export class LobbyStore {
   updateSettings(
     lobbyId: string,
     hostId: string,
-    patch: { name?: string; password?: string; clearPassword?: boolean },
+    patch: { name?: string; password?: string; clearPassword?: boolean; runesEnabled?: boolean },
   ): LobbySnapshot {
     const record = this.getLobbyOrThrow(lobbyId, hostId)
     if (record.hostPlayerId !== hostId) {
@@ -382,6 +383,9 @@ export class LobbyStore {
 
     if (patch.name) {
       record.settings.name = patch.name
+    }
+    if (patch.runesEnabled !== undefined) {
+      record.settings.runesEnabled = patch.runesEnabled
     }
     if (patch.clearPassword) {
       record.passwordHash = null
