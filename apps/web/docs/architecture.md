@@ -7,6 +7,7 @@ Defined in `apps/web/src/App.tsx`:
 | Path | Component | Description |
 |------|-----------|-------------|
 | `/` | `HomePage` | Create/join room, public list, matchmaking |
+| `/guide` | `GuidePage` | Static gameplay / rune guide |
 | `/auth/login` | `AuthLoginPage` | Supabase login + guest sign-in |
 | `/auth/signup` | `AuthSignupPage` | Supabase registration |
 | `/profile/edit` | `ProfileEditPage` | Own profile editor |
@@ -20,11 +21,12 @@ Defined in `apps/web/src/App.tsx`:
 ```
 Pages (Home, Lobby, Online, Local)
     → auth hooks (useAuth, usePlayerIdentity)
-    → hooks (useLobbySocket, useGameSocket, usePresentationGameState)
-    → GameView (HUD, dev menu, editor controls)
+    → hooks (useLobbySocket, useGameSocket, useRoomChat, usePresentationGameState)
+    → GameView (HUD, rune layer, dev menu, editor controls)
         → BoardScene (Canvas, OrbitControls)
             → BoardModel (static mesh)
             → BoardPieces (pawns, houses, animations)
+            → RuneMarkers / RunePlacementLayer (when runes enabled)
             → DiceShaker (roll presentation)
 ```
 
@@ -68,12 +70,17 @@ Shared shell for local and online: 3D viewport + warm glass HUD overlay + option
 
 | Prop | Role |
 |------|------|
-| `canRoll` | Page computes: my turn + `waiting_roll` + not presenting dice + game playing |
+| `canRoll` | Page computes: my turn + (`waiting_roll` \| `waiting_draw` \| `placement_phase`) + not presenting dice + game playing |
 | `localPlayerId` | Online: restricts move-selection arrows to this client |
 | `isPresentingDice` | From `usePresentationGameState`; gates token motion and parts of HUD timing |
 | `autoResolveRolled` | Local only: auto-pick sole legal move after dice gate |
+| `runeView` | Per-client marker tooltips from snapshot (`RuneClientView`) |
+| `onDrawCards` / `onPlaceMarker` / `onChooseSwap` | Online rune intents via `useGameSocket` |
+| `roomChat` | Optional `RoomChatPanel` slot (online) |
 
 Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`. Player identity comes from the page layer (`usePlayerIdentity()`), not from `localStorage` directly.
+
+See [Rune system (client)](./rune-system.md) for hand/placement/swap behavior.
 
 **HUD overlay** (`components/hud/`)
 
@@ -85,13 +92,20 @@ All panels sit in `absolute inset-0 pointer-events-none`; buttons and links use 
 | `MyPlayerPanel` | Bottom-right | Local client identity (`BẠN`); collapsible. |
 | `FinishOrderPanel` | Top-right | Ranked finishers from `token_finished` events; hidden until ≥1 finisher; collapsible. **Display** list is delayed like current-turn panel. |
 | `YourTurnBanner` | Center (~30% from top) | Short auto-dismiss (~1s). Shown after presentation completes when it is the local player's turn, or after turn advances to local player. Synced with roll button reveal when applicable. Uses authoritative `gameState.turn.currentPlayerId` for ownership (not delayed HUD state). |
-| `RollDiceButton` | Bottom-center | Visible when `canRoll`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. |
+| `RollDiceButton` | Bottom-center | Visible when `canRoll`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. During rune draw/placement, roll also closes the rune window server-side. |
+| `HandArrayPanel` | Bottom-left | Rune hand (max 10), draw button on active player's turn; see [rune-system](./rune-system.md) |
+| `RuneCardPreviewOverlay` | Center overlay | Card preview and placement confirm |
+| `GameSettingsOverlay` | Settings gear | Graphics quality, fullscreen, landscape hint |
+| `GameEndOverlay` | Center | Rankings + countdown when `status === 'finished'` |
+| `LandscapeHintOverlay` | Full screen | Suggests landscape on small portrait viewports |
 
 Shared helpers: `PlayerBadge`, `playerColorStyles` (static Tailwind color map for `PlayerColor`), `PanelCollapseButton` (SVG chevron, no text labels).
 
 **Move selection**
 
 There is **no** on-screen list of legal moves. When `waiting_choice` with multiple `legalMoves`, `BoardPieces` shows arrows on selectable pawns; click resolves via `onSelectMove`. Online: only tokens belonging to `localPlayerId` are selectable.
+
+When `waiting_swap_choice`, selection mode is `swap`: pick a valid target token for `onChooseSwap` (see [rune-system](./rune-system.md)).
 
 **Dev (F3)**
 
@@ -107,11 +121,19 @@ Does **not** leave on unmount (explicit leave buttons + server disconnect grace 
 
 When a Supabase access token is available, passes it to `lib/socket.ts` for handshake auth.
 
-### `useGameSocket(gameId, playerId)`
+### `useGameSocket(gameId, playerId, authToken?, lobbyPresence?)`
 
-Subscribes to `game:state_snapshot`; uses `usePresentationGameState` for display state and dice gate. Blocks `roll` / `chooseMove` while presenting dice.
+Subscribes to `game:state_snapshot` (`ClientGameSnapshot` with `runeView`); uses `usePresentationGameState` for display state and dice gate. Blocks `roll` / `chooseMove` while presenting dice.
+
+Exposes rune intents: `drawCards`, `finishDraw`, `placeMarker`, `chooseSwap`.
+
+Re-emits `lobby:join` when `lobbyPresence` is set so the client stays in the lobby room while in `/game/:gameId` (chat + removal events).
 
 The hook also accepts the optional Supabase access token so authenticated and anonymous sessions stay aligned with the socket handshake.
+
+### `useRoomChat(lobbyId, playerId, authToken?)`
+
+Lobby-scoped chat: `chat:sync_request` on connect, listens for `chat:history` / `chat:message`, emits `chat:send`.
 
 ### `usePresentationGameState`
 

@@ -1,15 +1,16 @@
 # Server documentation
 
-Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile, and authoritative multiplayer gameplay.
+Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile, lobby chat, rune gameplay, and authoritative multiplayer.
 
 ## Read first
 
 1. [Overview](./overview.md) — end-to-end flow
 2. [Architecture](./architecture.md) — modules and packages
 3. [HTTP API](./http-api.md) — REST endpoints
-4. [Socket.IO contract](./socket-contract.md) — lobby + game events
+4. [Socket.IO contract](./socket-contract.md) — lobby + game + chat events
 5. [Game model](./game-model.md) — rules and state machine
-6. [Client integration](./client-integration.md) — what the web client expects
+6. [Rune system](./rune-system.md) — draw, placement, markers, per-client views
+7. [Client integration](./client-integration.md) — what the web client expects
 
 ## Runtime
 
@@ -19,16 +20,16 @@ Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile
 | WebSocket | `ws://localhost:3000` (default namespace) |
 
 - **Package:** `apps/server`
-- **CORS:** `*` (development)
-- **Persistence:** lobby/game state is in-memory; user profiles and auth live in Supabase
+- **CORS:** configurable via `CLIENT_ORIGIN` (defaults permissive in development)
+- **Persistence:** lobby/game/chat state is in-memory; user profiles and auth live in Supabase
 - **Authority:** server owns lobby and game state; clients send intents only
 
 ## Monorepo dependencies
 
 | Package | Role |
 |---------|------|
-| `@rune-race/shared` | Types, Zod command validation, protocol events |
-| `@rune-race/game-engine` | Authoritative rules (`handleRoll`, `handleChooseMove`) |
+| `@rune-race/shared` | Types, Zod command validation, protocol events, `buildClientGameSnapshot` |
+| `@rune-race/game-engine` | Authoritative rules (`handleRoll`, rune commands, stepwise movement) |
 
 ## Dev commands
 

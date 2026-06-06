@@ -19,17 +19,20 @@
 
 ## Online game flow (`OnlineGamePage`)
 
-1. `useGameSocket(gameId, playerId, accessToken)` → `game:join` on connect.
+1. `useGameSocket(gameId, playerId, accessToken, lobbyPresence)` → `game:join` on connect; re-joins lobby for chat/removal.
 2. **Back** → `/lobby/:lobbyId` (still a lobby member).
 3. **Rời game** → `lobby:leave` + navigate home (forfeit + leave lobby).
 4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect if removed while in match.
-5. `GameView` receives display state from presentation hook.
-6. **Roll:** if `canRoll` (my turn, `waiting_roll`, not presenting dice) → `game:roll`.
-7. Server snapshot with delta `dice_roll` (+ maybe `token_moved` if auto-resolved):
+5. `GameView` receives display state from presentation hook + `runeView` for marker tooltips.
+6. **Rune turn (when enabled):** active player may draw cards; all players with hand cards may place during `placement_phase`; roll button closes draw/placement then rolls — see [Rune system](./rune-system.md).
+7. **Roll:** if `canRoll` → `game:roll`.
+8. Server snapshot with delta `dice_roll` (+ maybe `token_moved` / `token_stepped` if auto-resolved):
    - Increment `rollTrigger` → `DiceShaker` animates.
    - Tokens frozen until animation completes.
-8. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only (no HUD move list) → `game:choose_move`.
-9. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
+9. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only → `game:choose_move`.
+10. **Swap:** if `waiting_swap_choice` → pick target pawn → `game:choose_swap`.
+11. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
+12. **Chat:** `RoomChatPanel` via `useRoomChat` (same lobby id in `sessionStorage`).
 
 ## Local game flow (`LocalGamePage`)
 
@@ -58,6 +61,7 @@ After gate: apply full snapshot; `BoardPieces` processes delta `token_moved` / `
 - `getDeltaEventsSinceVersion` — only new events when `version` bumps.
 - First snapshot after join: skip replaying full history.
 - During `freezeTokenAnimations`: do not advance version cursor or animate.
+- With runes enabled, movement may emit `token_stepped` per cell (marker triggers) before final `token_moved`.
 
 ## Game rules (display / testing)
 

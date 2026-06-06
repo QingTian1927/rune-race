@@ -6,9 +6,11 @@ The web client is **wired to the live server** for lobby and online play. Local 
 
 | Data | Authority |
 |------|-----------|
-| Lobby membership, ready, countdown | Server `lobby:snapshot` |
-| Game state, dice, moves | Server `game:state_snapshot` |
-| Player id + display name | Client `localStorage` via `lib/playerSession.ts` |
+| Lobby membership, ready, countdown, `runesEnabled` | Server `lobby:snapshot` |
+| Game state, dice, moves, rune markers (public) | Server `game:state_snapshot` |
+| Your marker card types | Server `runeView` on snapshot |
+| Player id + display name | Supabase session or `localStorage` via `usePlayerIdentity` |
+| Lobby chat | Server `chat:*` (in-memory, lobby-scoped) |
 | Board layout in editor | Client JSON (export only in MVP) |
 | Dice animation timing | Client `dicePresentation.ts` |
 
@@ -16,45 +18,63 @@ The web client is **wired to the live server** for lobby and online play. Local 
 
 | Function | Endpoint |
 |----------|----------|
+| `fetchFeatureFlags` | `GET /api/public/feature-flags` |
 | `fetchPublicRooms` | `GET /api/rooms` |
+| `fetchRoomById` | `GET /api/rooms/:lobbyId` |
 | `createRoom` | `POST /api/rooms` |
 | `resolveRoomByCode` | `GET /api/rooms/by-code/:joinCode` |
 | `joinMatchmaking` | `POST /api/matchmaking/join` |
 | `leaveMatchmaking` | `DELETE /api/matchmaking/leave` |
 | `getMatchmakingStatus` | `GET /api/matchmaking/status?playerId=` |
+| `fetchProfile` | `GET /api/profile` (Bearer token) |
+| `fetchProfileById` | `GET /api/profile/:id` |
+| `updateProfile` | `PATCH /api/profile` |
+| `updateDisplayName` | `PATCH /api/player/display-name` |
+| `linkAnonProfile` | `POST /api/auth/link-anon` |
+
+Authenticated requests pass `Authorization: Bearer <supabase_access_token>` when a session exists.
 
 ## Socket (`lib/socket.ts`)
 
-Singleton `io(API_BASE || undefined)` with websocket + polling.
+Singleton `io(API_BASE || undefined)` with websocket + polling. Optional `auth: { token }` in handshake.
 
 ### Lobby (`useLobbySocket`)
 
 Emit: `lobby:join`, `lobby:set_color`, `lobby:ready`, `lobby:unready`, `lobby:leave`, host actions, `lobby:sync_request`.
 
-Listen: `lobby:snapshot`, `lobby:start_countdown`, `lobby:start_countdown_cancelled`, `lobby:game_started`, `lobby:error`, `lobby:closed`, `lobby:kicked`, `lobby:removed`.
+Listen: `lobby:snapshot`, `lobby:host_secrets` (host), `lobby:start_countdown`, `lobby:start_countdown_cancelled`, `lobby:game_started`, `lobby:error`, `lobby:closed`, `lobby:kicked`, `lobby:removed`.
 
 **Leave behavior (client):**
 
 - **Rời phòng** / **← Trang chủ** on `LobbyPage` → `emitLeaveLobby` then navigate.
 - **Rời game** on `OnlineGamePage` → same (`lobby:leave` removes from lobby and forfeits match).
-- **Lobby → game** navigation sets `rune-race-lobby-retain` so unmount does **not** auto-leave (player stays in lobby for Back link).
+- **Lobby → game** navigation sets `rune-race-lobby-retain` so unmount does **not** auto-leave (player stays in lobby for Back link + chat).
 - Do **not** call `lobby:leave` on hook unmount — avoids React StrictMode destroying rooms in dev.
 
 Optional `onRemoved` callback redirects home on `lobby:closed` / `lobby:kicked` / `lobby:removed`.
 
+### Chat (`useRoomChat`)
+
+Emit: `chat:send`, `chat:sync_request`.
+
+Listen: `chat:history`, `chat:message`, `chat:error`.
+
+Works in lobby and in-game (same `lobbyId`). `OnlineGamePage` passes `RoomChatPanel` into `GameView`.
+
 ### Game (`useGameSocket`)
 
-Emit: `game:join`, `game:roll`, `game:choose_move`, `game:sync_request`.
+Emit: `game:join`, `game:draw_cards`, `game:finish_draw`, `game:place_marker`, `game:roll`, `game:choose_move`, `game:choose_swap`, `game:sync_request`.
 
 Listen: `game:connected`, `game:state_snapshot`, `game:error`.
 
-**Snapshots:** `applyAuthoritativeState(state, { deltaEvents: payload.events })`. Treat `events` as **delta** during play; full list on join/sync.
+**Snapshots:** `ClientGameSnapshot` — apply `state` via `applyAuthoritativeState(state, { deltaEvents: payload.events })`; store `runeView` separately for tooltips. Treat `events` as **delta** during play; full list on join/sync.
 
-## Player identity (`lib/playerSession.ts`)
+While in a match, the hook re-emits `lobby:join` so the socket stays in the lobby room for chat and removal events.
 
-- `rune-race-player-id` — stable anonymous id (`anon-{uuid}`).
-- `rune-race-player-name` — display name for lobby.
-- `usePlayerIdentity()` reads both from `localStorage`.
+## Player identity
+
+- **Guest:** `rune-race-player-id` (`anon-{uuid}`) + `rune-race-player-name` in `localStorage` (`lib/playerSession.ts`).
+- **Supabase:** `usePlayerIdentity()` prefers authenticated user id and profile display name; passes `accessToken` to HTTP and socket.
 
 UUID generation uses `randomUUID` → `getRandomValues` → `Math.random` fallback for **HTTP LAN** (non-secure context).
 
@@ -68,17 +88,21 @@ Online rolls may include move resolution in one snapshot. The client:
 
 Do not defer turn separately from tokens (causes desync); use `createGatedDisplayState` in `dicePresentation.ts`.
 
+Rune marker animations follow the same delta cursor as `tokenMotion.ts` (`token_stepped`, `marker_triggered`, etc.).
+
 ## UI permissions (online)
 
 `OnlineGamePage` passes to `GameView`:
 
 | Input | Rule |
 |-------|------|
-| `canRoll` | `turn.currentPlayerId === playerId` + `waiting_roll` + `!isPresentingDice` + `status === 'playing'` |
+| `canRoll` | `turn.currentPlayerId === playerId` + phase in `waiting_roll` / `waiting_draw` / `placement_phase` + `!isPresentingDice` + `status === 'playing'` |
 | `localPlayerId` | Move-selection arrows only for this client's pawns when `waiting_choice` with multiple moves |
 | `isPresentingDice` | From `useGameSocket` / `usePresentationGameState`; freezes tokens and delays HUD turn/finish panels |
+| Rune draw | Active player only during `waiting_draw` / `placement_phase` |
+| Rune place | Any player with cards in hand during `placement_phase` |
 
-Opponents see board updates from snapshots but not selection arrows or roll button.
+Opponents see board updates from snapshots but not selection arrows, roll button, or your marker card types.
 
 **HUD vs server**
 
@@ -86,7 +110,8 @@ The server does not drive HUD text or layout. Clients derive:
 
 - Finish order from `token_finished` events in snapshot history
 - Current turn label from `turn.currentPlayerId` (display delayed after animations)
-- Turn banner from local turn ownership + phase (`waiting_choice` vs `waiting_roll`)
+- Turn banner from local turn ownership + phase (`waiting_choice` vs `waiting_roll` vs rune phases)
+- Hand UI from `state.rune.players[localPlayerId]` + `runeView`
 
 There is no socket field for “show move list”; multiple moves are chosen via `game:choose_move` after the player picks a pawn on the board.
 
@@ -95,10 +120,12 @@ There is no socket field for “show move list”; multiple moves are chosen via
 | Variable | Meaning |
 |----------|---------|
 | `VITE_API_URL` | API + socket base (e.g. `http://192.168.1.10:3000`). Empty = same origin + Vite proxy. |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
 
 Place variables in the **repo root** `.env` (see `.env.example`). Vite `envDir` points at the monorepo root so one file serves web and server in local dev.
 
-**Server-only** (same `.env` file, no `VITE_` prefix): `PORT`, `CLIENT_ORIGIN`.
+**Server-only** (same `.env` file, no `VITE_` prefix): `PORT`, `CLIENT_ORIGIN`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`.
 
 ### LAN checklist
 
@@ -113,7 +140,7 @@ Extend only via `packages/shared`:
 
 - `src/protocol/events.ts`
 - `src/schemas/events.ts`
-- `src/types/lobby.ts`, `src/types/game.ts`
+- `src/types/lobby.ts`, `src/types/game.ts`, `src/types/rune.ts`
 
 Then update [protocol-reference](./protocol-reference.md) and [server socket contract](../../server/docs/socket-contract.md).
 
