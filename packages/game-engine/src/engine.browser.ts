@@ -1,6 +1,8 @@
 import type { GameEvent, GameState, LegalMove, Player, TokenState } from '@rune-race/shared'
 import { PLAYER_COLORS } from '@rune-race/shared'
 import boardLayoutData from '../data/board-layout.json'
+import { createInitialRuneState } from './rune/state.js'
+import { setEngineApi } from './engine-api.js'
 
 type BoardLayout = {
   meta: {
@@ -80,6 +82,7 @@ export function createInitialGameState(params: {
   gameId: string
   players: Player[]
   firstPlayerId: string
+  runesEnabled?: boolean
 }): GameState {
   const players = sortPlayersByColor(params.players)
   if (players.length < 2 || players.length > 4) {
@@ -92,8 +95,9 @@ export function createInitialGameState(params: {
   )
   const currentPlayerId = players[currentPlayerIndex]?.id ?? players[0].id
   const timestamp = now()
+  const runesEnabled = params.runesEnabled ?? false
 
-  return {
+  const base: GameState = {
     roomId: params.gameId,
     version: 1,
     players,
@@ -102,17 +106,27 @@ export function createInitialGameState(params: {
       id: `${params.gameId}:turn:1`,
       currentPlayerId,
       diceResult: null,
-      phase: 'waiting_roll',
+      phase: runesEnabled ? 'waiting_draw' : 'waiting_roll',
       legalMoves: [],
       startTime: timestamp,
+      isBonusTurn: false,
+      pendingSwap: null,
     },
-    phase: 'waiting_roll',
+    phase: runesEnabled ? 'waiting_draw' : 'waiting_roll',
     status: 'playing',
     currentPlayerIndex,
+    config: { runesEnabled },
+    rune: null,
     createdAt: timestamp,
     updatedAt: timestamp,
     events: [],
   }
+
+  if (!runesEnabled) {
+    return base
+  }
+
+  return { ...base, rune: createInitialRuneState(players) }
 }
 
 export type RollDiceFn = () => number
@@ -121,7 +135,7 @@ function defaultRollDice(): number {
   return Math.floor(Math.random() * 6) + 1
 }
 
-function safeTrackIndices(state: GameState) {
+export function safeTrackIndices(state: GameState) {
   const indices = new Set<number>()
   state.players.forEach((player) => {
     const slot = boardSlotForPlayer(state, player.id)
@@ -133,7 +147,7 @@ function safeTrackIndices(state: GameState) {
   return indices
 }
 
-function absoluteTrackIndexFor(playerIndex: number, progress: number) {
+export function absoluteTrackIndexFor(playerIndex: number, progress: number) {
   const playerLayout = boardLayout.players[playerIndex]
   if (!playerLayout) {
     return -1
@@ -143,8 +157,18 @@ function absoluteTrackIndexFor(playerIndex: number, progress: number) {
   return ((raw % BOARD_TRACK_LENGTH) + BOARD_TRACK_LENGTH) % BOARD_TRACK_LENGTH
 }
 
+/** Inverse of absoluteTrackIndexFor — track progress for a player that lands on an absolute cell. */
+export function trackProgressForAbsoluteIndex(playerIndex: number, absoluteIndex: number): number | null {
+  for (let progress = 0; progress < BOARD_TRACK_LENGTH; progress += 1) {
+    if (absoluteTrackIndexFor(playerIndex, progress) === absoluteIndex) {
+      return progress
+    }
+  }
+  return null
+}
+
 /** Board layout slot (0–3) from player color — stable for 2–4 player games. */
-function boardSlotForPlayer(state: GameState, playerId: string): number {
+export function boardSlotForPlayer(state: GameState, playerId: string): number {
   const player = state.players.find((p) => p.id === playerId)
   if (!player) return -1
   return PLAYER_COLORS.indexOf(player.color)
@@ -199,6 +223,15 @@ function baseSlotForToken(tokenId: string) {
 
 function canSpawnFromBase(diceResult: number) {
   return diceResult === 1 || diceResult === 6
+}
+
+export function isExitBaseLegalMove(move: LegalMove, tokens: GameState['tokens']) {
+  const token = tokens.find((entry) => entry.id === move.tokenId)
+  if (!token || token.state !== 'in_base') {
+    return false
+  }
+
+  return move.moveType === 'spawn' || move.moveType === 'capture'
 }
 
 function tokenPathFromMove(token: GameState['tokens'][number], diceResult: number) {
@@ -280,11 +313,14 @@ function mapLaneOccupancy(tokens: GameState['tokens']) {
 function computeLegalMoves(state: GameState, diceResult: number): LegalMove[] {
   const trackOccupancy = mapTrackOccupancy(state.tokens)
   const laneOccupancy = mapLaneOccupancy(state.tokens)
-  const safeTracks = safeTrackIndices(state)
   const legalMoves: LegalMove[] = []
 
   state.tokens
     .filter((token) => token.playerId === state.turn.currentPlayerId)
+    .filter((token) => {
+      if (!state.config.runesEnabled) return true
+      return (token.freezeTurnsRemaining ?? 0) <= 0
+    })
     .forEach((token) => {
       const path = tokenPathFromMove(token, diceResult)
       if (!path) {
@@ -313,7 +349,7 @@ function computeLegalMoves(state: GameState, diceResult: number): LegalMove[] {
           return absoluteTrackIndexFor(candidateSlot, candidate.position) === destinationAbsoluteTrack
         })
 
-        if (capturedToken && !safeTracks.has(destinationAbsoluteTrack)) {
+        if (capturedToken) {
           legalMoves.push({
             id: `${token.id}:${path.to.position}`,
             tokenId: token.id,
@@ -364,7 +400,7 @@ function applyPathToToken(token: GameState['tokens'][number], path: MockPathStep
   }
 }
 
-function getNextPlayerIndex(state: GameState, keepCurrentPlayer: boolean) {
+export function getNextPlayerIndex(state: GameState, keepCurrentPlayer: boolean) {
   if (state.players.length === 0) {
     return 0
   }
@@ -393,13 +429,13 @@ function makeTurnId(state: GameState) {
   return `${state.roomId}:turn:${state.version + 1}`
 }
 
-function shouldAutoSpawnWithoutChoice(diceResult: number, legalMoves: LegalMove[]) {
+function shouldAutoSpawnWithoutChoice(diceResult: number, legalMoves: LegalMove[], tokens: GameState['tokens']) {
   if (!canSpawnFromBase(diceResult) || legalMoves.length === 0) {
     return false
   }
 
-  const hasSpawnMove = legalMoves.some((move) => move.moveType === 'spawn')
-  const hasTrackOrLaneMove = legalMoves.some((move) => move.moveType !== 'spawn')
+  const hasSpawnMove = legalMoves.some((move) => isExitBaseLegalMove(move, tokens))
+  const hasTrackOrLaneMove = legalMoves.some((move) => !isExitBaseLegalMove(move, tokens))
   return hasSpawnMove && !hasTrackOrLaneMove
 }
 
@@ -443,7 +479,7 @@ function getPlayersFullyInHomeLane(players: Player[], tokens: GameState['tokens'
     })
 }
 
-function appendFinishEvents(state: GameState, tokens: GameState['tokens'], timestamp: number, preferredPlayerId?: string) {
+export function appendFinishEvents(state: GameState, tokens: GameState['tokens'], timestamp: number, preferredPlayerId?: string) {
   const finishOrder = getFinishOrderFromEvents(state.events)
   const alreadyFinished = new Set(finishOrder)
   const fullyFinishedPlayers = getPlayersFullyInHomeLane(state.players, tokens)
@@ -698,7 +734,7 @@ export function rollTurn(state: GameState, rollFn: RollDiceFn = defaultRollDice)
   const diceResult = rollFn()
   const legalMoves = computeLegalMoves(state, diceResult)
   const timestamp = now()
-  const shouldAutoSpawn = shouldAutoSpawnWithoutChoice(diceResult, legalMoves)
+  const shouldAutoSpawn = shouldAutoSpawnWithoutChoice(diceResult, legalMoves, state.tokens)
   const phase = legalMoves.length > 1 && !shouldAutoSpawn ? 'waiting_choice' : 'rolled'
 
   return syncCurrentPlayerIndex({
@@ -942,3 +978,16 @@ export function resolveTurn(state: GameState, moveId?: string) {
     ],
   })
 }
+
+setEngineApi({
+  BOARD_TRACK_LENGTH,
+  BOARD_HOME_LANE_LENGTH,
+  absoluteTrackIndexFor,
+  trackProgressForAbsoluteIndex,
+  boardSlotForPlayer,
+  safeTrackIndices,
+  appendFinishEvents,
+  getNextPlayerIndex,
+  shouldEndGameByFinishCount,
+  syncCurrentPlayerIndex,
+})
