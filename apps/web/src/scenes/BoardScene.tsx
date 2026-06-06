@@ -14,7 +14,11 @@ import { SceneRendererSetup } from './SceneRendererSetup'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
-import type { GameState } from '@rune-race/shared'
+import type { GameState, RuneClientView } from '@rune-race/shared'
+import RuneMarkers from '../components/board/RuneMarkers'
+import RunePlacementLayer from '../components/board/RunePlacementLayer'
+import { RuneMarkerVisibilityProvider } from '../contexts/RuneMarkerVisibilityContext'
+import type { Player } from '@rune-race/shared'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { CAMERA_CONFIG, type CameraDebugInfo } from '../config/cameraConfig'
 
@@ -24,8 +28,17 @@ interface BoardSceneProps {
   onDebugInfoChange?: (info: CameraDebugInfo) => void
   isEditorActive?: boolean
   gameState?: GameState
+  runeView?: RuneClientView | null
+  localPlayerId?: string
   rollTrigger?: number
   selectableTokenIds?: string[]
+  tokenSelectionMode?: 'move' | 'swap'
+  swapActivatorTokenId?: string | null
+  /** Tokens that spin in place while swap choice is open (activator + candidates). */
+  swapPreviewTokenIds?: string[]
+  /** Displayed-identity tokens highlighted for swap choice (visual even when not local turn). */
+  swapChoiceTargetIds?: string[]
+  swapSelectionEnabled?: boolean
   onSelectToken?: (tokenId: string) => void
   freezeTokenAnimations?: boolean
   boardImpactFeedback?: BoardImpactFeedback
@@ -36,6 +49,14 @@ interface BoardSceneProps {
   editorMouseMode?: 'draw' | 'camera'
   setEditorMouseMode?: (v: 'draw' | 'camera') => void
   graphicsQuality?: GraphicsQuality
+  runePlacementActive?: boolean
+  validPlacementCellIds?: number[]
+  hoveredPlacementCellId?: number | null
+  selectedPlacementCellId?: number | null
+  placementPreviewPlayer?: Player | null
+  placementPreviewAvatar?: string | null
+  onHoverPlacementCell?: (cellId: number | null) => void
+  onSelectPlacementCell?: (cellId: number) => void
 }
 
 function toFixedNumber(value: number, digits = 3): number {
@@ -228,8 +249,15 @@ export default function BoardScene({
   onDebugInfoChange,
   isEditorActive = false,
   gameState,
+  runeView = null,
+  localPlayerId,
   rollTrigger = 0,
   selectableTokenIds,
+  tokenSelectionMode,
+  swapActivatorTokenId,
+  swapPreviewTokenIds,
+  swapChoiceTargetIds,
+  swapSelectionEnabled,
   onSelectToken,
   freezeTokenAnimations,
   boardImpactFeedback,
@@ -240,6 +268,14 @@ export default function BoardScene({
   editorMouseMode,
   setEditorMouseMode,
   graphicsQuality = 'high',
+  runePlacementActive = false,
+  validPlacementCellIds = [],
+  hoveredPlacementCellId = null,
+  selectedPlacementCellId = null,
+  placementPreviewPlayer = null,
+  placementPreviewAvatar = null,
+  onHoverPlacementCell,
+  onSelectPlacementCell,
 }: BoardSceneProps) {
   const controlsRef = useRef<any>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number; z: number } | null>(null)
@@ -292,22 +328,51 @@ export default function BoardScene({
       <SkyDome enabled={skyDome} />
 
       <Suspense fallback={null}>
-        <BoardModel shadowsEnabled={shadowsEnabled} graphicsQuality={graphicsQuality} />
-        <BoardPieces
+        <RuneMarkerVisibilityProvider
           gameState={activeGameState}
-          selectableTokenIds={selectableTokenIds}
-          onSelectToken={onSelectToken}
           freezeTokenAnimations={freezeTokenAnimations}
-          boardImpactFeedback={boardImpactFeedback}
-          graphicsQuality={graphicsQuality}
-          shadowsEnabled={shadowsEnabled}
-        />
-        <DiceShaker
-          gameState={activeGameState}
-          rollTrigger={rollTrigger}
-          shadowsEnabled={shadowsEnabled}
-          graphicsQuality={graphicsQuality}
-        />
+        >
+          <BoardModel shadowsEnabled={shadowsEnabled} graphicsQuality={graphicsQuality} />
+          <BoardPieces
+            gameState={activeGameState}
+            selectableTokenIds={selectableTokenIds}
+            tokenSelectionMode={tokenSelectionMode}
+            swapActivatorTokenId={swapActivatorTokenId}
+            swapPreviewTokenIds={swapPreviewTokenIds}
+            swapChoiceTargetIds={swapChoiceTargetIds}
+            swapSelectionEnabled={swapSelectionEnabled}
+            onSelectToken={onSelectToken}
+            freezeTokenAnimations={freezeTokenAnimations}
+            boardImpactFeedback={boardImpactFeedback}
+            graphicsQuality={graphicsQuality}
+            shadowsEnabled={shadowsEnabled}
+          />
+          <DiceShaker
+            gameState={activeGameState}
+            rollTrigger={rollTrigger}
+            shadowsEnabled={shadowsEnabled}
+            graphicsQuality={graphicsQuality}
+          />
+          {activeGameState.config?.runesEnabled ? (
+            <RuneMarkers
+              gameState={activeGameState}
+              runeView={runeView}
+              localPlayerId={localPlayerId}
+            />
+          ) : null}
+          {runePlacementActive && onHoverPlacementCell && onSelectPlacementCell ? (
+            <RunePlacementLayer
+              active={runePlacementActive}
+              validCellIds={validPlacementCellIds}
+              hoveredCellId={hoveredPlacementCellId}
+              selectedCellId={selectedPlacementCellId}
+              previewPlayer={placementPreviewPlayer}
+              previewAvatar={placementPreviewAvatar}
+              onHoverCell={onHoverPlacementCell}
+              onSelectCell={onSelectPlacementCell}
+            />
+          ) : null}
+        </RuneMarkerVisibilityProvider>
       </Suspense>
 
       <SceneLighting

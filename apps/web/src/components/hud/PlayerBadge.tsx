@@ -5,7 +5,7 @@ type PlayerBadgeProps = {
   color: PlayerColor
   avatarEmoji?: string | null
   isActive?: boolean
-  size?: 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md'
 }
 
 export function PlayerBadge({
@@ -21,6 +21,7 @@ export function PlayerBadge({
     <div
       className={[
         'game-hud-orb',
+        size === 'xs' ? 'game-hud-orb--xs' : '',
         size === 'sm' ? 'game-hud-orb--sm' : '',
         hasAvatar ? 'game-hud-orb--avatar' : '',
         isActive ? 'game-hud-orb--active' : '',

@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { GameState } from '@rune-race/shared'
+import type { ClientGameSnapshot, RuneClientView } from '@rune-race/shared'
 import { getSocket } from '../lib/socket'
 import { usePresentationGameState } from './usePresentationGameState'
 
-export function useGameSocket(gameId: string, playerId: string, authToken?: string | null) {
+type LobbyPresence = {
+  lobbyId: string
+  playerName: string
+}
+
+export function useGameSocket(
+  gameId: string,
+  playerId: string,
+  authToken?: string | null,
+  lobbyPresence?: LobbyPresence | null,
+) {
   const [error, setError] = useState<string | null>(null)
   const [connected, setConnected] = useState(false)
+  const [runeView, setRuneView] = useState<RuneClientView | null>(null)
   const { displayState, isPresentingDice, rollTrigger, applyAuthoritativeState } =
     usePresentationGameState()
 
@@ -19,6 +30,13 @@ export function useGameSocket(gameId: string, playerId: string, authToken?: stri
 
     const join = () => {
       socket.emit('game:join', { playerId, gameId })
+      if (lobbyPresence?.lobbyId) {
+        socket.emit('lobby:join', {
+          playerId,
+          playerName: lobbyPresence.playerName,
+          lobbyId: lobbyPresence.lobbyId,
+        })
+      }
     }
 
     const onGameConnected = () => {
@@ -26,8 +44,9 @@ export function useGameSocket(gameId: string, playerId: string, authToken?: stri
       setError(null)
     }
 
-    const onSnapshot = (payload: { state: GameState; events: GameState['events'] }) => {
+    const onSnapshot = (payload: ClientGameSnapshot) => {
       applyAuthoritativeState(payload.state, { deltaEvents: payload.events })
+      setRuneView(payload.runeView)
     }
 
     const onGameError = (payload: { message: string }) => {
@@ -50,7 +69,7 @@ export function useGameSocket(gameId: string, playerId: string, authToken?: stri
       socket.off('game:state_snapshot', onSnapshot)
       socket.off('game:error', onGameError)
     }
-  }, [applyAuthoritativeState, authToken, gameId, playerId])
+  }, [applyAuthoritativeState, authToken, gameId, lobbyPresence?.lobbyId, lobbyPresence?.playerName, playerId])
 
   const roll = useCallback(() => {
     if (isPresentingDice) return
@@ -65,13 +84,48 @@ export function useGameSocket(gameId: string, playerId: string, authToken?: stri
     [authToken, isPresentingDice, playerId],
   )
 
+  const drawCards = useCallback(
+    (count: number) => {
+      getSocket(authToken).emit('game:draw_cards', { playerId, count })
+    },
+    [authToken, playerId],
+  )
+
+  const finishDraw = useCallback(() => {
+    getSocket(authToken).emit('game:finish_draw', { playerId })
+  }, [authToken, playerId])
+
+  const placeMarker = useCallback(
+    (heldCardId: string, cellId: number, displayedIdentityId: string) => {
+      getSocket(authToken).emit('game:place_marker', {
+        playerId,
+        heldCardId,
+        cellId,
+        displayedIdentityId,
+      })
+    },
+    [authToken, playerId],
+  )
+
+  const chooseSwap = useCallback(
+    (targetTokenId: string) => {
+      getSocket(authToken).emit('game:choose_swap', { playerId, targetTokenId })
+    },
+    [authToken, playerId],
+  )
+
   return {
     gameState: displayState,
+    runeView,
     isPresentingDice,
     error,
     connected,
     rollTrigger,
     roll,
     chooseMove,
+    drawCards,
+    finishDraw,
+    placeMarker,
+    chooseSwap,
   }
 }

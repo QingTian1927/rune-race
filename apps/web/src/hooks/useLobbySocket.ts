@@ -186,7 +186,12 @@ export function useLobbySocket(
   }, [authToken, playerId])
 
   const updateSettings = useCallback(
-    (patch: { name?: string; password?: string; clearPassword?: boolean }) => {
+    (patch: {
+      name?: string
+      password?: string
+      clearPassword?: boolean
+      runesEnabled?: boolean
+    }) => {
       getSocket(authToken).emit('lobby:update_settings', { playerId, ...patch })
     },
     [authToken, playerId],

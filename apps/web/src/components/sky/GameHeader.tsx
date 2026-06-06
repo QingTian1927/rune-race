@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useMyProfilePath, usePlayerIdentity } from '../../hooks/usePlayerIdentity'
@@ -7,9 +8,10 @@ type GameHeaderProps = {
   name: string
   onNameChange: (value: string) => void
   onNameBlur: () => void
+  topNavExtra?: ReactNode
 }
 
-export function GameHeader({ name, onNameChange, onNameBlur }: GameHeaderProps) {
+export function GameHeader({ name, onNameChange, onNameBlur, topNavExtra }: GameHeaderProps) {
   const { signOut, isRegistered, loading: authLoading } = useAuth()
   const { avatarEmoji, isAnon } = usePlayerIdentity()
   const profilePath = useMyProfilePath()
@@ -17,6 +19,7 @@ export function GameHeader({ name, onNameChange, onNameBlur }: GameHeaderProps) 
   return (
     <div className="game-header" style={{ position: 'relative', width: '100%', maxWidth: '980px' }}>
       <div className="top-nav">
+        {topNavExtra}
         {isRegistered ? (
           <>
             {profilePath ? (

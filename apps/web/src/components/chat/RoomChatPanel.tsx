@@ -98,24 +98,26 @@ export function RoomChatPanel({
     return (
       <div className={slotClass}>
         <div className="game-hud-panel game-hud-panel--collapsed room-chat-panel room-chat-panel--collapsed">
-          <button
-            type="button"
-            className="room-chat-collapsed-hit"
-            onClick={handleExpand}
-            aria-label="Mở chat phòng"
-          >
-            <i className="bi bi-chat-dots-fill room-chat-collapsed-icon" aria-hidden />
-            {unreadCount > 0 ? (
-              <span className="room-chat-unread" aria-live="polite">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            ) : null}
-          </button>
-          <PanelCollapseButton
-            collapsed={collapsed}
-            expandDirection="right"
-            onClick={handleExpand}
-          />
+          <div className="room-chat-collapsed-stack">
+            <button
+              type="button"
+              className="room-chat-collapsed-hit"
+              onClick={handleExpand}
+              aria-label="Mở chat"
+            >
+              <i className="bi bi-chat-dots-fill room-chat-collapsed-icon" aria-hidden />
+              {unreadCount > 0 ? (
+                <span className="room-chat-unread" aria-live="polite">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              ) : null}
+            </button>
+            <PanelCollapseButton
+              collapsed={collapsed}
+              expandDirection="right"
+              onClick={handleExpand}
+            />
+          </div>
         </div>
       </div>
     )
@@ -125,10 +127,7 @@ export function RoomChatPanel({
     <div className={slotClass}>
       <div className="game-hud-panel room-chat-panel">
         <div className="room-chat-head">
-          <div>
-            <p className={HUD_PANEL_LABEL_CLASS}>Chat phòng</p>
-            <p className="room-chat-subtitle">UTF-8 · mọi ngôn ngữ</p>
-          </div>
+          <p className={HUD_PANEL_LABEL_CLASS}>Chat</p>
           <PanelCollapseButton
             collapsed={collapsed}
             expandDirection="right"

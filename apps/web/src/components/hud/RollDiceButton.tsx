@@ -18,7 +18,10 @@ export function RollDiceButton({ visible, color, onClick }: RollDiceButtonProps)
       onClick={onClick}
       className={['game-btn game-hud-roll-btn', colorStyles.rollBtn].join(' ')}
     >
-      <span>🎲 TUNG XÚC XẮC</span>
+      <span className="game-hud-roll-icon" aria-hidden>
+        🎲
+      </span>
+      <span>TUNG XÚC XẮC</span>
     </button>
   )
 }
