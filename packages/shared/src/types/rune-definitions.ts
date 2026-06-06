@@ -1,0 +1,81 @@
+import type { RuneCardDefinition, RuneCardType } from './rune.js'
+
+export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
+  LEAVE_STABLE: {
+    cardType: 'LEAVE_STABLE',
+    category: 'SUPPORT',
+    triggerMode: 'EXACT_STOP',
+    markerTTL: 5,
+    stepValue: null,
+  },
+  SHIELD: {
+    cardType: 'SHIELD',
+    category: 'SUPPORT',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: null,
+  },
+  ADVANCE_2: {
+    cardType: 'ADVANCE_2',
+    category: 'SUPPORT',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: 2,
+  },
+  ADVANCE_3: {
+    cardType: 'ADVANCE_3',
+    category: 'SUPPORT',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: 3,
+  },
+  ADVANCE_4: {
+    cardType: 'ADVANCE_4',
+    category: 'SUPPORT',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: 4,
+  },
+  BACK_3: {
+    cardType: 'BACK_3',
+    category: 'TRAP',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: 3,
+  },
+  BACK_4: {
+    cardType: 'BACK_4',
+    category: 'TRAP',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: 4,
+  },
+  BACK_5: {
+    cardType: 'BACK_5',
+    category: 'TRAP',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: 5,
+  },
+  FREEZE: {
+    cardType: 'FREEZE',
+    category: 'TRAP',
+    triggerMode: 'PASS_THROUGH',
+    markerTTL: 3,
+    stepValue: null,
+  },
+  SEND_HOME: {
+    cardType: 'SEND_HOME',
+    category: 'TRAP',
+    triggerMode: 'EXACT_STOP',
+    markerTTL: 5,
+    stepValue: null,
+  },
+  SWAP: {
+    cardType: 'SWAP',
+    category: 'SPECIAL',
+    triggerMode: 'EXACT_STOP',
+    markerTTL: 5,
+    stepValue: null,
+  },
+}
