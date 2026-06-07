@@ -3348,7 +3348,7 @@ a.game-btn {
   bottom: auto;
   top: auto;
   transform: none;
-  margin-top: 40px;
+  margin-top: 192px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4158,7 +4158,7 @@ a.game-btn {
     min-width: min(220px, calc(100vw - 2 * var(--hud-edge) - 24px));
     padding: 11px 18px;
     font-size: 14px;
-    margin-top: clamp(48px, 20vh, 120px);
+    margin-top: clamp(168px, 38vh, 260px);
   }
 
   .game-hud-roll-icon {
@@ -4351,5 +4351,48 @@ a.game-btn {
   }
   100% {
     transform: rotate(90deg);
+  }
+}
+
+.game-hud-slot--placement-hint {
+  left: 50%;
+  bottom: max(calc(var(--hud-edge) + 118px), calc(env(safe-area-inset-bottom) + 118px));
+  transform: translateX(-50%);
+  z-index: 12;
+  max-width: min(420px, calc(100vw - 2 * var(--hud-edge)));
+  pointer-events: none;
+}
+
+.rune-placement-hint {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(40, 70, 130, 0.16);
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #2a4080;
+  text-align: center;
+}
+
+.rune-placement-hint--error {
+  border-color: rgba(232, 70, 58, 0.45);
+  background: rgba(255, 244, 242, 0.92);
+  color: #9a2d24;
+}
+
+@media (max-width: 519px), (orientation: portrait) and (max-width: 820px) {
+  .game-hud-slot--placement-hint {
+    bottom: max(calc(var(--hud-edge) + 96px), calc(env(safe-area-inset-bottom) + 96px));
+    max-width: calc(100vw - 2 * var(--hud-edge) - 8px);
+  }
+
+  .rune-placement-hint {
+    font-size: 11px;
+    padding: 8px 12px;
   }
 }
