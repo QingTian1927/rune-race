@@ -30,6 +30,9 @@ How the **web app** (`apps/web`) connects to this server today.
 | `hooks/useGameSocket.ts` | Game snapshots + roll/choose + rune commands + `runeView` |
 | `hooks/useRoomChat.ts` | Lobby chat |
 | `hooks/usePresentationGameState.ts` | Dice animation gate before applying moves |
+| `hooks/useUiSoundEffects.ts` | Global UI click / hover SFX (all routes) |
+| `hooks/useAudioSettings.ts` | Persisted master volume (`rune-race-audio-volume`) |
+| `lib/audio/audioManager.ts` | Client-only SFX playback (no server involvement) |
 
 ## Suggested UI states
 
@@ -55,6 +58,7 @@ How the **web app** (`apps/web`) connects to this server today.
 10. `game:roll` / rune commands only when phase and player id allow.
 11. **Chat:** `chat:sync_request` on connect; `chat:send` from in-game panel.
 12. **HUD timing (client-only):** current-turn and finish-order panels update after dice/token animations.
+13. **Audio (client-only):** SFX are driven by presentation (dice phases, pawn impacts, UI). Master volume is stored in `localStorage`; no socket events. See [Web audio](../../web/docs/audio.md).
 
 ## Profile flow
 
@@ -85,14 +89,16 @@ How the **web app** (`apps/web`) connects to this server today.
 - Do not animate token moves from full `events` history on every snapshot — use delta + `tokenMotion.ts` version cursor.
 - Do not show opponent move-selection arrows to all clients — pass `localPlayerId` into `GameView`.
 - Do not add server events for HUD-only concerns unless the gameplay contract changes.
+- Do not add server events or snapshots for sound effects — the client plays SFX from delta `events` and local UI interaction only.
 - Do not assume profile ownership from `playerId` alone when a Supabase session is present.
 
 ## Client HUD (reference)
 
-The web client documents the overlay in [Web architecture — GameView](../../web/docs/architecture.md#gameview), [Runtime flow — HUD timing](../../web/docs/runtime-flow.md#hud-timing), and [Rune system (client)](../../web/docs/rune-system.md). Server behavior is unchanged; snapshots + delta `events` + `runeView` remain the only gameplay inputs.
+The web client documents the overlay in [Web architecture — GameView](../../web/docs/architecture.md#gameview), [Runtime flow — HUD timing](../../web/docs/runtime-flow.md#hud-timing), and [Rune system (client)](../../web/docs/rune-system.md). **Audio** is also client-only — [Web audio](../../web/docs/audio.md). Server behavior is unchanged; snapshots + delta `events` + `runeView` remain the only gameplay inputs.
 
 ## Related web docs
 
 - [Web architecture](../../web/docs/architecture.md)
+- [Web audio](../../web/docs/audio.md)
 - [Backend integration (web)](../../web/docs/backend-integration.md)
 - [Protocol reference (web)](../../web/docs/protocol-reference.md)

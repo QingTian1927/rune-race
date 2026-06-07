@@ -7,3 +7,4 @@
 - [Game model](./game-model.md)
 - [Rune system](./rune-system.md)
 - [Client integration](./client-integration.md)
+- [Web audio (client SFX)](../../web/docs/audio.md)

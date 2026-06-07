@@ -6,10 +6,11 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune car
 
 1. [Architecture](./architecture.md) — routes, components, hooks
 2. [Runtime flow](./runtime-flow.md) — boot, local vs online, dice presentation, rune turns
-3. [Rune system (client)](./rune-system.md) — hand, placement, markers, swap UI
-4. [Backend integration](./backend-integration.md) — API, socket, LAN dev
-5. [Protocol reference](./protocol-reference.md) — event list (mirrors `@rune-race/shared`)
-6. [Editor data model](./editor-data-model.md) — board layout JSON
+3. [Audio](./audio.md) — client SFX, volume, UI and gameplay triggers
+4. [Rune system (client)](./rune-system.md) — hand, placement, markers, swap UI
+5. [Backend integration](./backend-integration.md) — API, socket, LAN dev
+6. [Protocol reference](./protocol-reference.md) — event list (mirrors `@rune-race/shared`)
+7. [Editor data model](./editor-data-model.md) — board layout JSON
 
 ## Scope
 
@@ -39,7 +40,8 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune car
 - Dice shaker (bucket + die) with presentation gate before token moves
 - HUD profile panels delayed until dice/token animations complete
 - Board editor (layout JSON export)
-- Graphics quality + landscape hint + fullscreen in settings overlay
+- Client SFX: UI click/hover (all routes), walk/kill/dice/jackpot in match — see [Audio](./audio.md)
+- Graphics quality + master volume + landscape hint + fullscreen in settings overlay
 
 ## Server docs
 
@@ -71,9 +73,13 @@ apps/web/src/
 │   ├── useLobbySocket.ts
 │   ├── useGameSocket.ts
 │   ├── useRoomChat.ts
-│   └── usePresentationGameState.ts
+│   ├── usePresentationGameState.ts
+│   ├── useUiSoundEffects.ts
+│   └── useAudioSettings.ts
 └── lib/
     ├── api.ts, socket.ts, playerSession.ts, supabase.ts
+    ├── audio/              # audioManager, catalog, UI targets
+    ├── boardImpact.ts      # impact puff kinds + onImpact hook surface
     ├── dicePresentation.ts, tokenMotion.ts, runeAssets.ts
     └── utils/boardSlots.ts
 ```

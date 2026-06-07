@@ -10,7 +10,7 @@ Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile
 4. [Socket.IO contract](./socket-contract.md) — lobby + game + chat events
 5. [Game model](./game-model.md) — rules and state machine
 6. [Rune system](./rune-system.md) — draw, placement, markers, per-client views
-7. [Client integration](./client-integration.md) — what the web client expects
+7. [Client integration](./client-integration.md) — what the web client expects (incl. client-only HUD and audio)
 
 ## Runtime
 

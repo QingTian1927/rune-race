@@ -3,9 +3,10 @@
 ## Boot
 
 1. `main.tsx` → `App` router.
-2. `AuthProvider` restores the Supabase session and guest id.
-3. `HomePage` uses `usePlayerIdentity()` to derive the active player id and display name.
-4. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
+2. `App` registers `useUiSoundEffects()` — UI click/hover SFX on all routes (unlocks audio on first gesture).
+3. `AuthProvider` restores the Supabase session and guest id.
+4. `HomePage` uses `usePlayerIdentity()` to derive the active player id and display name.
+5. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
 
 ## Lobby flow (`LobbyPage`)
 
@@ -54,6 +55,13 @@ From `dicePresentation.ts`:
 | bucket hold | 1.0s |
 | **Total gate** | ~2.96s |
 
+**SFX during presentation** (client-only, see [Audio](./audio.md)):
+
+| Phase start (approx.) | Sound |
+|-----------------------|-------|
+| shaking (~0.22s) | `game.diceShake` |
+| revealing (~1.74s) | `game.jackpot` if result is 6 |
+
 After gate: apply full snapshot; `BoardPieces` processes delta `token_moved` / `token_captured`.
 
 ## Token animation
@@ -62,6 +70,7 @@ After gate: apply full snapshot; `BoardPieces` processes delta `token_moved` / `
 - First snapshot after join: skip replaying full history.
 - During `freezeTokenAnimations`: do not advance version cursor or animate.
 - With runes enabled, movement may emit `token_stepped` per cell (marker triggers) before final `token_moved`.
+- Each animated cell landing fires `onImpact` → `game.walk` (~300ms per segment). Capture plays `game.kill` on `capture_hit`.
 
 ## Game rules (display / testing)
 

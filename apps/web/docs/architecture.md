@@ -19,6 +19,9 @@ Defined in `apps/web/src/App.tsx`:
 ## Layering
 
 ```
+App (all routes)
+    → useUiSoundEffects() — delegated UI click / hover SFX
+
 Pages (Home, Lobby, Online, Local)
     → auth hooks (useAuth, usePlayerIdentity)
     → hooks (useLobbySocket, useGameSocket, useRoomChat, usePresentationGameState)
@@ -57,10 +60,13 @@ Static board geometry and track markers.
 - **Color slot:** `boardSlotForPlayer()` maps player color → board slot (fixes pawn/house colors vs player order).
 - **Motion:** `tokenMotion.ts` — animates only **delta** events since last `version`; `freezeTokenAnimations` during dice presentation.
 - **Selection:** arrows + click handler when `selectableTokenIds` is non-empty.
+- **Impacts:** `ImpactPuffPool` on step land / spawn / capture; `onImpact` drives walk and kill SFX (see [Audio](./audio.md)).
 
 ### `DiceShaker`
 
 Phases: `appearing → shaking → lifting → revealing → finished`. Timings from `lib/dicePresentation.ts` (bucket hold **1s** after reveal).
+
+**SFX (client):** `game.diceShake` on entering **shaking**; `game.jackpot` on entering **revealing** when the roll is **6**. See [Audio](./audio.md).
 
 ### `GameView`
 
@@ -95,7 +101,7 @@ All panels sit in `absolute inset-0 pointer-events-none`; buttons and links use 
 | `RollDiceButton` | Bottom-center | Visible when `canRoll`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. During rune draw/placement, roll also closes the rune window server-side. |
 | `HandArrayPanel` | Bottom-left | Rune hand (max 10), draw button on active player's turn; see [rune-system](./rune-system.md) |
 | `RuneCardPreviewOverlay` | Center overlay | Card preview and placement confirm |
-| `GameSettingsOverlay` | Settings gear | Graphics quality, fullscreen, landscape hint |
+| `GameSettingsOverlay` | Settings gear | Graphics quality, master volume, fullscreen, landscape hint |
 | `GameEndOverlay` | Center | Rankings + countdown when `status === 'finished'` |
 | `LandscapeHintOverlay` | Full screen | Suggests landscape on small portrait viewports |
 
@@ -143,6 +149,18 @@ When delta contains `dice_roll` and `version` advanced:
 2. After `DICE_ANIMATION_TOTAL_MS` (~2960ms), apply pending authoritative state.
 
 Skips dice gate on **first** snapshot (full event history on join).
+
+### `useBoardImpactFeedback`
+
+Default feedback for `GameView` / `BoardScene`: impact puff visibility follows graphics quality; `onImpact` plays **walk** / **kill** SFX via `audioManager` (see [Audio](./audio.md)).
+
+### `useUiSoundEffects`
+
+Mounted in `App.tsx`. Global UI click and hover sounds on all routes; respects master volume from `localStorage`.
+
+### `useAudioSettings`
+
+Reads/writes `rune-race-audio-volume`; wired into `GameSettingsOverlay` from `GameView`.
 
 ## Shared packages
 

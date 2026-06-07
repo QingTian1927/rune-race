@@ -41,6 +41,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 - Clients must **not** mutate authoritative state; use snapshots + delta `events` for animation only.
 - **Marker secrets:** server strips `cardType` / `realPlacerId` from broadcast state; per-viewer `runeView` exposes only the viewer's own markers.
 - **Client HUD** (turn panels, banners, roll button, hand UI) is derived locally; see [Client integration](./client-integration.md#client-hud-reference).
+- **Client audio** (UI and gameplay SFX, master volume) is presentation-only; no server contract — see [Web audio](../../web/docs/audio.md).
 
 ## Shared contracts
 
