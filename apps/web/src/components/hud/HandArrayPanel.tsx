@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { HeldCard, PlayerColor } from '@rune-race/shared'
-import { RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
+import { RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
 import { RUNE_CARD_DESCRIPTIONS, RUNE_CARD_IMAGES, RUNE_CARD_LABELS } from '../../lib/runeAssets'
 import { HUD_PANEL_LABEL_CLASS, PLAYER_COLOR_MAP } from './playerColorStyles'
 import { PanelCollapseButton } from './PanelCollapseButton'
@@ -44,12 +44,21 @@ export function HandArrayPanel({
     }
   }, [runeActionActive])
 
-  const showDrawSlot = canDraw || Boolean(drawDisabledTitle && runeActionActive)
+  const showDrawSlot =
+    canDraw ||
+    Boolean(
+      runeActionActive &&
+        drawDisabledTitle &&
+        drawDisabledTitle !== 'Tay đầy',
+    )
 
   if (collapsed) {
     return (
       <div className="game-hud-slot game-hud-slot--hand game-hud-slot--hand-collapsed">
-        <div className={['game-hud-panel game-hud-panel--collapsed rune-hand-panel', colorStyles.hudPanel].join(' ')}>
+        <div
+          key="collapsed"
+          className={['game-hud-panel game-hud-panel--collapsed rune-hand-panel game-hud-panel--motion', colorStyles.hudPanel].join(' ')}
+        >
           <span className="rune-hand-collapsed-icon" aria-hidden>
             🃏
           </span>
@@ -67,39 +76,93 @@ export function HandArrayPanel({
     )
   }
 
-  return (
-    <div className="game-hud-slot game-hud-slot--hand">
-      <div className={['game-hud-panel rune-hand-panel', colorStyles.hudPanel].join(' ')}>
-        <div className="game-hud-row rune-hand-header">
-          <div className="rune-hand-title">
-            <p className={HUD_PANEL_LABEL_CLASS}>THẺ RUNE</p>
-            <p className="game-hud-name rune-hand-meta">
-              {hand.length}/{RUNE_MAX_HAND_SIZE}
-              <span className="rune-hand-meta-sep" aria-hidden>
-                ·
-              </span>
-              {drawCount}/25
-              {pendingRewardCount > 0 ? (
-                <span className="rune-hand-reward-pill">+{pendingRewardCount}</span>
-              ) : null}
-            </p>
-          </div>
-          <PanelCollapseButton
-            collapsed={collapsed}
-            expandDirection="right"
-            onClick={() => setCollapsed(true)}
-            className="game-hud-collapse-end"
-          />
-        </div>
+  const handMeta = (
+    <>
+      {hand.length}/{RUNE_MAX_HAND_SIZE}
+      <span className="rune-hand-meta-sep" aria-hidden>
+        ·
+      </span>
+      {drawCount}/{RUNE_MAX_DRAW_PER_PLAYER}
+      {pendingRewardCount > 0 ? (
+        <span className="rune-hand-reward-pill">+{pendingRewardCount}</span>
+      ) : null}
+    </>
+  )
 
+  const collapseButton = (
+    <PanelCollapseButton
+      collapsed={collapsed}
+      expandDirection="right"
+      onClick={() => setCollapsed(true)}
+      className="game-hud-collapse-end"
+    />
+  )
+
+  const drawSlot = showDrawSlot ? (
+    <div className="rune-hand-draw-slot">
+      {canDraw ? (
+        <button
+          type="button"
+          className="rune-hand-draw"
+          onClick={onDraw}
+          title="Bốc thẻ"
+          aria-label="Bốc thẻ"
+        >
+          <i className="bi bi-plus-lg" aria-hidden="true" />
+        </button>
+      ) : (
+        <div className="rune-hand-draw rune-hand-draw--disabled" title={drawDisabledTitle}>
+          <i className="bi bi-slash-circle" aria-hidden="true" />
+        </div>
+      )}
+    </div>
+  ) : null
+
+  if (hand.length === 0) {
+    return (
+      <div className="game-hud-slot game-hud-slot--hand">
         <div
-          className={[
-            'rune-hand-body',
-            hand.length === 0 && showDrawSlot ? 'rune-hand-body--solo-draw' : '',
-          ]
+          key="empty"
+          className={['game-hud-panel rune-hand-panel rune-hand-panel--empty game-hud-panel--motion', colorStyles.hudPanel]
             .filter(Boolean)
             .join(' ')}
         >
+          <div className="rune-hand-empty-row">
+            <div className="rune-hand-title">
+              <p className={HUD_PANEL_LABEL_CLASS}>THẺ RUNE</p>
+              <p className="game-hud-name rune-hand-meta">{handMeta}</p>
+            </div>
+            <div className="rune-hand-empty-actions">
+              {drawSlot}
+              {collapseButton}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="game-hud-slot game-hud-slot--hand">
+      <div
+        key="expanded"
+        className={[
+          'game-hud-panel rune-hand-panel game-hud-panel--motion',
+          hand.length >= RUNE_MAX_HAND_SIZE ? 'rune-hand-panel--full' : '',
+          colorStyles.hudPanel,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <div className="game-hud-row rune-hand-header">
+          <div className="rune-hand-title">
+            <p className={HUD_PANEL_LABEL_CLASS}>THẺ RUNE</p>
+            <p className="game-hud-name rune-hand-meta">{handMeta}</p>
+          </div>
+          {collapseButton}
+        </div>
+
+        <div className="rune-hand-body">
           <div className="rune-hand-cards">
             {hand.map((card) => (
               <HandCardButton
@@ -112,26 +175,7 @@ export function HandArrayPanel({
               />
             ))}
           </div>
-
-          {showDrawSlot ? (
-            <div className="rune-hand-draw-slot">
-              {canDraw ? (
-                <button
-                  type="button"
-                  className="rune-hand-draw"
-                  onClick={onDraw}
-                  title="Bốc thẻ"
-                  aria-label="Bốc thẻ"
-                >
-                  <i className="bi bi-plus-lg" aria-hidden="true" />
-                </button>
-              ) : (
-                <div className="rune-hand-draw rune-hand-draw--disabled" title={drawDisabledTitle}>
-                  <i className="bi bi-slash-circle" aria-hidden="true" />
-                </div>
-              )}
-            </div>
-          ) : null}
+          {drawSlot}
         </div>
       </div>
     </div>

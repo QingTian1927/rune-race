@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import type { Player, GameState, RuneClientView } from '@rune-race/shared'
+import { RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
 import { listValidPlacementCellIds } from '@rune-race/game-engine'
 import { placementRejectMessage } from '../lib/runeMarkerDisplay'
 import { HandArrayPanel } from './hud/HandArrayPanel'
 import { RuneCardPreviewOverlay } from './hud/RuneCardPreviewOverlay'
+import { RuneDrawRevealOverlay } from './hud/RuneDrawRevealOverlay'
 import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
 import BoardScene from '../scenes/BoardScene'
 import type { CameraDebugInfo } from '../config/cameraConfig'
@@ -62,6 +64,7 @@ export type GameViewProps = {
   roomChat?: ReactNode
   runeView?: RuneClientView | null
   onDrawCards?: (count: number) => void
+  onConfirmDraw?: () => void
   onFinishDraw?: () => void
   onPlaceMarker?: (heldCardId: string, cellId: number, displayedIdentityId: string) => void
   onChooseSwap?: (targetTokenId: string) => void
@@ -85,6 +88,7 @@ export default function GameView({
   roomChat,
   runeView = null,
   onDrawCards,
+  onConfirmDraw,
   onFinishDraw,
   onPlaceMarker,
   onChooseSwap,
@@ -171,11 +175,13 @@ export default function GameView({
     (gameState.turn.phase === 'placement_phase' || gameState.turn.phase === 'waiting_draw')
   const placementPhaseActive = runeWindowOpen
   const myHandCount = myRune?.hand.length ?? 0
+  const myPendingDraw = runeView?.myPendingDraw ?? myRune?.pendingDraw ?? null
+  const drawRevealOpen = Boolean(isMyTurn && myPendingDraw && runeWindowOpen)
   /** Spec §3.1 step 3: any player holding cards may place during simultaneous placement. */
   const canPlaceRunes =
     placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)
   const canDrawDuringTurn =
-    isMyTurn && runeWindowOpen && Boolean(onDrawCards)
+    isMyTurn && runeWindowOpen && Boolean(onDrawCards) && !myPendingDraw
 
   const isWaitingChoice =
     isLocalPlayersTurn &&
@@ -880,7 +886,8 @@ export default function GameView({
                   showRollButton &&
                   canRoll &&
                   gameState.status !== 'finished' &&
-                  !hideRollDuringRunePlacement
+                  !hideRollDuringRunePlacement &&
+                  !drawRevealOpen
                 }
                 color={localPlayer?.color ?? 'red'}
                 onClick={handleRollClick}
@@ -895,15 +902,21 @@ export default function GameView({
                 onCardSelect={handleCardSelect}
                 onCardPreview={handleCardPreview}
                 canSelectCards={canPlaceRunes}
-                canDraw={canDrawDuringTurn && myRune.hand.length < 10 && myRune.drawCount < 25}
+                canDraw={
+                  canDrawDuringTurn &&
+                  myRune.hand.length < RUNE_MAX_HAND_SIZE &&
+                  myRune.drawCount < RUNE_MAX_DRAW_PER_PLAYER
+                }
                 onDraw={() => onDrawCards?.(1)}
                 runeActionActive={Boolean((isMyTurn && runeWindowOpen) || canPlaceRunes)}
                 playerColor={localPlayer?.color ?? 'blue'}
                 drawDisabledTitle={
                   isMyTurn && runeWindowOpen
-                    ? myRune.hand.length >= 10
+                    ? myPendingDraw
+                      ? 'Xác nhận thẻ đang bốc'
+                      : myRune.hand.length >= RUNE_MAX_HAND_SIZE
                       ? 'Tay đầy'
-                      : myRune.drawCount >= 25
+                      : myRune.drawCount >= RUNE_MAX_DRAW_PER_PLAYER
                         ? 'Hết lượt bốc'
                         : undefined
                     : undefined
@@ -921,6 +934,12 @@ export default function GameView({
           </>
         ) : null}
       </div>
+
+      <RuneDrawRevealOverlay
+        open={drawRevealOpen}
+        card={myPendingDraw}
+        onConfirm={() => onConfirmDraw?.()}
+      />
 
       <RuneCardPreviewOverlay
         open={previewOverlayOpen && Boolean(previewOverlayCard) && canPlaceRunes}

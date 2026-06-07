@@ -34,6 +34,7 @@ export default function OnlineGamePage() {
     roll,
     chooseMove,
     drawCards,
+    confirmDraw,
     finishDraw,
     placeMarker,
     chooseSwap,
@@ -123,6 +124,7 @@ export default function OnlineGamePage() {
       onLeave={handleLeaveGame}
       runeView={runeView}
       onDrawCards={drawCards}
+      onConfirmDraw={confirmDraw}
       onFinishDraw={finishDraw}
       onPlaceMarker={placeMarker}
       onChooseSwap={chooseSwap}

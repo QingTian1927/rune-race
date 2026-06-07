@@ -91,6 +91,10 @@ export function useGameSocket(
     [authToken, playerId],
   )
 
+  const confirmDraw = useCallback(() => {
+    getSocket(authToken).emit('game:confirm_draw', { playerId })
+  }, [authToken, playerId])
+
   const finishDraw = useCallback(() => {
     getSocket(authToken).emit('game:finish_draw', { playerId })
   }, [authToken, playerId])
@@ -124,6 +128,7 @@ export function useGameSocket(
     roll,
     chooseMove,
     drawCards,
+    confirmDraw,
     finishDraw,
     placeMarker,
     chooseSwap,

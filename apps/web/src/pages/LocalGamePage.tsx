@@ -3,8 +3,9 @@ import type { RuneClientView } from '@rune-race/shared'
 import {
   handleChooseMove,
   handleChooseSwap,
-  handleDrawCards,
-  handleFinishDraw,
+  handleDrawCards as engineDrawCards,
+  handleConfirmDraw as engineConfirmDraw,
+  handleFinishDraw as engineFinishDraw,
   handlePlaceMarker,
   handleRoll as engineHandleRoll,
 } from '@rune-race/game-engine'
@@ -21,6 +22,7 @@ function buildLocalRuneView(
     myMarkers: state.rune.markers
       .filter((m) => m.realPlacerId === viewerId)
       .map((m) => ({ markerId: m.markerId, cardType: m.cardType })),
+    myPendingDraw: state.rune.players[viewerId]?.pendingDraw ?? null,
   }
 }
 
@@ -60,12 +62,17 @@ export default function LocalGamePage() {
   }
 
   const handleDrawCards = (count: number) => {
-    const result = handleDrawCards(displayState, localPlayerId, count)
+    const result = engineDrawCards(displayState, localPlayerId, count)
+    if (result.success) apply(result.state)
+  }
+
+  const handleConfirmDraw = () => {
+    const result = engineConfirmDraw(displayState, localPlayerId)
     if (result.success) apply(result.state)
   }
 
   const handleFinishDraw = () => {
-    const result = handleFinishDraw(displayState, localPlayerId)
+    const result = engineFinishDraw(displayState, localPlayerId)
     if (result.success) apply(result.state)
   }
 
@@ -111,6 +118,7 @@ export default function LocalGamePage() {
       localPlayerId={activePlayerId}
       runeView={runeView}
       onDrawCards={handleDrawCards}
+      onConfirmDraw={handleConfirmDraw}
       onFinishDraw={handleFinishDraw}
       onPlaceMarker={handlePlaceMarker}
       onChooseSwap={handleChooseSwapTarget}
