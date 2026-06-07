@@ -6,6 +6,8 @@ export type GameSettingsOverlayProps = {
   open: boolean
   quality: GraphicsQuality
   onQualityChange: (quality: GraphicsQuality) => void
+  volume: number
+  onVolumeChange: (volume: number) => void
   onClose: () => void
 }
 
@@ -13,8 +15,11 @@ export function GameSettingsOverlay({
   open,
   quality,
   onQualityChange,
+  volume,
+  onVolumeChange,
   onClose,
 }: GameSettingsOverlayProps) {
+  const volumePercent = Math.round(volume * 100)
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
   const { render, motionClass } = usePresenceTransition(open, 260)
@@ -99,6 +104,25 @@ export function GameSettingsOverlay({
           {quality === 'low'
             ? 'Tối đa FPS: không bóng, không khử răng cưa, đồ họa phẳng và tắt hiệu ứng.'
             : 'Đồ họa đầy đủ — bóng, ánh sáng và hiệu ứng bàn cờ.'}
+        </p>
+
+        <p className="game-hud-settings-label">Âm lượng</p>
+        <div className="game-hud-volume-row">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={volumePercent}
+            data-ui-sound="off"
+            aria-label="Âm lượng game"
+            className="game-hud-volume-slider"
+            onChange={(event) => onVolumeChange(Number(event.target.value) / 100)}
+          />
+          <span className="game-hud-volume-value">{volumePercent}%</span>
+        </div>
+        <p className="game-hud-settings-hint">
+          Điều chỉnh mọi tiếng trong game. Trang chủ và lobby dùng cùng mức âm lượng đã lưu.
         </p>
 
         <div className="game-hud-modal-actions">

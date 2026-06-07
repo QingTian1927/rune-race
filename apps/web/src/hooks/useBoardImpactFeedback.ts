@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { audioManager } from '../lib/audio/audioManager'
 import {
   type BoardImpactFeedback,
   type BoardImpactEvent,
@@ -9,12 +10,7 @@ import {
   readGraphicsQuality,
 } from '../lib/graphicsQuality'
 
-/**
- * Default board impact feedback for GameView / BoardScene.
- * Replace `onImpact` with AudioManager when sounds are added, e.g.:
- *
- *   onImpact: (event) => audio.play(IMPACT_SFX[event.kind])
- */
+/** Default board impact feedback for GameView / BoardScene (puffs + gameplay SFX). */
 export function useBoardImpactFeedback(
   overrides?: Partial<BoardImpactFeedback>,
 ): BoardImpactFeedback {
@@ -32,6 +28,15 @@ export function useBoardImpactFeedback(
     () => ({
       reducedMotion: !impactPuffsEnabled,
       onImpact: (event: BoardImpactEvent) => {
+        switch (event.kind) {
+          case 'step_land':
+          case 'spawn_exit':
+            audioManager.play('game.walk')
+            break
+          case 'capture_hit':
+            audioManager.play('game.kill')
+            break
+        }
         if (import.meta.env.DEV) {
           console.debug('[board-impact]', event.kind, event.position)
         }

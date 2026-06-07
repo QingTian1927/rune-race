@@ -2376,6 +2376,52 @@ a.game-btn {
   line-height: 1.45;
 }
 
+.game-hud-volume-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.game-hud-volume-slider {
+  flex: 1;
+  height: 8px;
+  appearance: none;
+  border-radius: 999px;
+  background: rgba(91, 130, 200, 0.22);
+  outline: none;
+}
+
+.game-hud-volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #f5c518;
+  background: linear-gradient(160deg, #fffef5 0%, #fff0b8 100%);
+  box-shadow: 0 2px 6px rgba(60, 100, 180, 0.25);
+  cursor: pointer;
+}
+
+.game-hud-volume-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #f5c518;
+  background: linear-gradient(160deg, #fffef5 0%, #fff0b8 100%);
+  box-shadow: 0 2px 6px rgba(60, 100, 180, 0.25);
+  cursor: pointer;
+}
+
+.game-hud-volume-value {
+  min-width: 42px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #3b5ba0;
+  text-align: right;
+}
+
 .game-hud-slot--turn {
   top: max(calc(var(--hud-edge) + 52px), calc(env(safe-area-inset-top) + 52px));
   left: max(var(--hud-edge), env(safe-area-inset-left));

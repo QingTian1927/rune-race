@@ -25,6 +25,7 @@ import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { GameSettingsOverlay } from './hud/GameSettingsOverlay'
 import { LandscapeHintOverlay } from './hud/LandscapeHintOverlay'
+import { useAudioSettings } from '../hooks/useAudioSettings'
 import { useGraphicsQuality } from '../hooks/useGraphicsQuality'
 import { useLandscapeHint } from '../hooks/useLandscapeHint'
 import { useFullscreen } from '../hooks/useFullscreen'
@@ -101,6 +102,7 @@ export default function GameView({
   const defaultBoardImpactFeedback = useBoardImpactFeedback()
   const boardImpactFeedback = boardImpactFeedbackProp ?? defaultBoardImpactFeedback
   const { quality: graphicsQuality, setQuality: setGraphicsQuality } = useGraphicsQuality()
+  const { volume: audioVolume, setVolume: setAudioVolume } = useAudioSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [showDevMenu, setShowDevMenu] = useState(false)
@@ -997,6 +999,8 @@ export default function GameView({
         open={settingsOpen}
         quality={graphicsQuality}
         onQualityChange={setGraphicsQuality}
+        volume={audioVolume}
+        onVolumeChange={setAudioVolume}
         onClose={() => setSettingsOpen(false)}
       />
 
