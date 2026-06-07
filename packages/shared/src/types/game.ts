@@ -91,6 +91,7 @@ export type GameEventType =
   | 'token_swapped'
   | 'turn_advanced'
   | 'cards_drawn'
+  | 'card_draw_preview'
   | 'held_card_expired'
   | 'placement_phase_opened'
   | 'marker_placed'

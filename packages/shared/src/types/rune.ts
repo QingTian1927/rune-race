@@ -65,6 +65,8 @@ export interface PublicBoardMarker {
 export interface RunePlayerState {
   drawCount: number
   hand: HeldCard[]
+  /** Revealed draw awaiting player confirmation before joining hand. */
+  pendingDraw: HeldCard | null
   pendingRewards: RuneCardType[]
   honestPlacementStreak: number
 }
@@ -93,10 +95,11 @@ export interface RuneGameState {
 /** Per-viewer overlay included in client snapshots only. */
 export interface RuneClientView {
   myMarkers: Array<{ markerId: string; cardType: RuneCardType }>
+  myPendingDraw: HeldCard | null
 }
 
 export const RUNE_MAX_DRAW_PER_PLAYER = 25
-export const RUNE_MAX_HAND_SIZE = 10
+export const RUNE_MAX_HAND_SIZE = 5
 export const RUNE_HELD_CARD_ROUNDS = 2
 export const RUNE_HONESTY_STREAK_FOR_REWARD = 5
 export const RUNE_PLACEMENT_MIN_MS = 5_000

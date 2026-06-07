@@ -5,6 +5,7 @@ export function createEmptyRunePlayerState(): RunePlayerState {
   return {
     drawCount: 0,
     hand: [],
+    pendingDraw: null,
     pendingRewards: [],
     honestPlacementStreak: 0,
   }
@@ -32,6 +33,7 @@ export function handHasRoom(player: RunePlayerState): boolean {
 }
 
 export function canDrawMore(player: RunePlayerState, count: number): boolean {
+  if (player.pendingDraw) return false
   if (player.drawCount + count > RUNE_MAX_DRAW_PER_PLAYER) return false
   if (player.hand.length + count > RUNE_MAX_HAND_SIZE) return false
   return true

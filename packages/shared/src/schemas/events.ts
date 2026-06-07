@@ -81,7 +81,11 @@ export const PingSchema = z.object({
 
 export const DrawCardsSchema = z.object({
   playerId: z.string().min(1),
-  count: z.number().int().min(1).max(10),
+  count: z.number().int().min(1).max(1),
+})
+
+export const ConfirmDrawSchema = z.object({
+  playerId: z.string().min(1),
 })
 
 export const FinishDrawSchema = z.object({
@@ -127,6 +131,7 @@ const schemas: Record<string, z.ZodSchema> = {
   'game:join': GameJoinSchema,
   'game:roll': RollDiceSchema,
   'game:draw_cards': DrawCardsSchema,
+  'game:confirm_draw': ConfirmDrawSchema,
   'game:finish_draw': FinishDrawSchema,
   'game:place_marker': PlaceMarkerSchema,
   'game:choose_swap': ChooseSwapSchema,

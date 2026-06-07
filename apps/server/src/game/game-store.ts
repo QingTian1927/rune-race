@@ -4,6 +4,7 @@ import {
   handleChooseMove,
   handleChooseSwap,
   handleDrawCards,
+  handleConfirmDraw,
   handleFinishDraw,
   handlePlaceMarker,
   handlePlayerLeft,
@@ -126,6 +127,15 @@ export class GameStore {
     const session = this.games.get(gameId)
     if (!session) throw new Error('Game not found')
     const result = handleFinishDraw(session.state, playerId)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+  }
+
+  confirmDraw(gameId: string, playerId: string): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleConfirmDraw(session.state, playerId)
     if (!result.success) throw new Error(result.error.message)
     session.state = result.state
     this.onChange?.(gameId, session.state, result.events)

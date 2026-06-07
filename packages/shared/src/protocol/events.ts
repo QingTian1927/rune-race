@@ -79,6 +79,7 @@ export interface ClientToServerEvents {
   'game:join': (payload: { playerId: string; gameId: string }) => void
   'game:roll': (payload: { playerId: string }) => void
   'game:draw_cards': (payload: { playerId: string; count: number }) => void
+  'game:confirm_draw': (payload: { playerId: string }) => void
   'game:finish_draw': (payload: { playerId: string }) => void
   'game:place_marker': (payload: {
     playerId: string

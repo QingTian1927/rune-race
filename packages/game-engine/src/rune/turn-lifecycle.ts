@@ -1,5 +1,5 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
-import { RUNE_FREEZE_TURNS } from '@rune-race/shared'
+import { RUNE_FREEZE_TURNS, RUNE_HELD_CARD_ROUNDS, RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
 import { drawRuneCardType } from './deck.js'
 import { canDrawMore, createEmptyRunePlayerState, drainPendingRewards, getRunePlayer } from './state.js'
 import { openPlacementPhase } from './placement.js'
@@ -206,47 +206,36 @@ export function beginBonusTurn(state: GameState): GameState {
   }
 }
 
-export function drawCards(
+export function previewDrawCard(
   state: GameState,
   playerId: string,
-  count: number,
   timestamp = now(),
 ): GameState {
   if (!state.rune || !isRuneDrawAndPlacePhase(state.turn.phase)) return state
   if (state.turn.currentPlayerId !== playerId) return state
-  if (count < 1) return state
 
   const player = getRunePlayer(state, playerId)
-  if (!player || !canDrawMore(player, count)) return state
+  if (!player || !canDrawMore(player, 1) || player.pendingDraw) return state
 
-  const events = [...state.events]
-  const drawn: string[] = []
-  let hand = [...player.hand]
-  let drawCount = player.drawCount
-
-  for (let i = 0; i < count; i += 1) {
-    if (drawCount >= 25 || hand.length >= 10) break
-    const cardType = drawRuneCardType()
-    const heldCardId = `held-${state.roomId}-${playerId}-${timestamp}-${i}`
-    hand.push({
-      heldCardId,
-      ownerPlayerId: playerId,
-      cardType,
-      remainingHandRounds: 2,
-      source: 'DRAW',
-    })
-    drawn.push(cardType)
-    drawCount += 1
+  const cardType = drawRuneCardType()
+  const heldCardId = `held-${state.roomId}-${playerId}-${timestamp}-preview`
+  const pendingDraw = {
+    heldCardId,
+    ownerPlayerId: playerId,
+    cardType,
+    remainingHandRounds: RUNE_HELD_CARD_ROUNDS,
+    source: 'DRAW' as const,
   }
 
-  if (drawn.length === 0) return state
-
-  events.push({
-    type: 'cards_drawn',
-    timestamp,
-    playerId,
-    details: { count: drawn.length, cardTypes: drawn },
-  })
+  const events: GameEvent[] = [
+    ...state.events,
+    {
+      type: 'card_draw_preview',
+      timestamp,
+      playerId,
+      details: { cardType, heldCardId },
+    },
+  ]
 
   return {
     ...state,
@@ -255,7 +244,7 @@ export function drawCards(
       ...state.rune,
       players: {
         ...state.rune.players,
-        [playerId]: { ...player, hand, drawCount },
+        [playerId]: { ...player, pendingDraw },
       },
     },
     events,
@@ -263,10 +252,77 @@ export function drawCards(
   }
 }
 
+export function confirmPendingDraw(
+  state: GameState,
+  playerId: string,
+  timestamp = now(),
+): GameState {
+  if (!state.rune) return state
+
+  const player = getRunePlayer(state, playerId)
+  if (!player?.pendingDraw) return state
+  if (player.hand.length >= RUNE_MAX_HAND_SIZE) return state
+  if (player.drawCount >= RUNE_MAX_DRAW_PER_PLAYER) return state
+
+  const pending = player.pendingDraw
+  const hand = [...player.hand, pending]
+  const drawCount = player.drawCount + 1
+
+  const events: GameEvent[] = [
+    ...state.events,
+    {
+      type: 'cards_drawn',
+      timestamp,
+      playerId,
+      details: { count: 1, cardTypes: [pending.cardType] },
+    },
+  ]
+
+  return {
+    ...state,
+    version: state.version + 1,
+    rune: {
+      ...state.rune,
+      players: {
+        ...state.rune.players,
+        [playerId]: { ...player, hand, drawCount, pendingDraw: null },
+      },
+    },
+    events,
+    updatedAt: timestamp,
+  }
+}
+
+/** Auto-confirm a pending draw when leaving the draw phase (roll / finish draw). */
+export function flushPendingDraw(
+  state: GameState,
+  playerId: string,
+  timestamp = now(),
+): GameState {
+  const player = getRunePlayer(state, playerId)
+  if (!player?.pendingDraw) return state
+  return confirmPendingDraw(state, playerId, timestamp)
+}
+
+/** @deprecated Use previewDrawCard + confirmPendingDraw */
+export function drawCards(
+  state: GameState,
+  playerId: string,
+  count: number,
+  timestamp = now(),
+): GameState {
+  if (count !== 1) return state
+  let next = previewDrawCard(state, playerId, timestamp)
+  if (next === state) return state
+  return confirmPendingDraw(next, playerId, timestamp)
+}
+
 export function finishDrawPhase(state: GameState): GameState {
   if (!state.rune || state.turn.phase !== 'waiting_draw') return state
   const timestamp = now()
-  let next = openPlacementPhase(state, timestamp)
+  const playerId = state.turn.currentPlayerId
+  let next = flushPendingDraw(state, playerId, timestamp)
+  next = openPlacementPhase(next, timestamp)
   next = { ...next, version: next.version + 1, updatedAt: timestamp }
   return next
 }

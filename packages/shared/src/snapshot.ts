@@ -13,10 +13,12 @@ export function toPublicBoardMarker(marker: BoardMarker): PublicBoardMarker {
 
 export function buildRuneClientView(state: GameState, viewerPlayerId: string): RuneClientView | null {
   if (!state.rune) return null
+  const viewerRune = state.rune.players[viewerPlayerId]
   return {
     myMarkers: state.rune.markers
       .filter((m) => m.realPlacerId === viewerPlayerId)
       .map((m) => ({ markerId: m.markerId, cardType: m.cardType })),
+    myPendingDraw: viewerRune?.pendingDraw ?? null,
   }
 }
 

@@ -570,6 +570,18 @@ export function setupSocketHandlers(
       }
     })
 
+    socket.on('game:confirm_draw', (payload) => {
+      try {
+        const cmd = validateCommand('game:confirm_draw', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.confirmDraw(gameId, playerId)
+      } catch (error) {
+        gameError(socket, error instanceof Error ? error.message : 'Confirm draw failed', 'CONFIRM_DRAW_FAILED')
+      }
+    })
+
     socket.on('game:finish_draw', (payload) => {
       try {
         const cmd = validateCommand('game:finish_draw', payload)

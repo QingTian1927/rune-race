@@ -2,8 +2,10 @@ import type { GameEvent, GameState } from '@rune-race/shared'
 import { sliceNewEvents, type GameCommandResult } from './commands.js'
 import { rollTurn, resolveTurn, syncCurrentPlayerIndex } from './engine.js'
 import {
-  drawCards,
   finishDrawPhase,
+  confirmPendingDraw,
+  previewDrawCard,
+  flushPendingDraw,
   isRuneDrawAndPlacePhase,
   isTokenFrozen,
 } from './rune/turn-lifecycle.js'
@@ -24,9 +26,29 @@ export function handleDrawCards(state: GameState, playerId: string, count: numbe
     return fail('INVALID_PHASE', 'Cannot draw in this phase')
   }
 
+  if (count !== 1) {
+    return fail('INVALID_COUNT', 'Draw one card at a time')
+  }
+
   const before = state
-  const next = drawCards(state, playerId, count)
+  const next = previewDrawCard(state, playerId)
   if (next === before) return fail('DRAW_FAILED', 'Cannot draw cards')
+  return { success: true, state: next, events: sliceNewEvents(before, next) }
+}
+
+export function handleConfirmDraw(state: GameState, playerId: string): GameCommandResult {
+  if (!state.config.runesEnabled || !state.rune) {
+    return fail('RUNES_DISABLED', 'Rune system is not enabled')
+  }
+  if (state.status !== 'playing') return fail('GAME_NOT_PLAYING', 'Game is not active')
+  if (state.turn.currentPlayerId !== playerId) return fail('NOT_YOUR_TURN', 'Not your turn')
+  if (!isRuneDrawAndPlacePhase(state.turn.phase)) {
+    return fail('INVALID_PHASE', 'Cannot confirm draw in this phase')
+  }
+
+  const before = state
+  const next = confirmPendingDraw(state, playerId)
+  if (next === before) return fail('CONFIRM_DRAW_FAILED', 'No pending draw to confirm')
   return { success: true, state: next, events: sliceNewEvents(before, next) }
 }
 
@@ -77,7 +99,7 @@ export function prepareRollWithRunes(state: GameState, playerId: string): GameSt
   if (state.turn.currentPlayerId !== playerId) return fail('NOT_YOUR_TURN', 'Not your turn')
 
   const timestamp = Date.now()
-  let next = state
+  let next = flushPendingDraw(state, playerId, timestamp)
 
   if (next.turn.phase === 'waiting_draw') {
     next = {
