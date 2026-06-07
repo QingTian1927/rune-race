@@ -43,6 +43,21 @@ export type ShieldGrantedPayload = {
   at?: SwapTokenStep
 }
 
+export type FreezeAppliedPayload = {
+  tokenId: string
+  key: string
+  timestamp: number
+  turns: number
+  at?: SwapTokenStep
+}
+
+export type FreezeExpiredPayload = {
+  tokenId: string
+  key: string
+  timestamp: number
+  at?: SwapTokenStep
+}
+
 export function stepsEqual(a: SwapTokenStep, b: SwapTokenStep): boolean {
   return a.state === b.state && a.position === b.position
 }
@@ -202,6 +217,52 @@ export function extractShieldGrantedFromDelta(
     map.set(details.tokenId, {
       tokenId: details.tokenId,
       key: `${details.tokenId}:shield-grant:${event.timestamp}`,
+      timestamp: event.timestamp,
+      at: details.at,
+    })
+  })
+  return map
+}
+
+export function extractFreezeAppliedFromDelta(
+  deltaEvents: GameEvent[],
+): Map<string, FreezeAppliedPayload> {
+  const map = new Map<string, FreezeAppliedPayload>()
+  deltaEvents.forEach((event) => {
+    if (event.type !== 'horse_status_changed') return
+    const details = event.details as {
+      status?: string
+      tokenId?: string
+      turns?: number
+      at?: SwapTokenStep
+    }
+    if (details.status !== 'freeze' || !details.tokenId) return
+    map.set(details.tokenId, {
+      tokenId: details.tokenId,
+      key: `${details.tokenId}:freeze-apply:${event.timestamp}`,
+      timestamp: event.timestamp,
+      turns: typeof details.turns === 'number' ? details.turns : 0,
+      at: details.at,
+    })
+  })
+  return map
+}
+
+export function extractFreezeExpiredFromDelta(
+  deltaEvents: GameEvent[],
+): Map<string, FreezeExpiredPayload> {
+  const map = new Map<string, FreezeExpiredPayload>()
+  deltaEvents.forEach((event) => {
+    if (event.type !== 'horse_status_changed') return
+    const details = event.details as {
+      status?: string
+      tokenId?: string
+      at?: SwapTokenStep
+    }
+    if (details.status !== 'freeze_expired' || !details.tokenId) return
+    map.set(details.tokenId, {
+      tokenId: details.tokenId,
+      key: `${details.tokenId}:freeze-expire:${event.timestamp}`,
       timestamp: event.timestamp,
       at: details.at,
     })

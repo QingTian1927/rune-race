@@ -11,6 +11,8 @@ import {
   extractSentHomeDetailsFromDelta,
   extractShieldConsumedFromDelta,
   extractShieldGrantedFromDelta,
+  extractFreezeAppliedFromDelta,
+  extractFreezeExpiredFromDelta,
   extractSwapDetailsFromDelta,
   getDeltaEventsSinceVersion,
   updateVersionCursor,
@@ -20,8 +22,11 @@ import {
   type SentHomeEventDetails,
   type ShieldConsumedPayload,
   type ShieldGrantedPayload,
+  type FreezeAppliedPayload,
+  type FreezeExpiredPayload,
   splitPathAtStep,
   splitPathForShieldGrantAndConsume,
+  stepsEqual,
   type SwapEventDetails,
   type SwapTokenStep,
 } from '../lib/tokenMotion'
@@ -97,6 +102,43 @@ type ShieldBreakMotion = {
   billboardY: number
 }
 
+type FreezeApplyMotion = {
+  key: string
+  billboardY: number
+}
+
+type FreezeExpireMotion = {
+  key: string
+  billboardY: number
+}
+
+type ShieldGrantMotion = {
+  key: string
+  billboardY: number
+}
+
+const SHIELD_SPARK_OFFSETS = [
+  new THREE.Vector3(0.12, 0.05, 0),
+  new THREE.Vector3(-0.1, 0.07, 0),
+  new THREE.Vector3(0.04, 0.13, 0),
+  new THREE.Vector3(-0.05, -0.11, 0),
+  new THREE.Vector3(0.1, -0.07, 0),
+  new THREE.Vector3(-0.11, -0.02, 0),
+]
+
+const ICE_SHARD_OFFSETS = [
+  new THREE.Vector3(0.14, 0.04, 0),
+  new THREE.Vector3(-0.12, 0.06, 0),
+  new THREE.Vector3(0.05, 0.14, 0),
+  new THREE.Vector3(-0.06, -0.12, 0),
+  new THREE.Vector3(0.11, -0.08, 0),
+  new THREE.Vector3(-0.13, -0.03, 0),
+]
+
+const ICE_SHARD_VELOCITIES = ICE_SHARD_OFFSETS.map(
+  (offset) => new THREE.Vector3(offset.x * 1.15, offset.y * 1.15, offset.z),
+)
+
 /** Snowflake-style 6-point star — sized to match move selector bounds. */
 const FREEZE_ICON_SHAPE = (() => {
   const shape = new THREE.Shape()
@@ -148,7 +190,7 @@ type SwapMotion = {
   targetPosition: THREE.Vector3
 }
 
-type SegmentPauseKind = 'shield_grant' | 'shield_break' | null
+type SegmentPauseKind = 'shield_grant' | 'shield_break' | 'freeze_apply' | null
 
 type ActiveMoveSession = {
   baseKey: string
@@ -160,10 +202,13 @@ type ActiveMoveSession = {
   pauseBeforeMove: boolean
   shieldBreakKey: string | null
   shieldGrantKey: string | null
+  freezeApplyKey: string | null
   shieldBreakComplete: boolean
   shieldGrantComplete: boolean
+  freezeApplyComplete: boolean
   awaitingShieldBreak: boolean
   awaitingShieldGrant: boolean
+  awaitingFreezeApply: boolean
 }
 
 type MotionWaypoint = {
@@ -648,6 +693,559 @@ function ShieldBreakBillboard({
   )
 }
 
+function FreezeApplyBillboard({
+  motion,
+  spawnImpact,
+  tokenId,
+  playerIndex,
+}: {
+  motion: FreezeApplyMotion
+  spawnImpact?: SpawnImpactPuff | null
+  tokenId: string
+  playerIndex: number
+}) {
+  const groupRef = useRef<THREE.Group | null>(null)
+  const snowflakeRef = useRef<THREE.Mesh | null>(null)
+  const ringRef = useRef<THREE.Mesh | null>(null)
+  const shardRefs = useRef<Array<THREE.Mesh | null>>([null, null, null, null, null, null])
+  const motionKeyRef = useRef('')
+  const startTimeRef = useRef(-1)
+  const impactFiredRef = useRef(false)
+  const phaseRef = useRef<'pop' | 'burst' | 'settle' | 'done'>('pop')
+
+  useEffect(() => {
+    if (motionKeyRef.current === motion.key) return
+    motionKeyRef.current = motion.key
+    startTimeRef.current = -1
+    impactFiredRef.current = false
+    phaseRef.current = 'pop'
+    if (snowflakeRef.current) {
+      snowflakeRef.current.visible = true
+      snowflakeRef.current.rotation.z = 0
+      snowflakeRef.current.scale.setScalar(0.2)
+      setOpacity(snowflakeRef.current, 0.95)
+    }
+    if (ringRef.current) {
+      ringRef.current.visible = false
+      ringRef.current.scale.setScalar(0.35)
+      setOpacity(ringRef.current, 0.75)
+    }
+    shardRefs.current.forEach((shard) => {
+      if (!shard) return
+      shard.visible = false
+      shard.position.set(0, 0, 0)
+      shard.rotation.z = 0
+      setOpacity(shard, 0.9)
+    })
+  }, [motion.key])
+
+  useFrame((state) => {
+    if (phaseRef.current === 'done') return
+
+    if (startTimeRef.current < 0) {
+      startTimeRef.current = state.clock.elapsedTime
+    }
+
+    const elapsed = state.clock.elapsedTime - startTimeRef.current
+    const popEnd = 0.2
+    const burstEnd = 0.58
+    const settleEnd = 0.88
+
+    if (elapsed < popEnd) {
+      const t = THREE.MathUtils.clamp(elapsed / popEnd, 0, 1)
+      const ease = 1 - Math.pow(1 - t, 3)
+      const scale = 0.2 + ease * 0.95
+      if (snowflakeRef.current) {
+        snowflakeRef.current.scale.setScalar(scale)
+        snowflakeRef.current.rotation.z = t * Math.PI * 0.35
+      }
+      return
+    }
+
+    if (elapsed < burstEnd) {
+      if (phaseRef.current === 'pop') {
+        phaseRef.current = 'burst'
+        if (ringRef.current) {
+          ringRef.current.visible = true
+        }
+        shardRefs.current.forEach((shard, index) => {
+          if (!shard) return
+          shard.visible = true
+          const offset = ICE_SHARD_OFFSETS[index] ?? ICE_SHARD_OFFSETS[0]
+          shard.position.copy(offset)
+        })
+        if (!impactFiredRef.current && spawnImpact && groupRef.current) {
+          impactFiredRef.current = true
+          const worldPos = new THREE.Vector3()
+          groupRef.current.getWorldPosition(worldPos)
+          spawnImpact(worldPos, 'capture_hit', { tokenId, playerIndex })
+        }
+      }
+
+      const burstProgress = THREE.MathUtils.clamp((elapsed - popEnd) / (burstEnd - popEnd), 0, 1)
+      if (ringRef.current) {
+        ringRef.current.scale.setScalar(0.35 + burstProgress * 1.45)
+        setOpacity(ringRef.current, 0.75 * (1 - burstProgress * 0.85))
+      }
+      shardRefs.current.forEach((shard, index) => {
+        if (!shard) return
+        const offset = ICE_SHARD_OFFSETS[index] ?? ICE_SHARD_OFFSETS[0]
+        const pull = 1 - burstProgress * 0.82
+        shard.position.set(offset.x * pull, offset.y * pull, offset.z)
+        shard.rotation.z = (1 - burstProgress) * (index % 2 === 0 ? 0.8 : -0.8)
+        setOpacity(shard, 0.9 * (1 - burstProgress * 0.7))
+      })
+      if (snowflakeRef.current) {
+        snowflakeRef.current.scale.setScalar(1.15 + Math.sin(burstProgress * Math.PI) * 0.08)
+      }
+      return
+    }
+
+    if (elapsed < settleEnd) {
+      if (phaseRef.current === 'burst') {
+        phaseRef.current = 'settle'
+        if (ringRef.current) {
+          ringRef.current.visible = false
+        }
+        shardRefs.current.forEach((shard) => {
+          if (shard) shard.visible = false
+        })
+      }
+
+      const settleProgress = THREE.MathUtils.clamp((elapsed - burstEnd) / (settleEnd - burstEnd), 0, 1)
+      if (snowflakeRef.current) {
+        const bob = Math.sin(elapsed * 8) * 0.012 * (1 - settleProgress)
+        snowflakeRef.current.position.y = bob
+        snowflakeRef.current.scale.setScalar(1.08 - settleProgress * 0.08)
+        setOpacity(snowflakeRef.current, 0.95 * (1 - settleProgress * 0.35))
+      }
+      return
+    }
+
+    phaseRef.current = 'done'
+    if (snowflakeRef.current) {
+      snowflakeRef.current.visible = false
+      snowflakeRef.current.position.y = 0
+    }
+  })
+
+  return (
+    <Billboard position={[0, motion.billboardY, 0]} follow lockX={false} lockY={false} lockZ={false}>
+      <group ref={groupRef} scale={[MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE]}>
+        <mesh ref={ringRef} visible={false}>
+          <ringGeometry args={[0.1, 0.13, 24]} />
+          <meshBasicMaterial
+            color="#a5f3fc"
+            transparent
+            opacity={0.75}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {ICE_SHARD_OFFSETS.map((_, index) => (
+          <mesh
+            key={`ice-shard-${index}`}
+            ref={(node) => {
+              shardRefs.current[index] = node
+            }}
+            visible={false}
+          >
+            <circleGeometry args={[0.022, 6]} />
+            <meshBasicMaterial
+              color="#67e8f9"
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        ))}
+        <mesh ref={snowflakeRef}>
+          <shapeGeometry args={[FREEZE_ICON_SHAPE]} />
+          <meshBasicMaterial
+            color={TOKEN_ACCENT_CYAN}
+            transparent
+            opacity={0.95}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
+    </Billboard>
+  )
+}
+
+function FreezeExpireBillboard({
+  motion,
+  spawnImpact,
+  tokenId,
+  playerIndex,
+}: {
+  motion: FreezeExpireMotion
+  spawnImpact?: SpawnImpactPuff | null
+  tokenId: string
+  playerIndex: number
+}) {
+  const groupRef = useRef<THREE.Group | null>(null)
+  const snowflakeRef = useRef<THREE.Mesh | null>(null)
+  const ringRef = useRef<THREE.Mesh | null>(null)
+  const shardRefs = useRef<Array<THREE.Mesh | null>>([null, null, null, null, null, null])
+  const motionKeyRef = useRef('')
+  const startTimeRef = useRef(-1)
+  const impactFiredRef = useRef(false)
+  const phaseRef = useRef<'crack' | 'shatter' | 'fade' | 'done'>('crack')
+
+  useEffect(() => {
+    if (motionKeyRef.current === motion.key) return
+    motionKeyRef.current = motion.key
+    startTimeRef.current = -1
+    impactFiredRef.current = false
+    phaseRef.current = 'crack'
+    if (snowflakeRef.current) {
+      snowflakeRef.current.visible = true
+      snowflakeRef.current.rotation.z = 0
+      snowflakeRef.current.position.set(0, 0, 0)
+      snowflakeRef.current.scale.setScalar(1)
+      setOpacity(snowflakeRef.current, 0.95)
+    }
+    if (ringRef.current) {
+      ringRef.current.visible = false
+      ringRef.current.scale.setScalar(0.35)
+      setOpacity(ringRef.current, 0.75)
+    }
+    shardRefs.current.forEach((shard) => {
+      if (!shard) return
+      shard.visible = false
+      shard.position.set(0, 0, 0)
+      shard.rotation.z = 0
+      setOpacity(shard, 0.9)
+    })
+  }, [motion.key])
+
+  useFrame((state) => {
+    if (phaseRef.current === 'done') return
+
+    if (startTimeRef.current < 0) {
+      startTimeRef.current = state.clock.elapsedTime
+    }
+
+    const elapsed = state.clock.elapsedTime - startTimeRef.current
+    const crackEnd = 0.18
+    const shatterEnd = 0.58
+    const fadeEnd = 0.88
+
+    if (elapsed < crackEnd) {
+      const t = THREE.MathUtils.clamp(elapsed / crackEnd, 0, 1)
+      const wobble = Math.sin(elapsed * 88) * (1 - t * 0.35)
+      if (snowflakeRef.current) {
+        snowflakeRef.current.rotation.z = wobble * 0.28
+        snowflakeRef.current.position.x = wobble * 0.02
+        snowflakeRef.current.position.y = Math.abs(Math.sin(elapsed * 104)) * 0.012
+        snowflakeRef.current.scale.setScalar(1 + Math.sin(elapsed * 18) * 0.04)
+      }
+      return
+    }
+
+    if (elapsed < shatterEnd) {
+      if (phaseRef.current === 'crack') {
+        phaseRef.current = 'shatter'
+        if (snowflakeRef.current) {
+          snowflakeRef.current.visible = false
+        }
+        if (ringRef.current) {
+          ringRef.current.visible = true
+        }
+        shardRefs.current.forEach((shard) => {
+          if (shard) shard.visible = true
+        })
+        if (!impactFiredRef.current && spawnImpact && groupRef.current) {
+          impactFiredRef.current = true
+          const worldPos = new THREE.Vector3()
+          groupRef.current.getWorldPosition(worldPos)
+          spawnImpact(worldPos, 'step_land', { tokenId, playerIndex })
+        }
+      }
+
+      const shatterProgress = THREE.MathUtils.clamp((elapsed - crackEnd) / (shatterEnd - crackEnd), 0, 1)
+      if (ringRef.current) {
+        ringRef.current.scale.setScalar(0.35 + shatterProgress * 1.35)
+        setOpacity(ringRef.current, 0.75 * (1 - shatterProgress * 0.9))
+      }
+      shardRefs.current.forEach((shard, index) => {
+        if (!shard) return
+        const velocity = ICE_SHARD_VELOCITIES[index] ?? ICE_SHARD_VELOCITIES[0]
+        shard.position.set(
+          velocity.x * shatterProgress,
+          velocity.y * shatterProgress,
+          velocity.z * shatterProgress,
+        )
+        shard.rotation.z = shatterProgress * (index % 2 === 0 ? 1.6 : -1.6)
+        setOpacity(shard, 0.9 * (1 - shatterProgress * 0.35))
+      })
+      return
+    }
+
+    if (elapsed < fadeEnd) {
+      if (phaseRef.current === 'shatter') {
+        phaseRef.current = 'fade'
+        if (ringRef.current) {
+          ringRef.current.visible = false
+        }
+      }
+
+      const fadeProgress = THREE.MathUtils.clamp((elapsed - shatterEnd) / (fadeEnd - shatterEnd), 0, 1)
+      shardRefs.current.forEach((shard, index) => {
+        if (!shard) return
+        const velocity = ICE_SHARD_VELOCITIES[index] ?? ICE_SHARD_VELOCITIES[0]
+        const extra = fadeProgress * 0.08
+        shard.position.set(
+          velocity.x * (1 + extra),
+          velocity.y * (1 + extra),
+          velocity.z * (1 + extra),
+        )
+        setOpacity(shard, 0.58 * (1 - fadeProgress))
+      })
+      return
+    }
+
+    phaseRef.current = 'done'
+    shardRefs.current.forEach((shard) => {
+      if (shard) shard.visible = false
+    })
+    if (snowflakeRef.current) {
+      snowflakeRef.current.visible = false
+      snowflakeRef.current.position.set(0, 0, 0)
+      snowflakeRef.current.rotation.z = 0
+    }
+  })
+
+  return (
+    <Billboard position={[0, motion.billboardY, 0]} follow lockX={false} lockY={false} lockZ={false}>
+      <group ref={groupRef} scale={[MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE]}>
+        <mesh ref={ringRef} visible={false}>
+          <ringGeometry args={[0.1, 0.13, 24]} />
+          <meshBasicMaterial
+            color="#a5f3fc"
+            transparent
+            opacity={0.75}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {ICE_SHARD_OFFSETS.map((_, index) => (
+          <mesh
+            key={`ice-expire-shard-${index}`}
+            ref={(node) => {
+              shardRefs.current[index] = node
+            }}
+            visible={false}
+          >
+            <circleGeometry args={[0.022, 6]} />
+            <meshBasicMaterial
+              color="#67e8f9"
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        ))}
+        <mesh ref={snowflakeRef} key={`freeze-expire-${motion.key}`}>
+          <shapeGeometry args={[FREEZE_ICON_SHAPE]} />
+          <meshBasicMaterial
+            color={TOKEN_ACCENT_CYAN}
+            transparent
+            opacity={0.95}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
+    </Billboard>
+  )
+}
+
+function ShieldGrantBillboard({
+  motion,
+  spawnImpact,
+  tokenId,
+  playerIndex,
+}: {
+  motion: ShieldGrantMotion
+  spawnImpact?: SpawnImpactPuff | null
+  tokenId: string
+  playerIndex: number
+}) {
+  const groupRef = useRef<THREE.Group | null>(null)
+  const shieldRef = useRef<THREE.Mesh | null>(null)
+  const ringRef = useRef<THREE.Mesh | null>(null)
+  const sparkRefs = useRef<Array<THREE.Mesh | null>>([null, null, null, null, null, null])
+  const motionKeyRef = useRef('')
+  const startTimeRef = useRef(-1)
+  const impactFiredRef = useRef(false)
+  const phaseRef = useRef<'pop' | 'burst' | 'settle' | 'done'>('pop')
+
+  useEffect(() => {
+    if (motionKeyRef.current === motion.key) return
+    motionKeyRef.current = motion.key
+    startTimeRef.current = -1
+    impactFiredRef.current = false
+    phaseRef.current = 'pop'
+    if (shieldRef.current) {
+      shieldRef.current.visible = true
+      shieldRef.current.rotation.z = 0
+      shieldRef.current.scale.setScalar(0.18)
+      setOpacity(shieldRef.current, 0.95)
+    }
+    if (ringRef.current) {
+      ringRef.current.visible = false
+      ringRef.current.scale.setScalar(0.3)
+      setOpacity(ringRef.current, 0.8)
+    }
+    sparkRefs.current.forEach((spark) => {
+      if (!spark) return
+      spark.visible = false
+      spark.position.set(0, 0, 0)
+      setOpacity(spark, 0.92)
+    })
+  }, [motion.key])
+
+  useFrame((state) => {
+    if (phaseRef.current === 'done') return
+
+    if (startTimeRef.current < 0) {
+      startTimeRef.current = state.clock.elapsedTime
+    }
+
+    const elapsed = state.clock.elapsedTime - startTimeRef.current
+    const popEnd = 0.2
+    const burstEnd = 0.58
+    const settleEnd = 0.88
+
+    if (elapsed < popEnd) {
+      const t = THREE.MathUtils.clamp(elapsed / popEnd, 0, 1)
+      const ease = 1 - Math.pow(1 - t, 3)
+      if (shieldRef.current) {
+        shieldRef.current.scale.setScalar(0.18 + ease * 0.92)
+        shieldRef.current.rotation.z = -t * Math.PI * 0.2
+      }
+      return
+    }
+
+    if (elapsed < burstEnd) {
+      if (phaseRef.current === 'pop') {
+        phaseRef.current = 'burst'
+        if (ringRef.current) {
+          ringRef.current.visible = true
+        }
+        sparkRefs.current.forEach((spark) => {
+          if (spark) spark.visible = true
+        })
+        if (!impactFiredRef.current && spawnImpact && groupRef.current) {
+          impactFiredRef.current = true
+          const worldPos = new THREE.Vector3()
+          groupRef.current.getWorldPosition(worldPos)
+          spawnImpact(worldPos, 'capture_hit', { tokenId, playerIndex })
+        }
+      }
+
+      const burstProgress = THREE.MathUtils.clamp((elapsed - popEnd) / (burstEnd - popEnd), 0, 1)
+      if (ringRef.current) {
+        ringRef.current.scale.setScalar(0.3 + burstProgress * 1.5)
+        setOpacity(ringRef.current, 0.8 * (1 - burstProgress * 0.88))
+      }
+      sparkRefs.current.forEach((spark, index) => {
+        if (!spark) return
+        const offset = SHIELD_SPARK_OFFSETS[index] ?? SHIELD_SPARK_OFFSETS[0]
+        spark.position.set(offset.x * burstProgress, offset.y * burstProgress, offset.z)
+        setOpacity(spark, 0.92 * (1 - burstProgress * 0.75))
+      })
+      if (shieldRef.current) {
+        shieldRef.current.scale.setScalar(1.08 + Math.sin(burstProgress * Math.PI) * 0.1)
+        shieldRef.current.rotation.z = -Math.PI * 0.2 * (1 - burstProgress)
+      }
+      return
+    }
+
+    if (elapsed < settleEnd) {
+      if (phaseRef.current === 'burst') {
+        phaseRef.current = 'settle'
+        if (ringRef.current) {
+          ringRef.current.visible = false
+        }
+        sparkRefs.current.forEach((spark) => {
+          if (spark) spark.visible = false
+        })
+        if (shieldRef.current) {
+          shieldRef.current.rotation.z = 0
+        }
+      }
+
+      const settleProgress = THREE.MathUtils.clamp((elapsed - burstEnd) / (settleEnd - burstEnd), 0, 1)
+      if (shieldRef.current) {
+        const bob = Math.sin(elapsed * 7) * 0.01 * (1 - settleProgress)
+        shieldRef.current.position.y = bob
+        shieldRef.current.scale.setScalar(1.08 - settleProgress * 0.08)
+        shieldRef.current.rotation.z = 0
+        setOpacity(shieldRef.current, 0.95 * (1 - settleProgress * 0.3))
+      }
+      return
+    }
+
+    phaseRef.current = 'done'
+    if (shieldRef.current) {
+      shieldRef.current.visible = false
+      shieldRef.current.position.y = 0
+      shieldRef.current.rotation.z = 0
+    }
+  })
+
+  return (
+    <Billboard position={[0, motion.billboardY, 0]} follow lockX={false} lockY={false} lockZ={false}>
+      <group ref={groupRef} scale={[MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE]}>
+        <mesh ref={ringRef} visible={false}>
+          <ringGeometry args={[0.1, 0.13, 24]} />
+          <meshBasicMaterial
+            color="#fde68a"
+            transparent
+            opacity={0.8}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {SHIELD_SPARK_OFFSETS.map((_, index) => (
+          <mesh
+            key={`shield-spark-${index}`}
+            ref={(node) => {
+              sparkRefs.current[index] = node
+            }}
+            visible={false}
+          >
+            <circleGeometry args={[0.018, 6]} />
+            <meshBasicMaterial
+              color="#fbbf24"
+              transparent
+              opacity={0.92}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        ))}
+        <mesh ref={shieldRef} key={`shield-grant-${motion.key}`}>
+          <shapeGeometry args={[SHIELD_ICON_SHAPE]} />
+          <meshBasicMaterial
+            color={TOKEN_ACCENT_SLATE}
+            transparent
+            opacity={0.95}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
+    </Billboard>
+  )
+}
+
 function getBoardDirectionMultiplier() {
   return boardLayout.meta.direction === 'cw' ? -1 : 1
 }
@@ -841,11 +1439,32 @@ function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, pla
   return motionPlanFromPathSteps(eventDetails.path, eventDetails.tokenId, playerIndex)
 }
 
+function isSegmentPausePending(session: ActiveMoveSession): boolean {
+  const pauseKind = session.pauseAfterSegment[session.segmentIndex]
+  if (pauseKind === 'shield_grant' && !session.shieldGrantComplete) return true
+  if (pauseKind === 'shield_break' && !session.shieldBreakComplete) return true
+  if (pauseKind === 'freeze_apply' && !session.freezeApplyComplete) return true
+  return false
+}
+
+function statusEffectStepMatches(
+  at: SwapTokenStep | undefined,
+  step: MockPathStep,
+  movePayload?: MoveAnimationPayload,
+): boolean {
+  if (!at) return true
+  if (stepsEqual(at, step)) return true
+  const lastStep = movePayload?.details.path.at(-1)
+  if (lastStep && stepsEqual(step, lastStep)) return true
+  return false
+}
+
 function buildMoveSession(
   movePayload: MoveAnimationPayload,
   rawMotionPlanKey: string,
   shieldConsumed: ShieldConsumedPayload | undefined,
   shieldGranted: ShieldGrantedPayload | undefined,
+  freezeApplied: FreezeAppliedPayload | undefined,
 ): ActiveMoveSession | null {
   const path = movePayload.details.path
   if (path.length === 0) {
@@ -855,8 +1474,11 @@ function buildMoveSession(
   const emptySessionFlags = {
     shieldBreakComplete: false,
     shieldGrantComplete: false,
+    freezeApplyComplete: false,
     awaitingShieldBreak: false,
     awaitingShieldGrant: false,
+    awaitingFreezeApply: false,
+    freezeApplyKey: null as string | null,
     segmentIndex: 0,
   }
 
@@ -929,6 +1551,39 @@ function buildMoveSession(
     }
   }
 
+  if (freezeApplied) {
+    const freezeAt = freezeApplied.at ?? path[path.length - 1]
+    const freezeSplit = freezeAt ? splitPathAtStep(path, freezeAt) : null
+    if (freezeSplit) {
+      const paths =
+        freezeSplit.after.length > 0 ? [freezeSplit.before, freezeSplit.after] : [freezeSplit.before]
+      const pauseAfterSegment: SegmentPauseKind[] = paths.map((_, index) =>
+        index === 0 ? 'freeze_apply' : null,
+      )
+      return {
+        baseKey: rawMotionPlanKey,
+        paths,
+        pauseAfterSegment,
+        pauseBeforeMove: false,
+        shieldBreakKey: null,
+        shieldGrantKey: null,
+        freezeApplyKey: freezeApplied.key,
+        ...emptySessionFlags,
+      }
+    }
+
+    return {
+      baseKey: rawMotionPlanKey,
+      paths: [path],
+      pauseAfterSegment: ['freeze_apply'],
+      pauseBeforeMove: false,
+      shieldBreakKey: null,
+      shieldGrantKey: null,
+      freezeApplyKey: freezeApplied.key,
+      ...emptySessionFlags,
+    }
+  }
+
   return {
     baseKey: rawMotionPlanKey,
     paths: [path],
@@ -940,13 +1595,18 @@ function buildMoveSession(
   }
 }
 
-function buildRawMotionPlanKey(tokenId: string, version: number, movePayload: MoveAnimationPayload) {
-  return `${tokenId}:move:${version}:${movePayload.timestamp}:${movePayload.details.path.length}`
+function buildRawMotionPlanKey(tokenId: string, movePayload: MoveAnimationPayload) {
+  return `${tokenId}:move:${movePayload.timestamp}:${movePayload.details.path.length}`
+}
+
+function extractMotionBaseKey(motionPlanKey: string): string {
+  const segmentMarker = ':seg:'
+  const segmentIndex = motionPlanKey.indexOf(segmentMarker)
+  return segmentIndex >= 0 ? motionPlanKey.slice(0, segmentIndex) : motionPlanKey
 }
 
 function isTokenMoveAnimationPending(
   tokenId: string,
-  gameStateVersion: number,
   movePayload: MoveAnimationPayload | undefined,
   activeMoveSessions: Map<string, ActiveMoveSession>,
   consumedMotionKeys: Set<string>,
@@ -960,7 +1620,7 @@ function isTokenMoveAnimationPending(
     if (!Array.isArray(path) || path.length === 0) {
       return false
     }
-    const rawKey = buildRawMotionPlanKey(tokenId, gameStateVersion, movePayload)
+    const rawKey = buildRawMotionPlanKey(tokenId, movePayload)
     if (!consumedMotionKeys.has(rawKey)) {
       return true
     }
@@ -1323,8 +1983,12 @@ function PawnInstance({
   swapMotion,
   swapPreviewSpin = false,
   shieldBreakMotion = null,
-  forceShowShield = false,
-  shieldGrantPopKey = null,
+  shieldGrantMotion = null,
+  freezeApplyMotion = null,
+  freezeExpireMotion = null,
+  showFrozenStatusIcon = false,
+  suppressFrozenStatusIcon = false,
+  suppressShieldStatusIcon = false,
   moveAnimationHold = false,
   isFinalMoveSegment = true,
   pendingMoveAnimation = false,
@@ -1339,6 +2003,7 @@ function PawnInstance({
   animationDurationMs = 300,
   spawnImpact,
   moveFromState,
+  motionOriginWorld = null,
   onMoveAnimationDone,
   onMoveSegmentComplete,
   onMoveStepLanded,
@@ -1358,8 +2023,15 @@ function PawnInstance({
   swapMotion: SwapMotion | null
   swapPreviewSpin?: boolean
   shieldBreakMotion?: ShieldBreakMotion | null
-  forceShowShield?: boolean
-  shieldGrantPopKey?: string | null
+  shieldGrantMotion?: ShieldGrantMotion | null
+  freezeApplyMotion?: FreezeApplyMotion | null
+  freezeExpireMotion?: FreezeExpireMotion | null
+  /** Keep snowflake visible until expire shatter animation starts. */
+  showFrozenStatusIcon?: boolean
+  /** Hide the idle freeze icon until the apply animation has finished. */
+  suppressFrozenStatusIcon?: boolean
+  /** Hide the idle shield icon until the grant animation has finished. */
+  suppressShieldStatusIcon?: boolean
   moveAnimationHold?: boolean
   isFinalMoveSegment?: boolean
   pendingMoveAnimation?: boolean
@@ -1374,6 +2046,7 @@ function PawnInstance({
   animationDurationMs?: number
   spawnImpact?: SpawnImpactPuff | null
   moveFromState?: MockPathStep['state']
+  motionOriginWorld?: THREE.Vector3 | null
   onMoveAnimationDone?: (motionPlanKey: string) => void
   onMoveSegmentComplete?: (motionPlanKey: string) => void
   onMoveStepLanded?: (step: MockPathStep, worldX: number, worldZ: number) => void
@@ -1405,8 +2078,7 @@ function PawnInstance({
   const captureImpactFiredRef = useRef(false)
   const statusIconRef = useRef<THREE.Mesh | null>(null)
   const shieldIconRef = useRef<THREE.Mesh | null>(null)
-  const shieldGrantPopKeyRef = useRef<string | null>(null)
-  const shieldGrantStartTimeRef = useRef(-1)
+  const moveBaseKeyRef = useRef<string | null>(null)
   const onMoveAnimationDoneRef = useRef(onMoveAnimationDone)
   const onMoveSegmentCompleteRef = useRef(onMoveSegmentComplete)
   const onMoveStepLandedRef = useRef(onMoveStepLanded)
@@ -1552,16 +2224,22 @@ function PawnInstance({
       arcEndElevation: waypoint.arcEndElevation ?? 0,
     }))
 
-    if (moveFromState === 'in_base') {
-      const spawnStart = getStableSlotWorldPosition(playerIndex, token.id)
-      modelRef.current.position.copy(spawnStart)
+    const baseKey = extractMotionBaseKey(motionPlanKey)
+    const isNewBaseMove = moveBaseKeyRef.current !== baseKey
+    if (isNewBaseMove) {
+      moveBaseKeyRef.current = baseKey
+      if (motionOriginWorld) {
+        modelRef.current.position.copy(motionOriginWorld)
+      } else if (moveFromState === 'in_base') {
+        modelRef.current.position.copy(getStableSlotWorldPosition(playerIndex, token.id))
+      }
     }
 
     segmentStartRef.current.copy(modelRef.current.position)
     segmentTargetRef.current.copy(queueRef.current[0]?.position ?? new THREE.Vector3(targetX, targetY, targetZ))
     segmentTargetStepRef.current = queueRef.current[0]?.step ?? null
     segmentStartTimeRef.current = -1
-  }, [captureMotion, swapMotion, moveAnimationHold, motionPlan, motionPlanKey, moveFromState, pendingMoveAnimation, targetX, targetY, targetZ, token, playerIndex, settleKey])
+  }, [captureMotion, swapMotion, moveAnimationHold, motionPlan, motionPlanKey, motionOriginWorld, moveFromState, pendingMoveAnimation, targetX, targetY, targetZ, token, playerIndex, settleKey])
 
   const isAnimatingMove = () =>
     queueRef.current.length > 0 || segmentStartTimeRef.current >= 0
@@ -1569,34 +2247,20 @@ function PawnInstance({
   useFrame((state, delta) => {
     if (!modelRef.current) return
 
-    const isFrozen = (token.freezeTurnsRemaining ?? 0) > 0
+    const isFrozen = token.state !== 'in_base' && (token.freezeTurnsRemaining ?? 0) > 0
     const statusPulse = (phase: number) =>
       MOVE_SELECTOR_SCALE * (1 + Math.sin(state.clock.elapsedTime * phase) * 0.07)
     if (statusIconRef.current) {
+      statusIconRef.current.rotation.z = 0
       const bob = isFrozen ? Math.sin(state.clock.elapsedTime * 3.2) * 0.008 : 0
       statusIconRef.current.position.y = bob
       statusIconRef.current.scale.setScalar(statusPulse(4.5))
     }
-    if (shieldIconRef.current && (token.hasShield || forceShowShield)) {
-      if (shieldGrantPopKey && shieldGrantPopKeyRef.current !== shieldGrantPopKey) {
-        shieldGrantPopKeyRef.current = shieldGrantPopKey
-        shieldGrantStartTimeRef.current = state.clock.elapsedTime
-      }
+    if (shieldIconRef.current && token.hasShield && !suppressShieldStatusIcon) {
+      shieldIconRef.current.rotation.z = 0
       const bob = Math.sin(state.clock.elapsedTime * 2.8) * 0.008
       shieldIconRef.current.position.y = bob
-      let scale = statusPulse(3.6)
-      if (shieldGrantStartTimeRef.current >= 0) {
-        const elapsed = state.clock.elapsedTime - shieldGrantStartTimeRef.current
-        const popDuration = 0.45
-        if (elapsed < popDuration) {
-          const t = THREE.MathUtils.clamp(elapsed / popDuration, 0, 1)
-          const ease = 1 - Math.pow(1 - t, 3)
-          scale = MOVE_SELECTOR_SCALE * (0.35 + ease * 0.65)
-        } else {
-          shieldGrantStartTimeRef.current = -1
-        }
-      }
-      shieldIconRef.current.scale.setScalar(scale)
+      shieldIconRef.current.scale.setScalar(statusPulse(3.6))
     }
 
     if (swapMotion) {
@@ -1851,7 +2515,7 @@ function PawnInstance({
     }
   })
 
-  const isFrozen = (token.freezeTurnsRemaining ?? 0) > 0
+  const isFrozen = token.state !== 'in_base' && (token.freezeTurnsRemaining ?? 0) > 0
   const shieldStackIndex = isFrozen ? 1 : 0
 
   return (
@@ -1882,7 +2546,7 @@ function PawnInstance({
             </mesh>
           </Billboard>
         ) : null}
-        {token.hasShield || (forceShowShield && !shieldBreakMotion) ? (
+        {token.hasShield && !shieldBreakMotion && !shieldGrantMotion && !suppressShieldStatusIcon ? (
           <Billboard
             position={[0, statusBillboardY(isSelectable, shieldStackIndex), 0]}
             follow
@@ -1891,6 +2555,7 @@ function PawnInstance({
             lockZ={false}
           >
             <mesh
+              key="shield-idle"
               ref={shieldIconRef}
               scale={[MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE]}
             >
@@ -1905,6 +2570,14 @@ function PawnInstance({
             </mesh>
           </Billboard>
         ) : null}
+        {shieldGrantMotion ? (
+          <ShieldGrantBillboard
+            motion={shieldGrantMotion}
+            spawnImpact={spawnImpact}
+            tokenId={token.id}
+            playerIndex={playerIndex}
+          />
+        ) : null}
         {shieldBreakMotion ? (
           <ShieldBreakBillboard
             motion={shieldBreakMotion}
@@ -1913,7 +2586,23 @@ function PawnInstance({
             playerIndex={playerIndex}
           />
         ) : null}
-        {isFrozen ? (
+        {freezeApplyMotion ? (
+          <FreezeApplyBillboard
+            motion={freezeApplyMotion}
+            spawnImpact={spawnImpact}
+            tokenId={token.id}
+            playerIndex={playerIndex}
+          />
+        ) : null}
+        {freezeExpireMotion ? (
+          <FreezeExpireBillboard
+            motion={freezeExpireMotion}
+            spawnImpact={spawnImpact}
+            tokenId={token.id}
+            playerIndex={playerIndex}
+          />
+        ) : null}
+        {showFrozenStatusIcon ? (
           <Billboard
             position={[0, statusBillboardY(isSelectable, 0), 0]}
             follow
@@ -1922,6 +2611,7 @@ function PawnInstance({
             lockZ={false}
           >
             <mesh
+              key="freeze-idle"
               ref={statusIconRef}
               scale={[MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE, MOVE_SELECTOR_SCALE]}
             >
@@ -1984,6 +2674,8 @@ export default function BoardPieces({
   const [activeSwapArcKey, setActiveSwapArcKey] = useState<string | null>(null)
   const [shieldBreakRevision, setShieldBreakRevision] = useState(0)
   const [shieldGrantRevision, setShieldGrantRevision] = useState(0)
+  const [freezeApplyRevision, setFreezeApplyRevision] = useState(0)
+  const [freezeExpireRevision, setFreezeExpireRevision] = useState(0)
   const [sentHomeRevision, setSentHomeRevision] = useState(0)
   const [moveOrchestrationRevision, setMoveOrchestrationRevision] = useState(0)
   const [swapDeferRevision, setSwapDeferRevision] = useState(0)
@@ -2000,15 +2692,20 @@ export default function BoardPieces({
   const consumedSwapKeysRef = useRef(new Set<string>())
   const consumedShieldBreakKeysRef = useRef(new Set<string>())
   const consumedShieldGrantKeysRef = useRef(new Set<string>())
+  const consumedFreezeApplyKeysRef = useRef(new Set<string>())
+  const consumedFreezeExpireKeysRef = useRef(new Set<string>())
   const consumedSentHomeKeysRef = useRef(new Set<string>())
   const activeSentHomeByTokenIdRef = useRef(
     new Map<string, SentHomeAnimationPayload>(),
   )
   const activeShieldBreakByTokenIdRef = useRef(new Map<string, ShieldConsumedPayload>())
   const activeShieldGrantByTokenIdRef = useRef(new Map<string, ShieldGrantedPayload>())
-  const activeShieldVisualByTokenIdRef = useRef(new Set<string>())
+  const activeFreezeApplyByTokenIdRef = useRef(new Map<string, FreezeAppliedPayload>())
+  const activeFreezeExpireByTokenIdRef = useRef(new Map<string, FreezeExpiredPayload>())
   const scheduledShieldBreakKeysRef = useRef(new Set<string>())
   const scheduledShieldGrantKeysRef = useRef(new Set<string>())
+  const scheduledFreezeApplyKeysRef = useRef(new Set<string>())
+  const scheduledFreezeExpireKeysRef = useRef(new Set<string>())
   const scheduledSentHomeKeysRef = useRef(new Set<string>())
   const activeMoveSessionsRef = useRef(new Map<string, ActiveMoveSession>())
   const activeMoveByTokenIdRef = useRef(
@@ -2050,11 +2747,11 @@ export default function BoardPieces({
     [deltaEvents],
   )
 
-  useEffect(() => {
-    moveEventByTokenId.forEach((payload, tokenId) => {
-      latchedMoveByTokenIdRef.current.set(tokenId, payload)
-    })
-  }, [moveEventByTokenId])
+  const clearTokenStatusVisuals = useCallback((tokenId: string) => {
+    activeShieldGrantByTokenIdRef.current.delete(tokenId)
+    activeShieldBreakByTokenIdRef.current.delete(tokenId)
+    activeFreezeExpireByTokenIdRef.current.delete(tokenId)
+  }, [])
 
   const captureMoveByCapturedTokenId = useMemo(
     () => extractCaptureDetailsFromDelta(deltaEvents),
@@ -2073,6 +2770,14 @@ export default function BoardPieces({
   )
   const shieldGrantedByTokenId = useMemo(
     () => extractShieldGrantedFromDelta(deltaEvents),
+    [deltaEvents],
+  )
+  const freezeAppliedByTokenId = useMemo(
+    () => extractFreezeAppliedFromDelta(deltaEvents),
+    [deltaEvents],
+  )
+  const freezeExpiredByTokenId = useMemo(
+    () => extractFreezeExpiredFromDelta(deltaEvents),
     [deltaEvents],
   )
   const swapEventTimestamp = useMemo(() => {
@@ -2103,14 +2808,17 @@ export default function BoardPieces({
   const latchedSwap = latchedSwapRef.current
 
   const handleMoveAnimationDone = useCallback((tokenId: string, motionPlanKey: string) => {
-    const latchedMove = latchedMoveByTokenIdRef.current.get(tokenId)
     const session = activeMoveSessionsRef.current.get(tokenId)
+    if (session && isSegmentPausePending(session)) {
+      return
+    }
+    const latchedMove = latchedMoveByTokenIdRef.current.get(tokenId)
     if (session) {
       consumedMotionKeysRef.current.add(session.baseKey)
       activeMoveSessionsRef.current.delete(tokenId)
     } else if (latchedMove) {
       consumedMotionKeysRef.current.add(
-        buildRawMotionPlanKey(tokenId, gameState.version, latchedMove),
+        buildRawMotionPlanKey(tokenId, latchedMove),
       )
     } else {
       consumedMotionKeysRef.current.add(motionPlanKey)
@@ -2122,13 +2830,6 @@ export default function BoardPieces({
     setMoveOrchestrationRevision((revision) => revision + 1)
   }, [gameState.version, markerVisibility])
 
-  const handleMoveStepLanded = useCallback(
-    (tokenId: string, playerSlot: number, step: MockPathStep, worldX: number, worldZ: number) => {
-      markerVisibility?.notifyTokenSteppedOnCell(tokenId, playerSlot, step, worldX, worldZ)
-    },
-    [markerVisibility],
-  )
-
   const advanceMoveSessionsAfterShieldBreak = useCallback((shieldKey: string) => {
     activeMoveSessionsRef.current.forEach((session, tokenId) => {
       if (session.shieldBreakKey !== shieldKey) {
@@ -2136,7 +2837,6 @@ export default function BoardPieces({
       }
       session.shieldBreakComplete = true
       session.awaitingShieldBreak = false
-      activeShieldVisualByTokenIdRef.current.delete(tokenId)
       if (session.pauseBeforeMove) {
         activeMoveSessionsRef.current.set(tokenId, session)
         return
@@ -2159,6 +2859,27 @@ export default function BoardPieces({
       }
       session.shieldGrantComplete = true
       session.awaitingShieldGrant = false
+      if (session.segmentIndex < session.paths.length - 1) {
+        session.segmentIndex += 1
+        activeMoveSessionsRef.current.set(tokenId, session)
+        return
+      }
+      consumedMotionKeysRef.current.add(session.baseKey)
+      activeMoveSessionsRef.current.delete(tokenId)
+      activeMoveByTokenIdRef.current.delete(tokenId)
+      latchedMoveByTokenIdRef.current.delete(tokenId)
+      markerVisibility?.notifyMoveAnimationDone(tokenId)
+    })
+    setMoveOrchestrationRevision((revision) => revision + 1)
+  }, [markerVisibility])
+
+  const advanceMoveSessionsAfterFreezeApply = useCallback((freezeKey: string) => {
+    activeMoveSessionsRef.current.forEach((session, tokenId) => {
+      if (session.freezeApplyKey !== freezeKey) {
+        return
+      }
+      session.freezeApplyComplete = true
+      session.awaitingFreezeApply = false
       if (session.segmentIndex < session.paths.length - 1) {
         session.segmentIndex += 1
         activeMoveSessionsRef.current.set(tokenId, session)
@@ -2208,9 +2929,89 @@ export default function BoardPieces({
         activeShieldGrantByTokenIdRef.current.delete(payload.tokenId)
         advanceMoveSessionsAfterShieldGrant(payload.key)
         setShieldGrantRevision((revision) => revision + 1)
-      }, 650)
+      }, 850)
     },
     [advanceMoveSessionsAfterShieldGrant],
+  )
+
+  const scheduleFreezeApply = useCallback(
+    (payload: FreezeAppliedPayload) => {
+      if (consumedFreezeApplyKeysRef.current.has(payload.key)) {
+        return
+      }
+      if (scheduledFreezeApplyKeysRef.current.has(payload.key)) {
+        return
+      }
+      scheduledFreezeApplyKeysRef.current.add(payload.key)
+      window.setTimeout(() => {
+        consumedFreezeApplyKeysRef.current.add(payload.key)
+        activeFreezeApplyByTokenIdRef.current.delete(payload.tokenId)
+        scheduledFreezeApplyKeysRef.current.delete(payload.key)
+        advanceMoveSessionsAfterFreezeApply(payload.key)
+        setFreezeApplyRevision((revision) => revision + 1)
+      }, 850)
+    },
+    [advanceMoveSessionsAfterFreezeApply],
+  )
+
+  const scheduleFreezeExpire = useCallback((payload: FreezeExpiredPayload) => {
+    if (consumedFreezeExpireKeysRef.current.has(payload.key)) {
+      return
+    }
+    if (scheduledFreezeExpireKeysRef.current.has(payload.key)) {
+      return
+    }
+    scheduledFreezeExpireKeysRef.current.add(payload.key)
+    window.setTimeout(() => {
+      consumedFreezeExpireKeysRef.current.add(payload.key)
+      activeFreezeExpireByTokenIdRef.current.delete(payload.tokenId)
+      scheduledFreezeExpireKeysRef.current.delete(payload.key)
+      setFreezeExpireRevision((revision) => revision + 1)
+    }, 880)
+  }, [])
+
+  const handleMoveStepLanded = useCallback(
+    (tokenId: string, playerSlot: number, step: MockPathStep, worldX: number, worldZ: number) => {
+      markerVisibility?.notifyTokenSteppedOnCell(tokenId, playerSlot, step, worldX, worldZ)
+
+      const movePayload = latchedMoveByTokenIdRef.current.get(tokenId)
+      const session = activeMoveSessionsRef.current.get(tokenId)
+
+      const freezePayload = activeFreezeApplyByTokenIdRef.current.get(tokenId)
+      if (freezePayload && !consumedFreezeApplyKeysRef.current.has(freezePayload.key)) {
+        if (!scheduledFreezeApplyKeysRef.current.has(freezePayload.key)) {
+          if (
+            !freezePayload.at ||
+            statusEffectStepMatches(freezePayload.at, step, movePayload)
+          ) {
+            if (session?.freezeApplyKey === freezePayload.key) {
+              session.awaitingFreezeApply = true
+            }
+            scheduleFreezeApply(freezePayload)
+            setFreezeApplyRevision((revision) => revision + 1)
+            setMoveOrchestrationRevision((revision) => revision + 1)
+          }
+        }
+      }
+
+      const grantPayload = activeShieldGrantByTokenIdRef.current.get(tokenId)
+      if (grantPayload && !consumedShieldGrantKeysRef.current.has(grantPayload.key)) {
+        if (!scheduledShieldGrantKeysRef.current.has(grantPayload.key)) {
+          if (
+            !grantPayload.at ||
+            statusEffectStepMatches(grantPayload.at, step, movePayload)
+          ) {
+            if (session?.shieldGrantKey === grantPayload.key) {
+              session.awaitingShieldGrant = true
+            }
+            scheduleShieldGrant(grantPayload)
+            setShieldGrantRevision((revision) => revision + 1)
+            setMoveOrchestrationRevision((revision) => revision + 1)
+          }
+        }
+      }
+    },
+    [markerVisibility, scheduleFreezeApply, scheduleShieldGrant],
   )
 
   const handleMoveSegmentComplete = useCallback(
@@ -2226,7 +3027,6 @@ export default function BoardPieces({
         !session.shieldGrantComplete
       ) {
         session.awaitingShieldGrant = true
-        activeShieldVisualByTokenIdRef.current.add(tokenId)
         const grantPayload = activeShieldGrantByTokenIdRef.current.get(tokenId)
         if (grantPayload) {
           scheduleShieldGrant(grantPayload)
@@ -2249,6 +3049,20 @@ export default function BoardPieces({
         return
       }
 
+      if (
+        session.freezeApplyKey &&
+        session.pauseAfterSegment[session.segmentIndex] === 'freeze_apply' &&
+        !session.freezeApplyComplete
+      ) {
+        session.awaitingFreezeApply = true
+        const payload = activeFreezeApplyByTokenIdRef.current.get(tokenId)
+        if (payload) {
+          scheduleFreezeApply(payload)
+        }
+        setMoveOrchestrationRevision((revision) => revision + 1)
+        return
+      }
+
       if (session.segmentIndex < session.paths.length - 1) {
         session.segmentIndex += 1
         setMoveOrchestrationRevision((revision) => revision + 1)
@@ -2263,10 +3077,18 @@ export default function BoardPieces({
       setSwapDeferRevision((revision) => revision + 1)
       setMoveOrchestrationRevision((revision) => revision + 1)
     },
-    [markerVisibility, scheduleShieldBreak, scheduleShieldGrant],
+    [markerVisibility, scheduleFreezeApply, scheduleShieldBreak, scheduleShieldGrant],
   )
 
   const tokensWithTargets = useMemo(() => {
+    moveEventByTokenId.forEach((payload, tokenId) => {
+      const rawKey = buildRawMotionPlanKey(tokenId, payload)
+      if (consumedMotionKeysRef.current.has(rawKey)) {
+        return
+      }
+      latchedMoveByTokenIdRef.current.set(tokenId, payload)
+    })
+
     const latchedSwapSnapshot = latchedSwapRef.current
     const activatorMovePayload = latchedSwapSnapshot
       ? latchedMoveByTokenIdRef.current.get(latchedSwapSnapshot.details.activatorTokenId) ??
@@ -2275,7 +3097,6 @@ export default function BoardPieces({
     const activatorApproachPending = latchedSwapSnapshot
       ? isTokenMoveAnimationPending(
           latchedSwapSnapshot.details.activatorTokenId,
-          gameState.version,
           activatorMovePayload,
           activeMoveSessionsRef.current,
           consumedMotionKeysRef.current,
@@ -2287,7 +3108,7 @@ export default function BoardPieces({
       const movePayload =
         latchedMoveByTokenIdRef.current.get(token.id) ?? moveEventByTokenId.get(token.id)
       const rawMotionPlanKey = movePayload
-        ? buildRawMotionPlanKey(token.id, gameState.version, movePayload)
+        ? buildRawMotionPlanKey(token.id, movePayload)
         : null
 
       if (
@@ -2304,13 +3125,17 @@ export default function BoardPieces({
 
       const statePosition = tokenStateToWorldPosition(token, playerIndex)
       const sentHomePayload = sentHomeByTokenId.get(token.id)
+      const capturePayload = captureMoveByCapturedTokenId.get(token.id)
       if (sentHomePayload && !consumedSentHomeKeysRef.current.has(sentHomePayload.key)) {
         activeSentHomeByTokenIdRef.current.set(token.id, sentHomePayload)
+        clearTokenStatusVisuals(token.id)
         if (rawMotionPlanKey) {
           consumedMotionKeysRef.current.add(rawMotionPlanKey)
           activeMoveSessionsRef.current.delete(token.id)
           activeMoveByTokenIdRef.current.delete(token.id)
         }
+      } else if (capturePayload) {
+        clearTokenStatusVisuals(token.id)
       }
 
       const shieldFromDelta = shieldConsumedByTokenId.get(token.id)
@@ -2320,6 +3145,14 @@ export default function BoardPieces({
       }
       if (shieldGrantFromDelta && !consumedShieldGrantKeysRef.current.has(shieldGrantFromDelta.key)) {
         activeShieldGrantByTokenIdRef.current.set(token.id, shieldGrantFromDelta)
+      }
+      const freezeFromDelta = freezeAppliedByTokenId.get(token.id)
+      if (freezeFromDelta && !consumedFreezeApplyKeysRef.current.has(freezeFromDelta.key)) {
+        activeFreezeApplyByTokenIdRef.current.set(token.id, freezeFromDelta)
+      }
+      const freezeExpireFromDelta = freezeExpiredByTokenId.get(token.id)
+      if (freezeExpireFromDelta && !consumedFreezeExpireKeysRef.current.has(freezeExpireFromDelta.key)) {
+        activeFreezeExpireByTokenIdRef.current.set(token.id, freezeExpireFromDelta)
       }
 
       const activeSentHome = activeSentHomeByTokenIdRef.current.get(token.id)
@@ -2339,12 +3172,20 @@ export default function BoardPieces({
         !sentHomeAnimationActive
       ) {
         const existingSession = activeMoveSessionsRef.current.get(token.id)
-        if (!existingSession || existingSession.baseKey !== rawMotionPlanKey) {
+        const freezePayloadForSession =
+          activeFreezeApplyByTokenIdRef.current.get(token.id) ?? freezeFromDelta
+        const needsMoveSession =
+          !existingSession ||
+          existingSession.baseKey !== rawMotionPlanKey ||
+          (freezePayloadForSession &&
+            existingSession.freezeApplyKey !== freezePayloadForSession.key)
+        if (needsMoveSession) {
           const session = buildMoveSession(
             movePayload,
             rawMotionPlanKey,
             activeShieldBreak ?? shieldFromDelta,
             activeShieldGrantByTokenIdRef.current.get(token.id) ?? shieldGrantFromDelta,
+            freezePayloadForSession,
           )
           if (session) {
             activeMoveSessionsRef.current.set(token.id, session)
@@ -2362,8 +3203,12 @@ export default function BoardPieces({
         )
       const moveAwaitingShieldBreak = Boolean(moveSession?.awaitingShieldBreak)
       const moveAwaitingShieldGrant = Boolean(moveSession?.awaitingShieldGrant)
+      const moveAwaitingFreezeApply = Boolean(moveSession?.awaitingFreezeApply)
       const moveAnimationHold =
-        moveBlockedBeforeShield || moveAwaitingShieldBreak || moveAwaitingShieldGrant
+        moveBlockedBeforeShield ||
+        moveAwaitingShieldBreak ||
+        moveAwaitingShieldGrant ||
+        moveAwaitingFreezeApply
 
       let motionPlanKey: string | null = null
       let motionPlan: MotionWaypoint[] | null = null
@@ -2414,12 +3259,12 @@ export default function BoardPieces({
             segmentStart,
             obstaclePositions,
           })
-          motionPlanKey = `${moveSession.baseKey}:seg:${moveSession.segmentIndex}:${moveSession.shieldBreakComplete ? 1 : 0}`
+          motionPlanKey = `${moveSession.baseKey}:seg:${moveSession.segmentIndex}:${moveSession.shieldBreakComplete ? 1 : 0}:${moveSession.freezeApplyComplete ? 1 : 0}`
         }
       }
 
       const isFinalMoveSegment = moveSession
-        ? moveSession.segmentIndex >= moveSession.paths.length - 1
+        ? moveSession.segmentIndex >= moveSession.paths.length - 1 && !isSegmentPausePending(moveSession)
         : true
       const moveFromState = movePayload?.details.from.state
       const pendingMoveAnimation = Boolean(
@@ -2430,6 +3275,16 @@ export default function BoardPieces({
           !sentHomeAnimationActive &&
           !moveBlockedBeforeShield,
       )
+      const motionOriginWorld =
+        pendingMoveAnimation &&
+        movePayload?.details.from &&
+        (moveSession?.segmentIndex ?? 0) === 0
+          ? worldPositionForTokenStep(
+              token.id,
+              playerIndex,
+              movePayload.details.from as MockPathStep,
+            )
+          : null
       let captureMotion: CaptureMotion | null = null
       if (token.state === 'in_base') {
         captureMotion =
@@ -2457,13 +3312,12 @@ export default function BoardPieces({
         consumedSwapKeysRef.current,
         swapMotion,
       )
-      const isFrozen = (token.freezeTurnsRemaining ?? 0) > 0
+      const isFrozen = token.state !== 'in_base' && (token.freezeTurnsRemaining ?? 0) > 0
       const isSelectable = selectableTokenSet.has(token.id) && !isFrozen
       const isSwapChoiceTarget = swapChoiceTargetSet.has(token.id)
       const isPickable = isSelectable || (isSwapChoiceTarget && swapSelectionEnabled)
       const moveStillAnimating = isTokenMoveAnimationPending(
         token.id,
-        gameState.version,
         movePayload,
         activeMoveSessionsRef.current,
         consumedMotionKeysRef.current,
@@ -2483,10 +3337,62 @@ export default function BoardPieces({
           billboardY: statusBillboardY(isSelectable, shieldStackIndex),
         }
       }
-      const forceShowShield =
-        token.hasShield || activeShieldVisualByTokenIdRef.current.has(token.id)
-      const shieldGrantPopKey =
-        moveAwaitingShieldGrant && moveSession?.shieldGrantKey ? moveSession.shieldGrantKey : null
+      let freezeApplyMotion: FreezeApplyMotion | null = null
+      const freezeApplyPayload = activeFreezeApplyByTokenIdRef.current.get(token.id) ?? freezeFromDelta
+      const freezeApplyAnimationActive = Boolean(
+        freezeApplyPayload && !consumedFreezeApplyKeysRef.current.has(freezeApplyPayload.key),
+      )
+      const shouldShowFreezeApply =
+        freezeApplyAnimationActive &&
+        freezeApplyPayload &&
+        (scheduledFreezeApplyKeysRef.current.has(freezeApplyPayload.key) ||
+          moveAwaitingFreezeApply)
+      if (shouldShowFreezeApply) {
+        freezeApplyMotion = {
+          key: freezeApplyPayload.key,
+          billboardY: statusBillboardY(isSelectable, 0),
+        }
+      }
+      let freezeExpireMotion: FreezeExpireMotion | null = null
+      const freezeExpirePayload =
+        activeFreezeExpireByTokenIdRef.current.get(token.id) ?? freezeExpireFromDelta
+      const freezeExpireAnimationActive = Boolean(
+        freezeExpirePayload && !consumedFreezeExpireKeysRef.current.has(freezeExpirePayload.key),
+      )
+      const shouldShowFreezeExpire =
+        freezeExpireAnimationActive &&
+        freezeExpirePayload &&
+        scheduledFreezeExpireKeysRef.current.has(freezeExpirePayload.key)
+      if (shouldShowFreezeExpire) {
+        freezeExpireMotion = {
+          key: freezeExpirePayload.key,
+          billboardY: statusBillboardY(isSelectable, 0),
+        }
+      }
+      const suppressFrozenStatusIcon = freezeApplyAnimationActive
+      const showFrozenStatusIcon =
+        (isFrozen || freezeExpireAnimationActive) &&
+        !freezeApplyMotion &&
+        !freezeExpireMotion &&
+        !suppressFrozenStatusIcon
+      let shieldGrantMotion: ShieldGrantMotion | null = null
+      const shieldGrantPayload =
+        activeShieldGrantByTokenIdRef.current.get(token.id) ?? shieldGrantFromDelta
+      const shieldGrantAnimationActive = Boolean(
+        shieldGrantPayload && !consumedShieldGrantKeysRef.current.has(shieldGrantPayload.key),
+      )
+      const shouldShowShieldGrant =
+        shieldGrantAnimationActive &&
+        shieldGrantPayload &&
+        (scheduledShieldGrantKeysRef.current.has(shieldGrantPayload.key) ||
+          moveAwaitingShieldGrant)
+      if (shouldShowShieldGrant) {
+        const shieldStackIndex = isFrozen ? 1 : 0
+        shieldGrantMotion = {
+          key: shieldGrantPayload.key,
+          billboardY: statusBillboardY(isSelectable, shieldStackIndex),
+        }
+      }
       const isHovered = (isSelectable || isSwapChoiceTarget) && hoveredTokenId === token.id
       const arrowColor = isHovered
         ? tokenSelectionMode === 'swap'
@@ -2503,11 +3409,16 @@ export default function BoardPieces({
         motionPlan: swapMotion ? null : motionPlan,
         motionPlanKey: swapMotion ? null : motionPlanKey,
         moveFromState,
+        motionOriginWorld,
         captureMotion: swapMotion ? null : captureMotion,
         swapMotion,
         shieldBreakMotion,
-        forceShowShield,
-        shieldGrantPopKey,
+        shieldGrantMotion,
+        freezeApplyMotion,
+        freezeExpireMotion,
+        showFrozenStatusIcon,
+        suppressFrozenStatusIcon: freezeApplyAnimationActive,
+        suppressShieldStatusIcon: shieldGrantAnimationActive,
         moveAnimationHold,
         isFinalMoveSegment,
         pendingMoveAnimation,
@@ -2519,6 +3430,7 @@ export default function BoardPieces({
       }
     })
   }, [
+    clearTokenStatusVisuals,
     captureMoveByCapturedTokenId,
     sentHomeByTokenId,
     gameState.tokens,
@@ -2535,8 +3447,12 @@ export default function BoardPieces({
     swapEventTimestamp,
     shieldConsumedByTokenId,
     shieldGrantedByTokenId,
+    freezeAppliedByTokenId,
+    freezeExpiredByTokenId,
     shieldBreakRevision,
     shieldGrantRevision,
+    freezeApplyRevision,
+    freezeExpireRevision,
     sentHomeRevision,
     moveOrchestrationRevision,
     swapDeferRevision,
@@ -2553,7 +3469,6 @@ export default function BoardPieces({
       moveEventByTokenId.get(latchedSwap.details.activatorTokenId)
     const deferSwap = isTokenMoveAnimationPending(
       latchedSwap.details.activatorTokenId,
-      gameState.version,
       activatorPayload,
       activeMoveSessionsRef.current,
       consumedMotionKeysRef.current,
@@ -2605,6 +3520,109 @@ export default function BoardPieces({
     })
   }, [sentHomeByTokenId])
 
+  useEffect(() => {
+    shieldGrantedByTokenId.forEach((payload, tokenId) => {
+      if (consumedShieldGrantKeysRef.current.has(payload.key)) {
+        return
+      }
+      if (scheduledShieldGrantKeysRef.current.has(payload.key)) {
+        return
+      }
+
+      const movePayload =
+        latchedMoveByTokenIdRef.current.get(tokenId) ?? moveEventByTokenId.get(tokenId)
+      if (
+        isTokenMoveAnimationPending(
+          tokenId,
+          movePayload,
+          activeMoveSessionsRef.current,
+          consumedMotionKeysRef.current,
+        )
+      ) {
+        return
+      }
+
+      const token = gameState.tokens.find((entry) => entry.id === tokenId)
+      if (!token || !token.hasShield || token.state === 'in_base') {
+        return
+      }
+
+      const session = activeMoveSessionsRef.current.get(tokenId)
+      if (session?.shieldGrantKey === payload.key) {
+        session.awaitingShieldGrant = true
+      }
+      scheduleShieldGrant(payload)
+      setShieldGrantRevision((revision) => revision + 1)
+    })
+  }, [
+    shieldGrantedByTokenId,
+    gameState.tokens,
+    moveEventByTokenId,
+    moveOrchestrationRevision,
+    scheduleShieldGrant,
+  ])
+
+  useEffect(() => {
+    freezeExpiredByTokenId.forEach((payload, tokenId) => {
+      if (consumedFreezeExpireKeysRef.current.has(payload.key)) {
+        return
+      }
+      if (scheduledFreezeExpireKeysRef.current.has(payload.key)) {
+        return
+      }
+
+      const token = gameState.tokens.find((entry) => entry.id === tokenId)
+      if (!token || token.state === 'in_base') {
+        return
+      }
+
+      scheduleFreezeExpire(payload)
+      setFreezeExpireRevision((revision) => revision + 1)
+    })
+  }, [freezeExpiredByTokenId, gameState.tokens, scheduleFreezeExpire])
+
+  useEffect(() => {
+    freezeAppliedByTokenId.forEach((payload, tokenId) => {
+      if (consumedFreezeApplyKeysRef.current.has(payload.key)) {
+        return
+      }
+      if (scheduledFreezeApplyKeysRef.current.has(payload.key)) {
+        return
+      }
+
+      const movePayload =
+        latchedMoveByTokenIdRef.current.get(tokenId) ?? moveEventByTokenId.get(tokenId)
+      if (
+        isTokenMoveAnimationPending(
+          tokenId,
+          movePayload,
+          activeMoveSessionsRef.current,
+          consumedMotionKeysRef.current,
+        )
+      ) {
+        return
+      }
+
+      const token = gameState.tokens.find((entry) => entry.id === tokenId)
+      if (!token || (token.freezeTurnsRemaining ?? 0) <= 0) {
+        return
+      }
+
+      const session = activeMoveSessionsRef.current.get(tokenId)
+      if (session?.freezeApplyKey === payload.key) {
+        session.awaitingFreezeApply = true
+      }
+      scheduleFreezeApply(payload)
+      setFreezeApplyRevision((revision) => revision + 1)
+    })
+  }, [
+    freezeAppliedByTokenId,
+    gameState.tokens,
+    moveEventByTokenId,
+    moveOrchestrationRevision,
+    scheduleFreezeApply,
+  ])
+
   return (
     <group>
       <ImpactPuffPool
@@ -2648,7 +3666,7 @@ export default function BoardPieces({
       ) : null}
 
       {/* Pawns */}
-      {tokensWithTargets.map(({ token, playerIndex, targetX, targetY, targetZ, motionPlan, motionPlanKey, moveFromState, captureMotion, swapMotion, shieldBreakMotion, forceShowShield, shieldGrantPopKey, moveAnimationHold, isFinalMoveSegment, pendingMoveAnimation, isSelectable, isSwapChoiceTarget, isPickable, swapPreviewSpin, arrowColor }) => (
+      {tokensWithTargets.map(({ token, playerIndex, targetX, targetY, targetZ, motionPlan, motionPlanKey, moveFromState, motionOriginWorld, captureMotion, swapMotion, shieldBreakMotion, shieldGrantMotion, freezeApplyMotion, freezeExpireMotion, showFrozenStatusIcon, suppressFrozenStatusIcon, suppressShieldStatusIcon, moveAnimationHold, isFinalMoveSegment, pendingMoveAnimation, isSelectable, isSwapChoiceTarget, isPickable, swapPreviewSpin, arrowColor }) => (
         <group key={token.id}>
           <PawnInstance
             token={token}
@@ -2662,8 +3680,12 @@ export default function BoardPieces({
             swapMotion={swapMotion}
             swapPreviewSpin={swapPreviewSpin}
             shieldBreakMotion={shieldBreakMotion}
-            forceShowShield={forceShowShield}
-            shieldGrantPopKey={shieldGrantPopKey}
+            shieldGrantMotion={shieldGrantMotion}
+            freezeApplyMotion={freezeApplyMotion}
+            freezeExpireMotion={freezeExpireMotion}
+            showFrozenStatusIcon={showFrozenStatusIcon}
+            suppressFrozenStatusIcon={suppressFrozenStatusIcon}
+            suppressShieldStatusIcon={suppressShieldStatusIcon}
             moveAnimationHold={moveAnimationHold}
             isFinalMoveSegment={isFinalMoveSegment}
             pendingMoveAnimation={pendingMoveAnimation}
@@ -2674,6 +3696,7 @@ export default function BoardPieces({
             isHovered={(isSelectable || isSwapChoiceTarget) && hoveredTokenId === token.id}
             spawnImpact={freezeTokenAnimations ? null : spawnImpactRef.current}
             moveFromState={moveFromState}
+            motionOriginWorld={motionOriginWorld}
             onMoveAnimationDone={(key) => handleMoveAnimationDone(token.id, key)}
             onMoveSegmentComplete={() => handleMoveSegmentComplete(token.id)}
             onMoveStepLanded={(step, worldX, worldZ) =>
