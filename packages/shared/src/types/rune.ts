@@ -54,11 +54,12 @@ export interface BoardMarker {
   createdAtPhaseId: string
 }
 
-/** Marker fields visible to all clients. */
+/** Marker fields visible to all clients (card type stays secret; trigger mode is public). */
 export interface PublicBoardMarker {
   markerId: string
   cellId: number
   displayedIdentityId: string
+  triggerMode: RuneTriggerMode
 }
 
 export interface RunePlayerState {

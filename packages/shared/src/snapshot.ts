@@ -1,5 +1,15 @@
 import type { ClientGameSnapshot, GameEvent, GameState } from './types/game.js'
-import type { PublicBoardMarker, RuneClientView } from './types/rune.js'
+import type { BoardMarker, PublicBoardMarker, RuneClientView } from './types/rune.js'
+import { RUNE_CARD_DEFINITIONS } from './types/rune-definitions.js'
+
+export function toPublicBoardMarker(marker: BoardMarker): PublicBoardMarker {
+  return {
+    markerId: marker.markerId,
+    cellId: marker.cellId,
+    displayedIdentityId: marker.displayedIdentityId,
+    triggerMode: RUNE_CARD_DEFINITIONS[marker.cardType].triggerMode,
+  }
+}
 
 export function buildRuneClientView(state: GameState, viewerPlayerId: string): RuneClientView | null {
   if (!state.rune) return null
@@ -15,11 +25,7 @@ export function toPublicGameState(state: GameState): GameState {
     return state
   }
 
-  const publicMarkers: PublicBoardMarker[] = state.rune.markers.map((m) => ({
-    markerId: m.markerId,
-    cellId: m.cellId,
-    displayedIdentityId: m.displayedIdentityId,
-  }))
+  const publicMarkers: PublicBoardMarker[] = state.rune.markers.map(toPublicBoardMarker)
 
   return {
     ...state,
