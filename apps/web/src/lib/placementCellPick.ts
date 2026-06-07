@@ -15,6 +15,9 @@ export const MAIN_TRACK_CELL_IDS = [...CELLS_BY_ID.keys()]
 /** Max XZ distance from click to cell center (adjacent cells are ~0.18–0.22 apart). */
 export const PLACEMENT_PICK_RADIUS = 0.09
 
+/** Larger hit target for touch / coarse pointer. */
+export const PLACEMENT_PICK_RADIUS_TOUCH = 0.15
+
 export function getMainTrackCell(cellId: number): TrackCell | undefined {
   return CELLS_BY_ID.get(cellId)
 }

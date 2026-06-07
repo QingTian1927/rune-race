@@ -8,14 +8,16 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { BoardMarker, GameState } from '@rune-race/shared'
+import type { BoardMarker, GameState, RuneCardType } from '@rune-race/shared'
 import { getDeltaEventsSinceVersion, updateVersionCursor } from '../lib/tokenMotion'
 import { resolveLandedCellIds } from '../lib/trackCellId'
 import type { MockPathStep } from '../mock/mockGameEngine'
 
 type PendingMarker = {
   marker: BoardMarker
-  tokenId: string
+  tokenId: string | null
+  cellId: number
+  expiresAt: number
 }
 
 type RuneMarkerVisibilityContextValue = {
@@ -30,6 +32,8 @@ type RuneMarkerVisibilityContextValue = {
   notifyMoveAnimationDone: (tokenId: string) => void
 }
 
+const PENDING_MARKER_TTL_MS = 12_000
+
 const RuneMarkerVisibilityContext = createContext<RuneMarkerVisibilityContextValue | null>(null)
 
 function findMoveTokenIdForTrigger(
@@ -43,6 +47,27 @@ function findMoveTokenIdForTrigger(
     if (typeof tokenId === 'string') return tokenId
   }
   return null
+}
+
+function markerFromTriggerEvent(
+  markerId: string,
+  event: GameState['events'][number],
+  fallback: BoardMarker | undefined,
+): BoardMarker | null {
+  if (fallback) return fallback
+  const cellId = event.details?.cellId
+  const cardType = event.details?.cardType
+  if (typeof cellId !== 'number' || typeof cardType !== 'string') return null
+  return {
+    markerId,
+    cellId,
+    cardType: cardType as RuneCardType,
+    realPlacerId: '',
+    displayedIdentityId: typeof event.playerId === 'string' ? event.playerId : '',
+    remainingMarkerRounds: 0,
+    ttlMode: 'DISPLAYED_IDENTITY_TURN',
+    createdAtPhaseId: '',
+  }
 }
 
 export function RuneMarkerVisibilityProvider({
@@ -64,13 +89,37 @@ export function RuneMarkerVisibilityProvider({
     setRevision((value) => value + 1)
   }, [])
 
+  const pruneExpiredPending = useCallback(() => {
+    const now = Date.now()
+    let changed = false
+    for (const [markerId, pending] of pendingRef.current) {
+      if (pending.expiresAt <= now) {
+        pendingRef.current.delete(markerId)
+        changed = true
+      }
+    }
+    if (changed) bump()
+  }, [bump])
+
   const consumeMatchingPending = useCallback(
     (tokenId?: string) => {
       let changed = false
       for (const [markerId, pending] of pendingRef.current) {
-        if (tokenId && pending.tokenId !== tokenId) continue
-        const landed = landedCellIdsByTokenRef.current.get(pending.tokenId)
-        if (!landed?.has(pending.marker.cellId)) continue
+        if (tokenId && pending.tokenId && pending.tokenId !== tokenId) continue
+
+        let cellHit = false
+        if (tokenId) {
+          cellHit = Boolean(landedCellIdsByTokenRef.current.get(tokenId)?.has(pending.cellId))
+        } else {
+          for (const [candidateTokenId, landed] of landedCellIdsByTokenRef.current) {
+            if (pending.tokenId && pending.tokenId !== candidateTokenId) continue
+            if (landed.has(pending.cellId)) {
+              cellHit = true
+              break
+            }
+          }
+        }
+        if (!cellHit) continue
         pendingRef.current.delete(markerId)
         changed = true
       }
@@ -97,7 +146,6 @@ export function RuneMarkerVisibilityProvider({
     const currentMarkers = gameState.rune?.markers ?? []
     const currentMap = new Map(currentMarkers.map((marker) => [marker.markerId, marker]))
     const deltaEvents = getDeltaEventsSinceVersion(gameState, versionCursorRef.current)
-    updateVersionCursor(gameState, versionCursorRef.current)
 
     deltaEvents.forEach((event) => {
       if (event.type === 'marker_expired') {
@@ -107,42 +155,33 @@ export function RuneMarkerVisibilityProvider({
         }
         return
       }
+    })
 
-      if (event.type === 'horse_status_changed' && event.details?.status === 'sent_home') {
-        const tokenId = event.details?.tokenId
-        if (typeof tokenId !== 'string') return
-        for (const [markerId, pending] of pendingRef.current) {
-          if (pending.tokenId === tokenId) {
-            pendingRef.current.delete(markerId)
-          }
-        }
-      }
+    deltaEvents.forEach((event) => {
+      if (event.type !== 'marker_triggered') return
+      const markerId = event.details?.markerId
+      if (typeof markerId !== 'string') return
+      if (currentMap.has(markerId)) return
+
+      const marker = markerFromTriggerEvent(
+        markerId,
+        event,
+        prevMarkersRef.current.get(markerId),
+      )
+      if (!marker) return
+
+      const tokenId = findMoveTokenIdForTrigger(deltaEvents, event.playerId)
+      pendingRef.current.set(markerId, {
+        marker,
+        tokenId,
+        cellId: marker.cellId,
+        expiresAt: Date.now() + PENDING_MARKER_TTL_MS,
+      })
     })
 
     if (!freezeTokenAnimations) {
-      deltaEvents.forEach((event) => {
-        if (event.type !== 'marker_triggered') return
-        const markerId = event.details?.markerId
-        if (typeof markerId !== 'string') return
-        if (currentMap.has(markerId)) return
-
-        // Send-home removes the token from the track — hide marker as soon as it triggers.
-        if (event.details?.cardType === 'SEND_HOME') {
-          pendingRef.current.delete(markerId)
-          return
-        }
-
-        const marker = prevMarkersRef.current.get(markerId)
-        if (!marker) return
-
-        const tokenId = findMoveTokenIdForTrigger(deltaEvents, event.playerId)
-        if (!tokenId) return
-
-        pendingRef.current.set(markerId, { marker, tokenId })
-        consumeMatchingPending(tokenId)
-      })
-    } else {
-      pendingRef.current.clear()
+      consumeMatchingPending()
+      updateVersionCursor(gameState, versionCursorRef.current)
     }
 
     for (const markerId of [...pendingRef.current.keys()]) {
@@ -152,8 +191,9 @@ export function RuneMarkerVisibilityProvider({
     }
 
     prevMarkersRef.current = currentMap
+    pruneExpiredPending()
     bump()
-  }, [bump, consumeMatchingPending, freezeTokenAnimations, gameState])
+  }, [bump, consumeMatchingPending, freezeTokenAnimations, gameState, pruneExpiredPending])
 
   const notifyTokenSteppedOnCell = useCallback(
     (
@@ -173,9 +213,12 @@ export function RuneMarkerVisibilityProvider({
     (tokenId: string) => {
       let changed = false
       for (const [markerId, pending] of pendingRef.current) {
-        if (pending.tokenId !== tokenId) continue
-        pendingRef.current.delete(markerId)
-        changed = true
+        if (pending.tokenId && pending.tokenId !== tokenId) continue
+        const landed = landedCellIdsByTokenRef.current.get(tokenId)
+        if (pending.tokenId === tokenId || landed?.has(pending.cellId)) {
+          pendingRef.current.delete(markerId)
+          changed = true
+        }
       }
       landedCellIdsByTokenRef.current.delete(tokenId)
       if (changed) bump()

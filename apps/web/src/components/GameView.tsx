@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import type { Player, GameState, RuneClientView } from '@rune-race/shared'
 import { listValidPlacementCellIds } from '@rune-race/game-engine'
+import { placementRejectMessage } from '../lib/runeMarkerDisplay'
 import { HandArrayPanel } from './hud/HandArrayPanel'
 import { RuneCardPreviewOverlay } from './hud/RuneCardPreviewOverlay'
 import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
@@ -64,6 +65,8 @@ export type GameViewProps = {
   onFinishDraw?: () => void
   onPlaceMarker?: (heldCardId: string, cellId: number, displayedIdentityId: string) => void
   onChooseSwap?: (targetTokenId: string) => void
+  /** Socket / server action errors (online). */
+  gameActionError?: string | null
 }
 
 export default function GameView({
@@ -85,6 +88,7 @@ export default function GameView({
   onFinishDraw,
   onPlaceMarker,
   onChooseSwap,
+  gameActionError = null,
 }: GameViewProps) {
   const navigate = useNavigate()
   const { active, progress } = useProgress()
@@ -128,6 +132,9 @@ export default function GameView({
   const [placementConfirmCellId, setPlacementConfirmCellId] = useState<number | null>(null)
   const [placementCellId, setPlacementCellId] = useState<number | null>(null)
   const [hoveredPlacementCellId, setHoveredPlacementCellId] = useState<number | null>(null)
+  const [placementNotice, setPlacementNotice] = useState<string | null>(null)
+  const pendingPlacementRef = useRef<{ heldCardId: string; cellId: number } | null>(null)
+  const placementEventsCursorRef = useRef({ version: -1, eventCount: 0 })
 
   const finishOrder = useMemo(() => {
     const seen = new Set<string>()
@@ -575,6 +582,11 @@ export default function GameView({
     return listValidPlacementCellIds(gameState)
   }, [canPlaceRunes, gameState, runesOn])
 
+  const selectedPlacementCard = useMemo(() => {
+    if (!myRune || !selectedHeldCardId) return null
+    return myRune.hand.find((card) => card.heldCardId === selectedHeldCardId) ?? null
+  }, [myRune, selectedHeldCardId])
+
   const runePlacementActive = Boolean(
     selectedHeldCardId && canPlaceRunes && !isEditorActive,
   )
@@ -593,9 +605,17 @@ export default function GameView({
 
   const handleCardSelect = useCallback(
     (heldCardId: string) => {
-      if (!canPlaceRunes) return
+      if (!canPlaceRunes) {
+        if (!placementPhaseActive) {
+          setPlacementNotice('Chỉ đặt rune trong pha đặt thẻ.')
+        } else if (myHandCount <= 0) {
+          setPlacementNotice('Bạn không còn thẻ trong tay.')
+        }
+        return
+      }
       if (selectedHeldCardId === heldCardId && cardPreviewId === null && placementConfirmCellId === null) {
         clearPlacementSelection()
+        setPlacementNotice(null)
         return
       }
       setSelectedHeldCardId(heldCardId)
@@ -603,8 +623,17 @@ export default function GameView({
       setPlacementConfirmCellId(null)
       setPlacementCellId(null)
       setHoveredPlacementCellId(null)
+      setPlacementNotice(null)
     },
-    [canPlaceRunes, cardPreviewId, clearPlacementSelection, placementConfirmCellId, selectedHeldCardId],
+    [
+      canPlaceRunes,
+      cardPreviewId,
+      clearPlacementSelection,
+      myHandCount,
+      placementConfirmCellId,
+      placementPhaseActive,
+      selectedHeldCardId,
+    ],
   )
 
   const handleCardPreview = useCallback(
@@ -643,8 +672,15 @@ export default function GameView({
 
   const commitPlacement = (displayedIdentityId: string) => {
     if (!selectedHeldCardId || placementConfirmCellId === null) return
+    pendingPlacementRef.current = {
+      heldCardId: selectedHeldCardId,
+      cellId: placementConfirmCellId,
+    }
     onPlaceMarker?.(selectedHeldCardId, placementConfirmCellId, displayedIdentityId)
-    clearPlacementSelection()
+    setPlacementConfirmCellId(null)
+    setPlacementCellId(null)
+    setHoveredPlacementCellId(null)
+    setPlacementNotice(null)
   }
 
   const previewOverlayCard = useMemo(() => {
@@ -661,8 +697,66 @@ export default function GameView({
   useEffect(() => {
     if (!placementPhaseActive) {
       clearPlacementSelection()
+      pendingPlacementRef.current = null
+      setPlacementNotice(null)
     }
   }, [clearPlacementSelection, placementPhaseActive])
+
+  useEffect(() => {
+    if (!localPlayerId) return
+
+    const deltaEvents =
+      gameState.version !== placementEventsCursorRef.current.version
+        ? gameState.events.slice(placementEventsCursorRef.current.eventCount)
+        : []
+    placementEventsCursorRef.current = {
+      version: gameState.version,
+      eventCount: gameState.events.length,
+    }
+
+    const pending = pendingPlacementRef.current
+    for (const event of deltaEvents) {
+      if (event.playerId !== localPlayerId) continue
+
+      if (event.type === 'marker_placed') {
+        const cellId = event.details?.cellId
+        if (pending && cellId === pending.cellId) {
+          pendingPlacementRef.current = null
+          clearPlacementSelection()
+          setPlacementNotice(null)
+          continue
+        }
+      }
+
+      if (event.type === 'marker_place_rejected') {
+        const reason = placementRejectMessage(event.details?.reason)
+        pendingPlacementRef.current = null
+        if (pending) {
+          setSelectedHeldCardId(pending.heldCardId)
+        }
+        setPlacementNotice(reason)
+      }
+    }
+  }, [clearPlacementSelection, gameState.events, gameState.version, localPlayerId])
+
+  useEffect(() => {
+    if (!gameActionError) return
+    if (/place|marker|rune|cell|thẻ/i.test(gameActionError)) {
+      setPlacementNotice(gameActionError)
+      pendingPlacementRef.current = null
+    }
+  }, [gameActionError])
+
+  useEffect(() => {
+    if (!runePlacementActive) return
+    if (validPlacementCells.length === 0) {
+      setPlacementNotice('Không còn ô trống để đặt rune.')
+      return
+    }
+    setPlacementNotice((prev) =>
+      prev === 'Không còn ô trống để đặt rune.' ? null : prev,
+    )
+  }, [runePlacementActive, validPlacementCells.length])
 
   const handleRollClick = () => {
     setShowRollButton(false)
@@ -724,6 +818,7 @@ export default function GameView({
         validPlacementCellIds={validPlacementCells}
         hoveredPlacementCellId={hoveredPlacementCellId}
         selectedPlacementCellId={placementCellId}
+        selectedPlacementCardType={selectedPlacementCard?.cardType ?? null}
         placementPreviewPlayer={localPlayer}
         placementPreviewAvatar={avatarFor(localPlayer?.id)}
         onHoverPlacementCell={setHoveredPlacementCellId}
@@ -816,6 +911,13 @@ export default function GameView({
               />
             ) : null}
             {roomChat}
+            {placementNotice ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <p className="rune-placement-hint rune-placement-hint--error" role="status" aria-live="polite">
+                  {placementNotice}
+                </p>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

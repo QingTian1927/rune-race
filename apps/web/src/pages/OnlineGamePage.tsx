@@ -28,6 +28,7 @@ export default function OnlineGamePage() {
   const {
     gameState,
     runeView,
+    error,
     connected,
     rollTrigger,
     roll,
@@ -125,6 +126,7 @@ export default function OnlineGamePage() {
       onFinishDraw={finishDraw}
       onPlaceMarker={placeMarker}
       onChooseSwap={chooseSwap}
+      gameActionError={error}
       roomChat={
         lobbyId ? (
           <RoomChatPanel
@@ -132,7 +134,7 @@ export default function OnlineGamePage() {
             localPlayerId={playerId}
             onSend={sendChatMessage}
             sendError={chatSendError}
-            onDismissSendError={clearChatSendError}
+            onClearSendError={clearChatSendError}
             placement="game"
           />
         ) : null

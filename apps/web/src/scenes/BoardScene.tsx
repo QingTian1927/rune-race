@@ -14,11 +14,10 @@ import { SceneRendererSetup } from './SceneRendererSetup'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
-import type { GameState, RuneClientView } from '@rune-race/shared'
+import type { GameState, Player, RuneCardType, RuneClientView } from '@rune-race/shared'
 import RuneMarkers from '../components/board/RuneMarkers'
 import RunePlacementLayer from '../components/board/RunePlacementLayer'
 import { RuneMarkerVisibilityProvider } from '../contexts/RuneMarkerVisibilityContext'
-import type { Player } from '@rune-race/shared'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { CAMERA_CONFIG, type CameraDebugInfo } from '../config/cameraConfig'
 
@@ -53,6 +52,7 @@ interface BoardSceneProps {
   validPlacementCellIds?: number[]
   hoveredPlacementCellId?: number | null
   selectedPlacementCellId?: number | null
+  selectedPlacementCardType?: RuneCardType | null
   placementPreviewPlayer?: Player | null
   placementPreviewAvatar?: string | null
   onHoverPlacementCell?: (cellId: number | null) => void
@@ -272,6 +272,7 @@ export default function BoardScene({
   validPlacementCellIds = [],
   hoveredPlacementCellId = null,
   selectedPlacementCellId = null,
+  selectedPlacementCardType = null,
   placementPreviewPlayer = null,
   placementPreviewAvatar = null,
   onHoverPlacementCell,
@@ -366,6 +367,7 @@ export default function BoardScene({
               validCellIds={validPlacementCellIds}
               hoveredCellId={hoveredPlacementCellId}
               selectedCellId={selectedPlacementCellId}
+              selectedCardType={selectedPlacementCardType}
               previewPlayer={placementPreviewPlayer}
               previewAvatar={placementPreviewAvatar}
               onHoverCell={onHoverPlacementCell}
