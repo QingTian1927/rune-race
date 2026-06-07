@@ -17,7 +17,7 @@ export function FinishOrderPanel({ players, avatarsByPlayerId = {} }: FinishOrde
   if (collapsed) {
     return (
       <div className="game-hud-slot game-hud-slot--finish">
-        <div className="game-hud-panel game-hud-panel--collapsed hud-p-gold">
+        <div key="collapsed" className="game-hud-panel game-hud-panel--collapsed hud-p-gold game-hud-panel--motion">
           <span className="game-hud-finish-trophy" aria-hidden>
             🏆
           </span>
@@ -34,7 +34,7 @@ export function FinishOrderPanel({ players, avatarsByPlayerId = {} }: FinishOrde
 
   return (
     <div className="game-hud-slot game-hud-slot--finish">
-      <div className="game-hud-panel hud-p-gold">
+      <div key="expanded" className="game-hud-panel hud-p-gold game-hud-panel--motion">
         <div className="game-hud-row game-hud-finish-head">
           <p className={HUD_PANEL_LABEL_CLASS}>VỀ ĐÍCH</p>
           <PanelCollapseButton

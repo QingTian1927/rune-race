@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import type { GraphicsQuality } from '../../lib/graphicsQuality'
+import { usePresenceTransition } from './usePresenceTransition'
 
 export type GameSettingsOverlayProps = {
   open: boolean
@@ -16,6 +17,7 @@ export function GameSettingsOverlay({
 }: GameSettingsOverlayProps) {
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const { render, motionClass } = usePresenceTransition(open, 260)
 
   useEffect(() => {
     if (!open) return
@@ -31,11 +33,13 @@ export function GameSettingsOverlay({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open, onClose])
 
-  if (!open) return null
+  if (!render) return null
 
   return (
     <div
-      className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={['game-hud-overlay-root pointer-events-auto fixed inset-0 z-50 flex items-center justify-center p-4', motionClass]
+        .filter(Boolean)
+        .join(' ')}
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
@@ -47,7 +51,7 @@ export function GameSettingsOverlay({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="game-hud-modal game-hud-modal--sm"
+        className="game-hud-modal game-hud-modal--sm game-hud-modal--motion"
       >
         <div className="game-hud-modal-head">
           <div className="game-hud-modal-icon" aria-hidden>

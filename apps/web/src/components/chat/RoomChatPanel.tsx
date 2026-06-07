@@ -97,7 +97,10 @@ export function RoomChatPanel({
   if (collapsed) {
     return (
       <div className={slotClass}>
-        <div className="game-hud-panel game-hud-panel--collapsed room-chat-panel room-chat-panel--collapsed">
+        <div
+          key="collapsed"
+          className="game-hud-panel game-hud-panel--collapsed room-chat-panel room-chat-panel--collapsed game-hud-panel--motion"
+        >
           <div className="room-chat-collapsed-stack">
             <button
               type="button"
@@ -125,7 +128,7 @@ export function RoomChatPanel({
 
   return (
     <div className={slotClass}>
-      <div className="game-hud-panel room-chat-panel">
+      <div key="expanded" className="game-hud-panel room-chat-panel game-hud-panel--motion">
         <div className="room-chat-head">
           <p className={HUD_PANEL_LABEL_CLASS}>Chat</p>
           <PanelCollapseButton

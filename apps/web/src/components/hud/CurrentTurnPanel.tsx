@@ -20,7 +20,7 @@ export function CurrentTurnPanel({ player, isLocalTurn, avatarEmoji }: CurrentTu
   if (collapsed) {
     return (
       <div className="game-hud-slot game-hud-slot--turn">
-        <div className="game-hud-panel game-hud-panel--collapsed">
+        <div key="collapsed" className="game-hud-panel game-hud-panel--collapsed game-hud-panel--motion">
           <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
           <PanelCollapseButton
             collapsed={collapsed}
@@ -34,7 +34,7 @@ export function CurrentTurnPanel({ player, isLocalTurn, avatarEmoji }: CurrentTu
 
   return (
     <div className="game-hud-slot game-hud-slot--turn">
-      <div className={['game-hud-panel', colorStyles.hudPanel].join(' ')}>
+      <div key="expanded" className={['game-hud-panel game-hud-panel--motion', colorStyles.hudPanel].join(' ')}>
         <div className="game-hud-row">
           <PlayerBadge color={player.color} avatarEmoji={avatarEmoji} isActive={isLocalTurn} />
           <div className="game-hud-turn-copy">
