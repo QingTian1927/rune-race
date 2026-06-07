@@ -222,7 +222,10 @@ function resolvePassThrough(
   }
 
   if (marker.cardType === 'FREEZE') {
-    state = applyFreezeToToken(state, tokenId, timestamp)
+    state = applyFreezeToToken(state, tokenId, timestamp, {
+      state: token.state,
+      position: token.position,
+    })
     return { ...session, state, remainingSteps: 0, stopped: true }
   }
 

@@ -105,17 +105,31 @@ function tickMarkerTTL(state: GameState, activePlayerId: string, timestamp: numb
 }
 
 export function tickFreezeForPlayer(state: GameState, playerId: string, timestamp: number): GameState {
+  const expiredEvents: GameEvent[] = []
   const tokens = state.tokens.map((token) => {
     if (token.playerId !== playerId) return token
     const turns = token.freezeTurnsRemaining ?? 0
     if (turns <= 0) return token
     const next = turns - 1
     if (next <= 0) {
+      expiredEvents.push({
+        type: 'horse_status_changed',
+        timestamp,
+        playerId: token.playerId,
+        details: {
+          tokenId: token.id,
+          status: 'freeze_expired',
+          at: { state: token.state, position: token.position },
+        },
+      })
       return { ...token, freezeTurnsRemaining: 0 }
     }
     return { ...token, freezeTurnsRemaining: next }
   })
-  return { ...state, tokens, updatedAt: timestamp }
+  if (expiredEvents.length === 0) {
+    return { ...state, tokens, updatedAt: timestamp }
+  }
+  return { ...state, tokens, events: [...state.events, ...expiredEvents], updatedAt: timestamp }
 }
 
 /** Draw + simultaneous placement window (spec §3.1 steps 2–3). */
@@ -257,18 +271,32 @@ export function finishDrawPhase(state: GameState): GameState {
   return next
 }
 
-export function applyFreezeToToken(state: GameState, tokenId: string, timestamp: number): GameState {
+export function applyFreezeToToken(
+  state: GameState,
+  tokenId: string,
+  timestamp: number,
+  at?: { state: string; position: number },
+): GameState {
+  const sourceToken = state.tokens.find((t) => t.id === tokenId)
   const tokens = state.tokens.map((t) =>
     t.id === tokenId ? { ...t, freezeTurnsRemaining: RUNE_FREEZE_TURNS } : t,
   )
   const token = tokens.find((t) => t.id === tokenId)
+  const freezeAt =
+    at ??
+    (sourceToken ? { state: sourceToken.state, position: sourceToken.position } : undefined)
   const events: GameEvent[] = [
     ...state.events,
     {
       type: 'horse_status_changed',
       timestamp,
       playerId: token?.playerId ?? '',
-      details: { tokenId, status: 'freeze', turns: RUNE_FREEZE_TURNS },
+      details: {
+        tokenId,
+        status: 'freeze',
+        turns: RUNE_FREEZE_TURNS,
+        at: freezeAt,
+      },
     },
   ]
   return { ...state, tokens, events }

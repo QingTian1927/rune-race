@@ -3,8 +3,7 @@ import { createInitialGameState, rollTurn } from '../engine.js'
 import { placeMarker } from './placement.js'
 import { resolveMoveWithRunes } from './movement.js'
 import { absoluteTrackIndexFor, boardSlotForPlayer } from '../engine.js'
-import { isTokenFrozen } from './turn-lifecycle.js'
-import { beginNormalTurn } from './turn-lifecycle.js'
+import { isTokenFrozen, beginNormalTurn, tickFreezeForPlayer } from './turn-lifecycle.js'
 
 const players = [
   { id: 'p-red', name: 'Red', color: 'red' as const },
@@ -130,5 +129,39 @@ describe('FREEZE rune', () => {
     }, () => 3)
 
     expect(rolled.turn.legalMoves.some((m) => m.tokenId === blueToken.id)).toBe(false)
+  })
+
+  it('emits freeze_expired when the last freeze turn ticks off', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-blue',
+      runesEnabled: true,
+    })
+
+    const blueToken = state.tokens.find((t) => t.playerId === 'p-blue')!
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) =>
+        t.id === blueToken.id
+          ? { ...t, state: 'on_track' as const, position: 4, freezeTurnsRemaining: 1 }
+          : t,
+      ),
+      turn: { ...state.turn, currentPlayerId: 'p-blue' },
+      currentPlayerIndex: state.players.findIndex((p) => p.id === 'p-blue'),
+    }
+
+    const afterTick = tickFreezeForPlayer(state, 'p-blue', Date.now())
+    const thawed = afterTick.tokens.find((t) => t.id === blueToken.id)!
+
+    expect(isTokenFrozen(thawed)).toBe(false)
+    expect(
+      afterTick.events.some(
+        (event) =>
+          event.type === 'horse_status_changed' &&
+          event.details?.status === 'freeze_expired' &&
+          event.details?.tokenId === blueToken.id,
+      ),
+    ).toBe(true)
   })
 })

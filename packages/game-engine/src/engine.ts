@@ -914,6 +914,8 @@ export function resolveTurn(state: GameState, moveId?: string) {
           ...token,
           state: 'in_base',
           position: captureSlot,
+          hasShield: false,
+          freezeTurnsRemaining: 0,
         }
       }
     }

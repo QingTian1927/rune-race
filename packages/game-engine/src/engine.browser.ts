@@ -883,6 +883,8 @@ export function resolveTurn(state: GameState, moveId?: string) {
           ...token,
           state: 'in_base' as const,
           position: baseSlotForToken(token.id),
+          hasShield: false,
+          freezeTurnsRemaining: 0,
         }
       })
     : nextTokens
