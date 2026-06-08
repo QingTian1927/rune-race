@@ -14,6 +14,8 @@ type HandArrayPanelProps = {
   onCardSelect: (heldCardId: string) => void
   onCardPreview: (heldCardId: string) => void
   canSelectCards?: boolean
+  isCardSelectable?: (card: HeldCard) => boolean
+  isCardPending?: (card: HeldCard) => boolean
   canDraw: boolean
   onDraw: () => void
   drawDisabledTitle?: string
@@ -29,6 +31,8 @@ export function HandArrayPanel({
   onCardSelect,
   onCardPreview,
   canSelectCards = true,
+  isCardSelectable,
+  isCardPending,
   canDraw,
   onDraw,
   drawDisabledTitle,
@@ -164,16 +168,21 @@ export function HandArrayPanel({
 
         <div className="rune-hand-body">
           <div className="rune-hand-cards">
-            {hand.map((card) => (
-              <HandCardButton
-                key={card.heldCardId}
-                card={card}
-                selected={selectedCardId === card.heldCardId}
-                disabled={!canSelectCards}
-                onSelect={() => onCardSelect(card.heldCardId)}
-                onPreview={() => onCardPreview(card.heldCardId)}
-              />
-            ))}
+            {hand.map((card) => {
+              const selectable = isCardSelectable ? isCardSelectable(card) : canSelectCards
+              const pending = isCardPending?.(card) ?? false
+              return (
+                <HandCardButton
+                  key={card.heldCardId}
+                  card={card}
+                  selected={selectedCardId === card.heldCardId}
+                  disabled={!selectable && !pending}
+                  pending={pending}
+                  onSelect={() => onCardSelect(card.heldCardId)}
+                  onPreview={() => onCardPreview(card.heldCardId)}
+                />
+              )
+            })}
           </div>
           {drawSlot}
         </div>
@@ -186,11 +195,12 @@ type HandCardButtonProps = {
   card: HeldCard
   selected: boolean
   disabled: boolean
+  pending?: boolean
   onSelect: () => void
   onPreview: () => void
 }
 
-function HandCardButton({ card, selected, disabled, onSelect, onPreview }: HandCardButtonProps) {
+function HandCardButton({ card, selected, disabled, pending = false, onSelect, onPreview }: HandCardButtonProps) {
   const pressHandlers = useHandCardPress(onSelect, onPreview, disabled)
   const label = RUNE_CARD_LABELS[card.cardType]
   const description = RUNE_CARD_DESCRIPTIONS[card.cardType]
@@ -201,6 +211,7 @@ function HandCardButton({ card, selected, disabled, onSelect, onPreview }: HandC
       className={[
         'rune-hand-card',
         selected ? 'rune-hand-card--selected' : '',
+        pending ? 'rune-hand-card--pending' : '',
         disabled ? 'rune-hand-card--disabled' : '',
       ]
         .filter(Boolean)

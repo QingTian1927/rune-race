@@ -22,7 +22,7 @@ export function triggerModeForMarker(
   return null
 }
 
-export function triggerModeForCardType(cardType: RuneCardType): RuneTriggerMode {
+export function triggerModeForCardType(cardType: RuneCardType): RuneTriggerMode | null {
   return RUNE_CARD_DEFINITIONS[cardType].triggerMode
 }
 
@@ -33,6 +33,7 @@ const PLACEMENT_REJECT_MESSAGES: Record<string, string> = {
   invalid_identity: 'Danh tính hiển thị không hợp lệ.',
   invalid_cell: 'Ô này không thể đặt rune.',
   cell_taken: 'Ô đã có rune hoặc quân đang đứng.',
+  not_placable: 'Thẻ này không đặt lên bàn được.',
 }
 
 export function placementRejectMessage(reason: unknown): string {

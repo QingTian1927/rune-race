@@ -461,6 +461,7 @@ function applyArcLiftsToWaypoints(
   let previous = segmentStart
   return waypoints.map((waypoint) => {
     if (waypoint.motion === 'teleport') {
+      previous = waypoint.position
       return { ...waypoint, arcLift: BASE_STEP_ARC_LIFT, arcStartElevation: 0, arcEndElevation: 0 }
     }
 
@@ -1267,14 +1268,17 @@ function getHomeLaneWorldPosition(playerIndex: number, laneIndex: number) {
   return lane ? vecFrom(lane) : new THREE.Vector3()
 }
 
+const STABLE_SLOT_COLS = 2
+const STABLE_SLOT_ROWS = 1
+
 function getStableSlotWorldPosition(playerIndex: number, tokenId: string) {
   const stable = boardLayout.players[playerIndex]?.stable
   if (!stable) {
     return new THREE.Vector3()
   }
 
-  const cols = 2
-  const rows = 2
+  const cols = STABLE_SLOT_COLS
+  const rows = STABLE_SLOT_ROWS
   const slot = Number(tokenId.split(':').pop() ?? '0') % (cols * rows)
   const cx = (stable.minX + stable.maxX) / 2
   const cz = (stable.minZ + stable.maxZ) / 2
@@ -1296,8 +1300,8 @@ function getStableSlotWorldPositionForSlot(playerIndex: number, slot: number) {
     return new THREE.Vector3()
   }
 
-  const cols = 2
-  const rows = 2
+  const cols = STABLE_SLOT_COLS
+  const rows = STABLE_SLOT_ROWS
   const normalizedSlot = ((slot % (cols * rows)) + cols * rows) % (cols * rows)
   const cx = (stable.minX + stable.maxX) / 2
   const cz = (stable.minZ + stable.maxZ) / 2
@@ -1336,33 +1340,6 @@ function tokenStateToWorldPosition(token: Token, playerIndex: number) {
     (home.minY + home.maxY) / 2,
     (home.minZ + home.maxZ) / 2,
   )
-}
-
-function collapseTeleportBursts(waypoints: MotionWaypoint[]): MotionWaypoint[] {
-  const collapsed: MotionWaypoint[] = []
-  let index = 0
-
-  while (index < waypoints.length) {
-    const waypoint = waypoints[index]
-    if (waypoint.motion !== 'teleport') {
-      collapsed.push(waypoint)
-      index += 1
-      continue
-    }
-
-    let end = index
-    while (end + 1 < waypoints.length && waypoints[end + 1].motion === 'teleport') {
-      end += 1
-    }
-    let maxLift = waypoints[index].arcLift ?? BASE_STEP_ARC_LIFT
-    for (let cursor = index + 1; cursor <= end; cursor += 1) {
-      maxLift = Math.max(maxLift, waypoints[cursor].arcLift ?? BASE_STEP_ARC_LIFT)
-    }
-    collapsed.push({ ...waypoints[end], arcLift: maxLift, arcStartElevation: 0, arcEndElevation: 0 })
-    index = end + 1
-  }
-
-  return collapsed
 }
 
 function worldPositionForTokenStep(
@@ -1425,11 +1402,10 @@ function motionPlanFromPathSteps(
     }
   })
 
-  let collapsed = collapseTeleportBursts(waypoints)
   if (options?.segmentStart && options.obstaclePositions) {
-    collapsed = applyArcLiftsToWaypoints(collapsed, options.segmentStart, options.obstaclePositions)
+    return applyArcLiftsToWaypoints(waypoints, options.segmentStart, options.obstaclePositions)
   }
-  return collapsed
+  return waypoints
 }
 
 function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, playerIndex: number): MotionWaypoint[] | null {
@@ -2683,6 +2659,7 @@ export default function BoardPieces({
   const spawnImpactRef = useRef<SpawnImpactPuff | null>(null)
   const latchedSwapRef = useRef<LatchedSwapAnimation | null>(null)
   const latchedMoveByTokenIdRef = useRef(new Map<string, MoveAnimationPayload>())
+  const latchedCaptureByTokenIdRef = useRef(new Map<string, CaptureEventDetails>())
   const selectableTokenSet = useMemo(() => new Set(selectableTokenIds ?? []), [selectableTokenIds])
   const swapPreviewTokenSet = useMemo(() => new Set(swapPreviewTokenIds ?? []), [swapPreviewTokenIds])
   const swapChoiceTargetSet = useMemo(() => new Set(swapChoiceTargetIds ?? []), [swapChoiceTargetIds])
@@ -2753,10 +2730,13 @@ export default function BoardPieces({
     activeFreezeExpireByTokenIdRef.current.delete(tokenId)
   }, [])
 
-  const captureMoveByCapturedTokenId = useMemo(
-    () => extractCaptureDetailsFromDelta(deltaEvents),
-    [deltaEvents],
-  )
+  const captureMoveByCapturedTokenId = useMemo(() => {
+    const fromDelta = extractCaptureDetailsFromDelta(deltaEvents)
+    fromDelta.forEach((payload, tokenId) => {
+      latchedCaptureByTokenIdRef.current.set(tokenId, payload)
+    })
+    return fromDelta
+  }, [deltaEvents])
 
   const sentHomeByTokenId = useMemo(
     () => extractSentHomeDetailsFromDelta(deltaEvents),
@@ -3125,7 +3105,9 @@ export default function BoardPieces({
 
       const statePosition = tokenStateToWorldPosition(token, playerIndex)
       const sentHomePayload = sentHomeByTokenId.get(token.id)
-      const capturePayload = captureMoveByCapturedTokenId.get(token.id)
+      const capturePayload =
+        latchedCaptureByTokenIdRef.current.get(token.id) ??
+        captureMoveByCapturedTokenId.get(token.id)
       if (sentHomePayload && !consumedSentHomeKeysRef.current.has(sentHomePayload.key)) {
         activeSentHomeByTokenIdRef.current.set(token.id, sentHomePayload)
         clearTokenStatusVisuals(token.id)
@@ -3286,12 +3268,12 @@ export default function BoardPieces({
             )
           : null
       let captureMotion: CaptureMotion | null = null
-      if (token.state === 'in_base') {
-        captureMotion =
-          captureMotionFromEvent(captureMoveByCapturedTokenId.get(token.id), playerIndexById, token) ??
-          (sentHomeAnimationActive
-            ? sentHomeMotionFromEvent(activeSentHome, playerIndex, token)
-            : null)
+      if (capturePayload) {
+        captureMotion = captureMotionFromEvent(capturePayload, playerIndexById, token)
+      } else if (token.state === 'in_base') {
+        captureMotion = sentHomeAnimationActive
+          ? sentHomeMotionFromEvent(activeSentHome, playerIndex, token)
+          : null
       }
       let swapMotion: SwapMotion | null = null
       if (latchedSwapSnapshot && !consumedSwapKeysRef.current.has(latchedSwapSnapshot.key)) {

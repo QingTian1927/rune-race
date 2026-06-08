@@ -42,7 +42,7 @@ export const RUNE_CARD_LABELS: Record<RuneCardType, string> = {
 
 /** One-line effect summary for card preview. */
 export const RUNE_CARD_DESCRIPTIONS: Record<RuneCardType, string> = {
-  LEAVE_STABLE: 'Dừng đúng ô — xuất thêm một quân từ chuồng ra xuất phát.',
+  LEAVE_STABLE: 'Dùng trực tiếp sau pha đặt — xuất một quân từ chuồng ra xuất phát.',
   SHIELD: 'Đi qua — chặn một bẫy Lùi, Đóng băng hoặc Về chuồng.',
   ADVANCE_2: 'Đi qua — cộng thêm 2 bước tiến.',
   ADVANCE_3: 'Đi qua — cộng thêm 3 bước tiến.',

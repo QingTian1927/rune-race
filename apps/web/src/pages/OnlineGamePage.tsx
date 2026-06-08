@@ -37,6 +37,8 @@ export default function OnlineGamePage() {
     confirmDraw,
     finishDraw,
     placeMarker,
+    confirmPlacementReady,
+    useLeaveStable,
     chooseSwap,
     isPresentingDice,
   } = useGameSocket(
@@ -95,7 +97,7 @@ export default function OnlineGamePage() {
 
     const phase = gameState.turn.phase
     if (phase === 'waiting_roll') return true
-    if (phase === 'placement_phase' || phase === 'waiting_draw') return true
+    if (phase === 'leave_stable_phase') return true
 
     return false
   }, [gameState, isPresentingDice, playerId])
@@ -127,6 +129,8 @@ export default function OnlineGamePage() {
       onConfirmDraw={confirmDraw}
       onFinishDraw={finishDraw}
       onPlaceMarker={placeMarker}
+      onConfirmPlacementReady={confirmPlacementReady}
+      onUseLeaveStable={useLeaveStable}
       onChooseSwap={chooseSwap}
       gameActionError={error}
       roomChat={

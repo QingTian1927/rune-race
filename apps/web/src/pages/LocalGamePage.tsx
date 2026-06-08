@@ -6,8 +6,10 @@ import {
   handleDrawCards as engineDrawCards,
   handleConfirmDraw as engineConfirmDraw,
   handleFinishDraw as engineFinishDraw,
-  handlePlaceMarker,
+  handleConfirmPlacementReady as engineConfirmPlacementReady,
+  handlePlaceMarker as enginePlaceMarker,
   handleRoll as engineHandleRoll,
+  handleUseLeaveStable,
 } from '@rune-race/game-engine'
 import GameView from '../components/GameView'
 import getMockSnapshot from '../mock/getMockSnapshot'
@@ -81,7 +83,7 @@ export default function LocalGamePage() {
     cellId: number,
     displayedIdentityId: string,
   ) => {
-    const result = handlePlaceMarker(
+    const result = enginePlaceMarker(
       displayState,
       localPlayerId,
       heldCardId,
@@ -96,14 +98,24 @@ export default function LocalGamePage() {
     if (result.success) apply(result.state)
   }
 
+  const handleUseLeaveStableCard = (heldCardId: string) => {
+    const result = handleUseLeaveStable(displayState, localPlayerId, heldCardId)
+    if (result.success) apply(result.state)
+  }
+
   const canRoll = useMemo(() => {
     if (isPresentingDice || displayState.status !== 'playing') return false
     if (displayState.turn.currentPlayerId !== activePlayerId) return false
     const phase = displayState.turn.phase
     if (phase === 'waiting_roll') return true
-    if (phase === 'placement_phase' || phase === 'waiting_draw') return true
+    if (phase === 'leave_stable_phase') return true
     return false
-  }, [displayState, isPresentingDice])
+  }, [displayState, isPresentingDice, activePlayerId])
+
+  const onConfirmPlacementReady = () => {
+    const result = engineConfirmPlacementReady(displayState, localPlayerId)
+    if (result.success) apply(result.state)
+  }
 
   return (
     <GameView
@@ -121,6 +133,8 @@ export default function LocalGamePage() {
       onConfirmDraw={handleConfirmDraw}
       onFinishDraw={handleFinishDraw}
       onPlaceMarker={handlePlaceMarker}
+      onConfirmPlacementReady={onConfirmPlacementReady}
+      onUseLeaveStable={handleUseLeaveStableCard}
       onChooseSwap={handleChooseSwapTarget}
     />
   )

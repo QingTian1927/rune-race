@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import type { Player, GameState, RuneClientView } from '@rune-race/shared'
-import { RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
+import {
+  isBoardMarkerCardType,
+  RUNE_MAX_DRAW_PER_PLAYER,
+  RUNE_MAX_HAND_SIZE,
+  type HeldCard,
+} from '@rune-race/shared'
 import { listValidPlacementCellIds } from '@rune-race/game-engine'
 import { placementRejectMessage } from '../lib/runeMarkerDisplay'
 import { HandArrayPanel } from './hud/HandArrayPanel'
@@ -68,6 +73,8 @@ export type GameViewProps = {
   onConfirmDraw?: () => void
   onFinishDraw?: () => void
   onPlaceMarker?: (heldCardId: string, cellId: number, displayedIdentityId: string) => void
+  onConfirmPlacementReady?: () => void
+  onUseLeaveStable?: (heldCardId: string) => void
   onChooseSwap?: (targetTokenId: string) => void
   /** Socket / server action errors (online). */
   gameActionError?: string | null
@@ -92,6 +99,8 @@ export default function GameView({
   onConfirmDraw,
   onFinishDraw,
   onPlaceMarker,
+  onConfirmPlacementReady,
+  onUseLeaveStable,
   onChooseSwap,
   gameActionError = null,
 }: GameViewProps) {
@@ -176,12 +185,56 @@ export default function GameView({
     runesOn &&
     (gameState.turn.phase === 'placement_phase' || gameState.turn.phase === 'waiting_draw')
   const placementPhaseActive = runeWindowOpen
+  const leaveStablePhaseActive = runesOn && gameState.turn.phase === 'leave_stable_phase'
+  const placementState = gameState.rune?.placement ?? null
+  const [placementClock, setPlacementClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!placementPhaseActive || !placementState) return
+    setPlacementClock(Date.now())
+    const id = window.setInterval(() => setPlacementClock(Date.now()), 250)
+    return () => window.clearInterval(id)
+  }, [placementPhaseActive, placementState?.phaseId])
+
+  const placementMinWaitMs = placementState
+    ? Math.max(0, placementState.minCloseAt - placementClock)
+    : 0
+  const placementMaxWaitMs = placementState
+    ? Math.max(0, placementState.maxCloseAt - placementClock)
+    : 0
   const myHandCount = myRune?.hand.length ?? 0
   const myPendingDraw = runeView?.myPendingDraw ?? myRune?.pendingDraw ?? null
   const drawRevealOpen = Boolean(isMyTurn && myPendingDraw && runeWindowOpen)
   /** Spec §3.1 step 3: any player holding cards may place during simultaneous placement. */
   const canPlaceRunes =
     placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)
+  const hasLeaveStableInHand = Boolean(
+    myRune?.hand.some((card) => card.cardType === 'LEAVE_STABLE'),
+  )
+  /** Spec §3.1 step 4 / §11.5: only during leave_stable_phase after placement closed. */
+  const canUseLeaveStable =
+    isMyTurn && Boolean(onUseLeaveStable) && hasLeaveStableInHand && leaveStablePhaseActive
+  const isHandCardSelectable = useCallback(
+    (card: HeldCard) => {
+      if (card.cardType === 'LEAVE_STABLE') {
+        return canUseLeaveStable
+      }
+      if (placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)) {
+        return isBoardMarkerCardType(card.cardType)
+      }
+      return false
+    },
+    [canUseLeaveStable, myHandCount, onPlaceMarker, placementPhaseActive],
+  )
+  const isHandCardPending = useCallback(() => false, [])
+  const canSelectHandCards = canPlaceRunes || canUseLeaveStable
+  const effectiveCanRoll = canRoll
+  const placementReadyCount = placementState
+    ? gameState.players.filter((player) => placementState.readyByPlayer[player.id]).length
+    : 0
+  const iConfirmedPlacement = Boolean(
+    localPlayerId && placementState?.readyByPlayer[localPlayerId],
+  )
   const canDrawDuringTurn =
     isMyTurn && runeWindowOpen && Boolean(onDrawCards) && !myPendingDraw
 
@@ -475,15 +528,15 @@ export default function GameView({
   ])
 
   useEffect(() => {
-    canRollRef.current = canRoll
-    if (!canRoll) {
+    canRollRef.current = effectiveCanRoll
+    if (!effectiveCanRoll) {
       setShowRollButton(false)
       return
     }
     if (!isSequencingRoll) {
       setShowRollButton(true)
     }
-  }, [canRoll, isSequencingRoll])
+  }, [effectiveCanRoll, isSequencingRoll])
 
   useEffect(() => {
     const presentationJustFinished = wasPresentingRef.current && !isPresentingDice
@@ -613,12 +666,27 @@ export default function GameView({
 
   const handleCardSelect = useCallback(
     (heldCardId: string) => {
+      const card = myRune?.hand.find((entry) => entry.heldCardId === heldCardId)
+      if (card?.cardType === 'LEAVE_STABLE') {
+        if (canUseLeaveStable) {
+          onUseLeaveStable?.(heldCardId)
+          setPlacementNotice(null)
+          return
+        }
+        return
+      }
+
       if (!canPlaceRunes) {
         if (!placementPhaseActive) {
           setPlacementNotice('Chỉ đặt rune trong pha đặt thẻ.')
         } else if (myHandCount <= 0) {
           setPlacementNotice('Bạn không còn thẻ trong tay.')
         }
+        return
+      }
+
+      if (card && !isBoardMarkerCardType(card.cardType)) {
+        setPlacementNotice('Thẻ này không đặt lên bàn được.')
         return
       }
       if (selectedHeldCardId === heldCardId && cardPreviewId === null && placementConfirmCellId === null) {
@@ -635,9 +703,13 @@ export default function GameView({
     },
     [
       canPlaceRunes,
+      canUseLeaveStable,
       cardPreviewId,
       clearPlacementSelection,
+      isHandCardPending,
       myHandCount,
+      myRune?.hand,
+      onUseLeaveStable,
       placementConfirmCellId,
       placementPhaseActive,
       selectedHeldCardId,
@@ -646,14 +718,15 @@ export default function GameView({
 
   const handleCardPreview = useCallback(
     (heldCardId: string) => {
-      if (!canPlaceRunes) return
+      const card = myRune?.hand.find((entry) => entry.heldCardId === heldCardId)
+      if (!canPlaceRunes || !card || !isBoardMarkerCardType(card.cardType)) return
       setSelectedHeldCardId(null)
       setCardPreviewId(heldCardId)
       setPlacementConfirmCellId(null)
       setPlacementCellId(null)
       setHoveredPlacementCellId(null)
     },
-    [canPlaceRunes],
+    [canPlaceRunes, myRune?.hand],
   )
 
   const handlePreviewPickLocation = useCallback(() => {
@@ -703,12 +776,12 @@ export default function GameView({
   const hideRollDuringRunePlacement = previewOverlayOpen || runePlacementActive
 
   useEffect(() => {
-    if (!placementPhaseActive) {
+    if (gameState.turn.phase !== 'placement_phase') {
       clearPlacementSelection()
       pendingPlacementRef.current = null
       setPlacementNotice(null)
     }
-  }, [clearPlacementSelection, placementPhaseActive])
+  }, [clearPlacementSelection, gameState.turn.phase])
 
   useEffect(() => {
     if (!localPlayerId) return
@@ -886,7 +959,7 @@ export default function GameView({
               <RollDiceButton
                 visible={
                   showRollButton &&
-                  canRoll &&
+                  effectiveCanRoll &&
                   gameState.status !== 'finished' &&
                   !hideRollDuringRunePlacement &&
                   !drawRevealOpen
@@ -903,14 +976,21 @@ export default function GameView({
                 selectedCardId={selectedHeldCardId}
                 onCardSelect={handleCardSelect}
                 onCardPreview={handleCardPreview}
-                canSelectCards={canPlaceRunes}
+                canSelectCards={canSelectHandCards}
+                isCardSelectable={isHandCardSelectable}
+                isCardPending={isHandCardPending}
                 canDraw={
                   canDrawDuringTurn &&
                   myRune.hand.length < RUNE_MAX_HAND_SIZE &&
                   myRune.drawCount < RUNE_MAX_DRAW_PER_PLAYER
                 }
                 onDraw={() => onDrawCards?.(1)}
-                runeActionActive={Boolean((isMyTurn && runeWindowOpen) || canPlaceRunes)}
+                runeActionActive={Boolean(
+                  (isMyTurn && runeWindowOpen) ||
+                    canPlaceRunes ||
+                    canUseLeaveStable ||
+                    (isMyTurn && hasLeaveStableInHand && placementPhaseActive),
+                )}
                 playerColor={localPlayer?.color ?? 'blue'}
                 drawDisabledTitle={
                   isMyTurn && runeWindowOpen
@@ -926,6 +1006,34 @@ export default function GameView({
               />
             ) : null}
             {roomChat}
+            {placementPhaseActive && placementState ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <p className="rune-placement-hint" role="status" aria-live="polite">
+                  {placementMinWaitMs > 0
+                    ? `Đặt thẻ: xác nhận sau ${Math.ceil(placementMinWaitMs / 1000)}s`
+                    : `Đặt thẻ: tự đóng sau ${Math.ceil(placementMaxWaitMs / 1000)}s`}
+                  {' · '}
+                  {placementReadyCount}/{gameState.players.length} đã xác nhận
+                </p>
+                {onConfirmPlacementReady ? (
+                  <button
+                    type="button"
+                    className="game-btn btn-outline rune-placement-confirm-btn"
+                    disabled={iConfirmedPlacement}
+                    onClick={onConfirmPlacementReady}
+                  >
+                    <span>{iConfirmedPlacement ? 'Đã xác nhận đặt xong' : 'Xác nhận đặt xong'}</span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {leaveStablePhaseActive && canUseLeaveStable ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <p className="rune-placement-hint" role="status" aria-live="polite">
+                  Chạm Xuất chuồng hoặc tung xúc xắc để gieo
+                </p>
+              </div>
+            ) : null}
             {placementNotice ? (
               <div className="game-hud-slot game-hud-slot--placement-hint">
                 <p className="rune-placement-hint rune-placement-hint--error" role="status" aria-live="polite">

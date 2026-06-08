@@ -2621,6 +2621,23 @@ a.game-btn {
   pointer-events: none;
 }
 
+.rune-hand-card--pending {
+  opacity: 0.82;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(255, 214, 102, 0.55);
+  animation: rune-hand-pending-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes rune-hand-pending-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(255, 214, 102, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 214, 102, 0.85);
+  }
+}
+
 .rune-hand-card-img {
   width: 100%;
   height: 100%;
@@ -4679,6 +4696,13 @@ a.game-btn {
   z-index: 12;
   max-width: min(420px, calc(100vw - 2 * var(--hud-edge)));
   pointer-events: none;
+}
+
+.rune-placement-confirm-btn {
+  margin-top: 0.45rem;
+  width: 100%;
+  font-size: 0.82rem;
+  pointer-events: auto;
 }
 
 .rune-placement-hint {

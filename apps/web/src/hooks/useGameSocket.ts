@@ -111,6 +111,17 @@ export function useGameSocket(
     [authToken, playerId],
   )
 
+  const confirmPlacementReady = useCallback(() => {
+    getSocket(authToken).emit('game:confirm_placement_ready', { playerId })
+  }, [authToken, playerId])
+
+  const useLeaveStable = useCallback(
+    (heldCardId: string) => {
+      getSocket(authToken).emit('game:use_leave_stable', { playerId, heldCardId })
+    },
+    [authToken, playerId],
+  )
+
   const chooseSwap = useCallback(
     (targetTokenId: string) => {
       getSocket(authToken).emit('game:choose_swap', { playerId, targetTokenId })
@@ -131,6 +142,8 @@ export function useGameSocket(
     confirmDraw,
     finishDraw,
     placeMarker,
+    confirmPlacementReady,
+    useLeaveStable,
     chooseSwap,
   }
 }
