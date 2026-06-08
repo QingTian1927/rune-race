@@ -21,9 +21,12 @@ export interface Player {
 /** Token position state within the game board */
 export type TokenState = 'in_base' | 'on_track' | 'in_home_lane' | 'finished'
 
+/** Tokens per player (Rule Lock v1.1). */
+export const TOKENS_PER_PLAYER = 2
+
 /**
  * Individual token (game piece)
- * Each player has 4 tokens.
+ * Each player has {@link TOKENS_PER_PLAYER} tokens.
  */
 export interface Token {
   id: string // Format: "${playerId}:${tokenIndex}"
@@ -40,6 +43,7 @@ export interface Token {
 export type GamePhase =
   | 'waiting_draw'
   | 'placement_phase'
+  | 'leave_stable_phase'
   | 'waiting_roll'
   | 'rolled'
   | 'waiting_choice'
@@ -94,12 +98,14 @@ export type GameEventType =
   | 'card_draw_preview'
   | 'held_card_expired'
   | 'placement_phase_opened'
+  | 'placement_ready_confirmed'
   | 'marker_placed'
   | 'marker_place_rejected'
   | 'marker_expired'
   | 'marker_triggered'
   | 'horse_status_changed'
   | 'honesty_reward_granted'
+  | 'leave_stable_used'
   | 'error'
 
 /**

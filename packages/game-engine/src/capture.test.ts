@@ -293,3 +293,94 @@ describe('traditional capture symmetry', () => {
     expect(blueAfter.state).toBe('in_base')
   })
 })
+
+describe('capture landing vs pass-through', () => {
+  it('rune mode: normal dice move does not capture when only passing through enemy', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-red',
+      runesEnabled: true,
+    })
+
+    const redToken = state.tokens.find((t) => t.playerId === 'p-red')!
+    const blueToken = state.tokens.find((t) => t.playerId === 'p-blue')!
+    const redStart = 0
+    const passThroughPos = 3
+    const dice = 5
+
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) => {
+        if (t.id === redToken.id) return { ...t, state: 'on_track' as const, position: redStart }
+        if (t.id === blueToken.id) return { ...t, state: 'on_track' as const, position: passThroughPos }
+        return t
+      }),
+      turn: {
+        ...state.turn,
+        currentPlayerId: 'p-red',
+        phase: 'waiting_choice',
+        diceResult: dice,
+        legalMoves: [
+          {
+            id: 'move-red',
+            tokenId: redToken.id,
+            moveType: 'move',
+            destination: redStart + dice,
+          },
+        ],
+      },
+      phase: 'waiting_choice',
+    }
+
+    const after = resolveMoveWithRunes(state, state.turn.legalMoves[0]!)
+    const blueAfter = after.tokens.find((t) => t.id === blueToken.id)!
+    const redAfter = after.tokens.find((t) => t.id === redToken.id)!
+
+    expect(blueAfter.state).toBe('on_track')
+    expect(blueAfter.position).toBe(passThroughPos)
+    expect(redAfter.position).toBe(redStart + dice)
+    expect(
+      after.events.some((e) => e.type === 'token_captured' && e.details?.capturedTokenId === blueToken.id),
+    ).toBe(false)
+  })
+
+  it('rune mode: landing on friendly cell is not a legal move', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-blue',
+      runesEnabled: true,
+    })
+
+    const blueTokens = state.tokens.filter((t) => t.playerId === 'p-blue')
+    const [stationary, mover] = blueTokens
+    const stationaryPos = 5
+    const moverStart = 2
+    const dice = 3
+
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) => {
+        if (t.id === stationary.id) return { ...t, state: 'on_track' as const, position: stationaryPos }
+        if (t.id === mover.id) return { ...t, state: 'on_track' as const, position: moverStart }
+        return t
+      }),
+      turn: {
+        ...state.turn,
+        currentPlayerId: 'p-blue',
+        phase: 'waiting_roll',
+        diceResult: null,
+        legalMoves: [],
+      },
+      phase: 'waiting_roll',
+    }
+
+    const rolled = handleRoll(state, 'p-blue', () => dice)
+    expect(rolled.success).toBe(true)
+    if (!rolled.success) return
+
+    const moverMove = rolled.state.turn.legalMoves.find((m) => m.tokenId === mover.id)
+    expect(moverMove).toBeUndefined()
+  })
+})

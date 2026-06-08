@@ -4,13 +4,15 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   LEAVE_STABLE: {
     cardType: 'LEAVE_STABLE',
     category: 'SUPPORT',
-    triggerMode: 'EXACT_STOP',
-    markerTTL: 5,
+    activationKind: 'DIRECT_USE',
+    triggerMode: null,
+    markerTTL: null,
     stepValue: null,
   },
   SHIELD: {
     cardType: 'SHIELD',
     category: 'SUPPORT',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: null,
@@ -18,6 +20,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   ADVANCE_2: {
     cardType: 'ADVANCE_2',
     category: 'SUPPORT',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: 2,
@@ -25,6 +28,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   ADVANCE_3: {
     cardType: 'ADVANCE_3',
     category: 'SUPPORT',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: 3,
@@ -32,6 +36,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   ADVANCE_4: {
     cardType: 'ADVANCE_4',
     category: 'SUPPORT',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: 4,
@@ -39,6 +44,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   BACK_3: {
     cardType: 'BACK_3',
     category: 'TRAP',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: 3,
@@ -46,6 +52,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   BACK_4: {
     cardType: 'BACK_4',
     category: 'TRAP',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: 4,
@@ -53,6 +60,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   BACK_5: {
     cardType: 'BACK_5',
     category: 'TRAP',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: 5,
@@ -60,6 +68,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   FREEZE: {
     cardType: 'FREEZE',
     category: 'TRAP',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'PASS_THROUGH',
     markerTTL: 3,
     stepValue: null,
@@ -67,6 +76,7 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   SEND_HOME: {
     cardType: 'SEND_HOME',
     category: 'TRAP',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'EXACT_STOP',
     markerTTL: 5,
     stepValue: null,
@@ -74,8 +84,13 @@ export const RUNE_CARD_DEFINITIONS: Record<RuneCardType, RuneCardDefinition> = {
   SWAP: {
     cardType: 'SWAP',
     category: 'SPECIAL',
+    activationKind: 'BOARD_MARKER',
     triggerMode: 'EXACT_STOP',
     markerTTL: 5,
     stepValue: null,
   },
+}
+
+export function isBoardMarkerCardType(cardType: RuneCardType): boolean {
+  return RUNE_CARD_DEFINITIONS[cardType].activationKind === 'BOARD_MARKER'
 }

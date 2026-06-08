@@ -92,6 +92,10 @@ export const FinishDrawSchema = z.object({
   playerId: z.string().min(1),
 })
 
+export const ConfirmPlacementReadySchema = z.object({
+  playerId: z.string().min(1),
+})
+
 export const PlaceMarkerSchema = z.object({
   playerId: z.string().min(1),
   heldCardId: z.string().min(1),
@@ -102,6 +106,11 @@ export const PlaceMarkerSchema = z.object({
 export const ChooseSwapSchema = z.object({
   playerId: z.string().min(1),
   targetTokenId: z.string().min(1),
+})
+
+export const UseLeaveStableSchema = z.object({
+  playerId: z.string().min(1),
+  heldCardId: z.string().min(1),
 })
 
 export const ChatSendSchema = z.object({
@@ -134,6 +143,8 @@ const schemas: Record<string, z.ZodSchema> = {
   'game:confirm_draw': ConfirmDrawSchema,
   'game:finish_draw': FinishDrawSchema,
   'game:place_marker': PlaceMarkerSchema,
+  'game:confirm_placement_ready': ConfirmPlacementReadySchema,
+  'game:use_leave_stable': UseLeaveStableSchema,
   'game:choose_swap': ChooseSwapSchema,
   'game:choose_move': ChooseMoveSchema,
   'game:sync_request': SyncRequestSchema,

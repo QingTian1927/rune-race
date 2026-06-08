@@ -10,6 +10,20 @@ import {
 } from './engine.js'
 
 describe('createInitialGameState', () => {
+  it('creates two tokens per player', () => {
+    const state = createInitialGameState({
+      gameId: 'g1',
+      players: [
+        { id: 'p-red', name: 'R', color: 'red' },
+        { id: 'p-blue', name: 'B', color: 'blue' },
+      ],
+      firstPlayerId: 'p-red',
+    })
+
+    expect(state.tokens.filter((t) => t.playerId === 'p-red')).toHaveLength(2)
+    expect(state.tokens.filter((t) => t.playerId === 'p-blue')).toHaveLength(2)
+  })
+
   it('sorts players by color order and sets first player', () => {
     const state = createInitialGameState({
       gameId: 'g1',

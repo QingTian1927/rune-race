@@ -1,5 +1,5 @@
 /**
- * Rune system domain types (Rule Lock v1.0).
+ * Rune system domain types (Rule Lock v1.1).
  */
 
 export const RUNE_CARD_TYPES = [
@@ -22,6 +22,8 @@ export type RuneCardCategory = 'SUPPORT' | 'TRAP' | 'SPECIAL'
 
 export type RuneTriggerMode = 'PASS_THROUGH' | 'EXACT_STOP'
 
+export type RuneActivationKind = 'DIRECT_USE' | 'BOARD_MARKER'
+
 export type HeldCardSource = 'DRAW' | 'HONESTY_REWARD'
 
 export type MarkerTtlMode = 'DISPLAYED_IDENTITY_TURN' | 'FULL_TABLE_ROUND'
@@ -29,8 +31,9 @@ export type MarkerTtlMode = 'DISPLAYED_IDENTITY_TURN' | 'FULL_TABLE_ROUND'
 export interface RuneCardDefinition {
   cardType: RuneCardType
   category: RuneCardCategory
-  triggerMode: RuneTriggerMode
-  markerTTL: 3 | 5
+  activationKind: RuneActivationKind
+  triggerMode: RuneTriggerMode | null
+  markerTTL: 3 | 5 | null
   stepValue: number | null
 }
 
@@ -79,11 +82,13 @@ export interface PlacementPhaseHonestyFlags {
 export interface PlacementPhaseState {
   phaseId: string
   openedAt: number
-  /** Earliest time active player may roll (ms). */
+  /** Earliest time placement may close when all players are ready (ms). */
   minCloseAt: number
   /** Placement auto-closes at this time (ms). */
   maxCloseAt: number
   honestyByPlayer: Record<string, PlacementPhaseHonestyFlags>
+  /** Player id → true when that player confirmed they finished placing. */
+  readyByPlayer: Record<string, boolean>
 }
 
 export interface RuneGameState {
@@ -122,4 +127,13 @@ export const RUNE_OTHER_TYPES: RuneCardType[] = [
   'FREEZE',
   'SEND_HOME',
   'SWAP',
+]
+
+/** Honesty streak reward pool (spec §4.4). */
+export const RUNE_HONESTY_REWARD_TYPES: RuneCardType[] = [
+  'LEAVE_STABLE',
+  'SHIELD',
+  'ADVANCE_2',
+  'ADVANCE_3',
+  'ADVANCE_4',
 ]

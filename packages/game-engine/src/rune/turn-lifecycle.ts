@@ -1,6 +1,8 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
 import { RUNE_FREEZE_TURNS, RUNE_HELD_CARD_ROUNDS, RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
 import { drawRuneCardType } from './deck.js'
+import { purgeLegacyLeaveStableMarkers } from './leave-stable.js'
+import { updateMarkerTtlModes } from './player-eligibility.js'
 import { canDrawMore, createEmptyRunePlayerState, drainPendingRewards, getRunePlayer } from './state.js'
 import { openPlacementPhase } from './placement.js'
 
@@ -26,6 +28,8 @@ export function runTurnStartHousekeeping(state: GameState, timestamp: number): G
 
   const playerId = state.turn.currentPlayerId
   let next = ensureRunePlayer(state, playerId)
+  next = purgeLegacyLeaveStableMarkers(next)
+  next = updateMarkerTtlModes(next)
   next = expireHeldCardsForPlayer(next, playerId, timestamp)
   next = tickMarkerTTL(next, playerId, timestamp)
   next = tickFreezeForPlayer(next, playerId, timestamp)

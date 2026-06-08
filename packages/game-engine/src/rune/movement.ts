@@ -8,6 +8,10 @@ import { applyFreezeToToken, beginNormalTurn, isTokenFrozen } from './turn-lifec
 
 type StepDirection = 'forward' | 'backward'
 
+function isMovementChainMarker(cardType: BoardMarker['cardType']): boolean {
+  return cardType.startsWith('ADVANCE_') || cardType.startsWith('BACK_')
+}
+
 function now() {
   return Date.now()
 }
@@ -22,6 +26,10 @@ function trackProgress(token: GameState['tokens'][number]) {
   if (token.state === 'on_track') return token.position
   if (token.state === 'in_home_lane') return BOARD_TRACK_LENGTH + token.position
   return -1
+}
+
+function toPathStep(token: Pick<GameState['tokens'][number], 'state' | 'position'>): MockPathStep {
+  return { state: token.state, position: token.position }
 }
 
 function applyStep(token: GameState['tokens'][number], direction: StepDirection): GameState['tokens'][number] | null {
@@ -77,7 +85,12 @@ function pushMarkerTriggered(
   })
 }
 
-function trySpawnFromBase(state: GameState, playerId: string, timestamp: number): GameState {
+/** Spawn one horse to track start and resolve any marker on that cell (leave-stable / spawn). */
+export function applySpawnFromBaseWithMarkers(
+  state: GameState,
+  playerId: string,
+  timestamp: number,
+): GameState {
   const inBase = state.tokens.filter((t) => t.playerId === playerId && t.state === 'in_base')
   if (inBase.length === 0) return state
 
@@ -89,7 +102,7 @@ function trySpawnFromBase(state: GameState, playerId: string, timestamp: number)
 
   const spawnTargetOnTrack = { ...spawnTarget, state: 'on_track' as const, position: 0 }
   const tokens = state.tokens.map((t) => (t.id === spawnTarget.id ? spawnTargetOnTrack : t))
-  let next: GameState = {
+  let working: GameState = {
     ...state,
     tokens,
     events: [
@@ -109,7 +122,31 @@ function trySpawnFromBase(state: GameState, playerId: string, timestamp: number)
     ],
   }
 
-  return applyTraditionalCapture(next, spawnTargetOnTrack, { state: 'on_track', position: 0 }, timestamp)
+  working = applyTraditionalCapture(working, spawnTargetOnTrack, { state: 'on_track', position: 0 }, timestamp)
+
+  const cellId = cellIdForTokenOnTrack(working, { ...spawnTarget, state: 'on_track', position: 0 })
+  if (cellId !== null && working.rune) {
+    const marker = markerAtCell(working.rune.markers, cellId)
+    if (marker) {
+      let session: MoveSession = {
+        state: working,
+        direction: 'forward',
+        remainingSteps: 0,
+        tokenId: spawnTarget.id,
+        stopped: false,
+        path: [{ state: 'on_track', position: 0, motion: 'step' }],
+        runeStepsRemaining: 0,
+      }
+      session = resolvePassThrough(session, marker, timestamp)
+      session = resolveExactStop(session, marker, timestamp)
+      if (session.remainingSteps > 0 && !session.stopped) {
+        session = runStepLoop(session, timestamp)
+      }
+      working = session.state
+    }
+  }
+
+  return working
 }
 
 function sendTokenHome(state: GameState, tokenId: string, timestamp: number): GameState {
@@ -165,7 +202,7 @@ function resolvePassThrough(
 ): MoveSession {
   let { state, direction, remainingSteps, tokenId, stopped } = session
   const def = RUNE_CARD_DEFINITIONS[marker.cardType]
-  if (def.triggerMode !== 'PASS_THROUGH') return session
+  if (!def.triggerMode || def.triggerMode !== 'PASS_THROUGH') return session
 
   const token = state.tokens.find((t) => t.id === tokenId)!
   const events = [...state.events]
@@ -281,7 +318,7 @@ function resolveExactStop(
 ): MoveSession {
   let { state, tokenId } = session
   const def = RUNE_CARD_DEFINITIONS[marker.cardType]
-  if (def.triggerMode !== 'EXACT_STOP') return session
+  if (!def.triggerMode || def.triggerMode !== 'EXACT_STOP') return session
 
   const token = state.tokens.find((t) => t.id === tokenId)!
   const events = [...state.events]
@@ -316,11 +353,6 @@ function resolveExactStop(
   if (marker.cardType === 'SEND_HOME') {
     state = sendTokenHome(state, tokenId, timestamp)
     return { ...session, state, stopped: true, remainingSteps: 0 }
-  }
-
-  if (marker.cardType === 'LEAVE_STABLE') {
-    state = trySpawnFromBase(state, token.playerId, timestamp)
-    return { ...session, state }
   }
 
   if (marker.cardType === 'SWAP') {
@@ -434,10 +466,41 @@ function runStepLoop(session: MoveSession, timestamp: number): MoveSession {
       runeStepsRemaining: nextRuneRemaining,
     }
 
+    // Teleport burst landing only — pass-through cells (dice steps or mid-burst) never kick.
+    if (stepped.state === 'on_track' && isRuneStep && runeBurstDone) {
+      state = applyCellOccupancyKick(state, current.tokenId, toPathStep(stepped), timestamp, {
+        allowFriendlyCapture: true,
+      })
+      current = { ...current, state }
+    }
+
     const cellId = cellIdForTokenOnTrack(state, stepped)
     if (cellId !== null && state.rune) {
       const marker = markerAtCell(state.rune.markers, cellId)
       if (marker) {
+        const def = RUNE_CARD_DEFINITIONS[marker.cardType]
+        if (
+          def.triggerMode === 'PASS_THROUGH' &&
+          isMovementChainMarker(marker.cardType) &&
+          current.runeStepsRemaining > 0
+        ) {
+          const boundaryStep: MockPathStep = {
+            state: stepped.state,
+            position: stepped.position,
+            motion: 'teleport',
+          }
+          current = {
+            ...current,
+            path: [...current.path, boundaryStep],
+            runeStepsRemaining: 0,
+          }
+          if (stepped.state === 'on_track') {
+            state = applyCellOccupancyKick(state, current.tokenId, boundaryStep, timestamp, {
+              allowFriendlyCapture: true,
+            })
+            current = { ...current, state }
+          }
+        }
         current = resolvePassThrough({ ...current, state }, marker, timestamp)
         state = current.state
       }
@@ -458,59 +521,115 @@ function runStepLoop(session: MoveSession, timestamp: number): MoveSession {
   return current
 }
 
+/**
+ * Kick tokens occupying the destination shared-track cell.
+ * Normal moves: enemies only. Teleport landing: same or enemy color.
+ */
+function applyCellOccupancyKick(
+  state: GameState,
+  moverTokenId: string,
+  pathTo: MockPathStep,
+  timestamp: number,
+  options?: { allowFriendlyCapture?: boolean },
+): GameState {
+  if (pathTo.state !== 'on_track') return state
+
+  const mover = state.tokens.find((t) => t.id === moverTokenId)
+  if (!mover) return state
+
+  const allowFriendlyCapture = options?.allowFriendlyCapture ?? false
+  const { boardSlotForPlayer, absoluteTrackIndexFor } = getEngineApi()
+  const moverSlot = boardSlotForPlayer(state, mover.playerId)
+  const destinationAbsoluteTrack = absoluteTrackIndexFor(moverSlot, pathTo.position)
+
+  const occupants = state.tokens.filter((candidate) => {
+    if (candidate.id === moverTokenId || candidate.state !== 'on_track') return false
+    if (!allowFriendlyCapture && candidate.playerId === mover.playerId) return false
+    const candidateSlot = boardSlotForPlayer(state, candidate.playerId)
+    if (candidateSlot < 0) return false
+    return absoluteTrackIndexFor(candidateSlot, candidate.position) === destinationAbsoluteTrack
+  })
+
+  if (occupants.length === 0) return state
+
+  let next = state
+  for (const captured of occupants) {
+    const captureSlot = baseSlotForToken(captured.id)
+    next = {
+      ...next,
+      tokens: next.tokens.map((t) =>
+        t.id === captured.id
+          ? {
+              ...t,
+              state: 'in_base' as const,
+              position: captureSlot,
+              hasShield: false,
+              freezeTurnsRemaining: 0,
+            }
+          : t,
+      ),
+      events: [
+        ...next.events,
+        {
+          type: 'token_captured',
+          timestamp,
+          playerId: mover.playerId,
+          details: {
+            tokenId: moverTokenId,
+            playerId: mover.playerId,
+            capturedTokenId: captured.id,
+            from: pathTo,
+            to: { state: 'in_base', position: captureSlot },
+          },
+        },
+      ],
+    }
+  }
+
+  return next
+}
+
+/** Safety net: kick any extra on_track token sharing a main-track cell with the mover. */
+function enforceNoTrackOverlap(
+  state: GameState,
+  moverTokenId: string,
+  timestamp: number,
+): GameState {
+  const { boardSlotForPlayer, absoluteTrackIndexFor } = getEngineApi()
+  const byAbsolute = new Map<number, GameState['tokens']>()
+
+  for (const token of state.tokens) {
+    if (token.state !== 'on_track') continue
+    const slot = boardSlotForPlayer(state, token.playerId)
+    if (slot < 0) continue
+    const absolute = absoluteTrackIndexFor(slot, token.position)
+    const group = byAbsolute.get(absolute) ?? []
+    group.push(token)
+    byAbsolute.set(absolute, group)
+  }
+
+  let next = state
+  for (const tokens of byAbsolute.values()) {
+    if (tokens.length <= 1) continue
+    const keeper = tokens.find((t) => t.id === moverTokenId) ?? tokens[0]!
+    next = applyCellOccupancyKick(next, keeper.id, toPathStep(keeper), timestamp, {
+      allowFriendlyCapture: true,
+    })
+  }
+
+  return next
+}
+
+/** End-of-turn capture for normal dice movement — enemies only. */
 function applyTraditionalCapture(
   state: GameState,
   moveToken: GameState['tokens'][number],
   pathTo: MockPathStep,
   timestamp: number,
 ): GameState {
-  if (pathTo.state !== 'on_track') return state
-
-  const { boardSlotForPlayer, absoluteTrackIndexFor } = getEngineApi()
-  const moverSlot = boardSlotForPlayer(state, moveToken.playerId)
-  const destinationAbsoluteTrack = absoluteTrackIndexFor(moverSlot, pathTo.position)
-
-  const capturedToken = state.tokens.find((candidate) => {
-    if (candidate.playerId === moveToken.playerId || candidate.state !== 'on_track') return false
-    const candidateSlot = boardSlotForPlayer(state, candidate.playerId)
-    if (candidateSlot < 0) return false
-    return absoluteTrackIndexFor(candidateSlot, candidate.position) === destinationAbsoluteTrack
+  return applyCellOccupancyKick(state, moveToken.id, pathTo, timestamp, {
+    allowFriendlyCapture: false,
   })
-
-  if (!capturedToken) return state
-
-  const captureSlot = baseSlotForToken(capturedToken.id)
-  const tokens = state.tokens.map((t) =>
-    t.id === capturedToken.id
-      ? {
-          ...t,
-          state: 'in_base' as const,
-          position: captureSlot,
-          hasShield: false,
-          freezeTurnsRemaining: 0,
-        }
-      : t,
-  )
-
-  return {
-    ...state,
-    tokens,
-    events: [
-      ...state.events,
-      {
-        type: 'token_captured',
-        timestamp,
-        playerId: moveToken.playerId,
-        details: {
-          tokenId: moveToken.id,
-          playerId: moveToken.playerId,
-          capturedTokenId: capturedToken.id,
-          from: pathTo,
-          to: { state: 'in_base', position: captureSlot },
-        },
-      },
-    ],
-  }
 }
 
 function finalizeTurnAfterMove(
@@ -549,6 +668,7 @@ function finalizeTurnAfterMove(
 
   const keepCurrentPlayer = diceResult === 6 && !state.turn.isBonusTurn
   next = applyTraditionalCapture(next, moveToken, pathInfo.to, timestamp)
+  next = enforceNoTrackOverlap(next, moveToken.id, timestamp)
 
   const finishData = appendFinishEvents(next, next.tokens, timestamp, moveToken.playerId)
   next = { ...next, events: finishData.events }

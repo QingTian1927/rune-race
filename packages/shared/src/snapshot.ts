@@ -3,11 +3,12 @@ import type { BoardMarker, PublicBoardMarker, RuneClientView } from './types/run
 import { RUNE_CARD_DEFINITIONS } from './types/rune-definitions.js'
 
 export function toPublicBoardMarker(marker: BoardMarker): PublicBoardMarker {
+  const def = RUNE_CARD_DEFINITIONS[marker.cardType]
   return {
     markerId: marker.markerId,
     cellId: marker.cellId,
     displayedIdentityId: marker.displayedIdentityId,
-    triggerMode: RUNE_CARD_DEFINITIONS[marker.cardType].triggerMode,
+    triggerMode: def.triggerMode ?? 'PASS_THROUGH',
   }
 }
 

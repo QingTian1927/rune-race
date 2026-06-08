@@ -1,6 +1,6 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
 import { sliceNewEvents, type GameCommandResult } from './commands.js'
-import { rollTurn, resolveTurn, syncCurrentPlayerIndex } from './engine.js'
+import { rollTurn, resolveTurn } from './engine.js'
 import {
   finishDrawPhase,
   confirmPendingDraw,
@@ -9,7 +9,14 @@ import {
   isRuneDrawAndPlacePhase,
   isTokenFrozen,
 } from './rune/turn-lifecycle.js'
-import { placeMarker, closePlacementPhase, placementExpired } from './rune/placement.js'
+import {
+  placeMarker,
+  confirmPlacementReady,
+  maybeAutoCloseExpiredPlacement,
+  tickPlacementPhase,
+  closeLeaveStablePhase,
+} from './rune/placement.js'
+import { useLeaveStableCard } from './rune/leave-stable.js'
 import { resolveMoveWithRunes, resolveSwapChoice } from './rune/movement.js'
 
 function fail(code: string, message: string): GameCommandResult {
@@ -30,8 +37,13 @@ export function handleDrawCards(state: GameState, playerId: string, count: numbe
     return fail('INVALID_COUNT', 'Draw one card at a time')
   }
 
-  const before = state
-  const next = previewDrawCard(state, playerId)
+  const timestamp = Date.now()
+  const before = maybeAutoCloseExpiredPlacement(state, timestamp)
+  if (before.turn.phase !== 'placement_phase' && before.turn.phase !== 'waiting_draw') {
+    return fail('INVALID_PHASE', 'Cannot draw in this phase')
+  }
+
+  const next = previewDrawCard(before, playerId)
   if (next === before) return fail('DRAW_FAILED', 'Cannot draw cards')
   return { success: true, state: next, events: sliceNewEvents(before, next) }
 }
@@ -46,8 +58,9 @@ export function handleConfirmDraw(state: GameState, playerId: string): GameComma
     return fail('INVALID_PHASE', 'Cannot confirm draw in this phase')
   }
 
-  const before = state
-  const next = confirmPendingDraw(state, playerId)
+  const timestamp = Date.now()
+  const before = maybeAutoCloseExpiredPlacement(state, timestamp)
+  const next = confirmPendingDraw(before, playerId)
   if (next === before) return fail('CONFIRM_DRAW_FAILED', 'No pending draw to confirm')
   return { success: true, state: next, events: sliceNewEvents(before, next) }
 }
@@ -74,9 +87,57 @@ export function handlePlaceMarker(
   }
   if (state.turn.phase !== 'placement_phase') return fail('INVALID_PHASE', 'Not in placement phase')
 
-  const before = state
-  const { state: next } = placeMarker(state, playerId, heldCardId, cellId, displayedIdentityId, Date.now())
+  const timestamp = Date.now()
+  const before = maybeAutoCloseExpiredPlacement(state, timestamp)
+  if (before.turn.phase !== 'placement_phase') {
+    return fail('INVALID_PHASE', 'Placement phase has closed')
+  }
+
+  const { state: next } = placeMarker(before, playerId, heldCardId, cellId, displayedIdentityId, timestamp)
   if (next === before) return fail('PLACE_FAILED', 'Could not place marker')
+  return { success: true, state: next, events: sliceNewEvents(before, next) }
+}
+
+export function handleConfirmPlacementReady(state: GameState, playerId: string): GameCommandResult {
+  if (!state.config.runesEnabled || !state.rune) {
+    return fail('RUNES_DISABLED', 'Rune system is not enabled')
+  }
+  if (state.status !== 'playing') return fail('GAME_NOT_PLAYING', 'Game is not active')
+  if (state.turn.phase !== 'placement_phase') return fail('INVALID_PHASE', 'Not in placement phase')
+  if (!state.players.some((p) => p.id === playerId)) {
+    return fail('NOT_IN_GAME', 'Player not in game')
+  }
+
+  const timestamp = Date.now()
+  const before = maybeAutoCloseExpiredPlacement(state, timestamp)
+  if (before.turn.phase !== 'placement_phase') {
+    return fail('PLACEMENT_CLOSED', 'Placement phase already closed')
+  }
+
+  const next = confirmPlacementReady(before, playerId, timestamp)
+  return { success: true, state: next, events: sliceNewEvents(before, next) }
+}
+
+export { tickPlacementPhase }
+
+export function handleUseLeaveStable(
+  state: GameState,
+  playerId: string,
+  heldCardId: string,
+): GameCommandResult {
+  if (!state.config.runesEnabled || !state.rune) {
+    return fail('RUNES_DISABLED', 'Rune system is not enabled')
+  }
+  if (state.status !== 'playing') return fail('GAME_NOT_PLAYING', 'Game is not active')
+  if (state.turn.currentPlayerId !== playerId) return fail('NOT_YOUR_TURN', 'Not your turn')
+
+  if (state.turn.phase !== 'leave_stable_phase') {
+    return fail('INVALID_PHASE', 'Not in leave stable phase')
+  }
+
+  const before = state
+  const { state: next } = useLeaveStableCard(state, playerId, heldCardId, Date.now())
+  if (next === before) return fail('LEAVE_STABLE_FAILED', 'Could not use leave stable card')
   return { success: true, state: next, events: sliceNewEvents(before, next) }
 }
 
@@ -99,25 +160,23 @@ export function prepareRollWithRunes(state: GameState, playerId: string): GameSt
   if (state.turn.currentPlayerId !== playerId) return fail('NOT_YOUR_TURN', 'Not your turn')
 
   const timestamp = Date.now()
-  let next = flushPendingDraw(state, playerId, timestamp)
+  const startedInLeaveStable = state.turn.phase === 'leave_stable_phase'
+  let next = maybeAutoCloseExpiredPlacement(flushPendingDraw(state, playerId, timestamp), timestamp)
 
   if (next.turn.phase === 'waiting_draw') {
-    next = {
-      ...next,
-      version: next.version + 1,
-      turn: { ...next.turn, phase: 'waiting_roll', diceResult: null, legalMoves: [], pendingSwap: null },
-      phase: 'waiting_roll',
-      updatedAt: timestamp,
-    }
+    return fail('INVALID_PHASE', 'Finish drawing before rolling')
   }
 
-  if (next.turn.phase === 'placement_phase' && next.rune?.placement) {
-    next = closePlacementPhase(next, timestamp)
-    next = syncCurrentPlayerIndex({
-      ...next,
-      version: next.version + 1,
-      updatedAt: timestamp,
-    })
+  if (next.turn.phase === 'placement_phase') {
+    return fail('PLACEMENT_NOT_CLOSED', 'Placement phase must end before rolling')
+  }
+
+  if (startedInLeaveStable && next.turn.phase === 'leave_stable_phase') {
+    next = closeLeaveStablePhase(next, timestamp)
+  }
+
+  if (next.turn.phase === 'leave_stable_phase') {
+    return next
   }
 
   if (next.turn.phase !== 'waiting_roll') {
@@ -132,11 +191,15 @@ export function rollTurnWithRunes(
   playerId: string,
   rollFn?: Parameters<typeof rollTurn>[1],
 ): GameCommandResult {
+  const before = state
   const prepared = prepareRollWithRunes(state, playerId)
   if ('success' in prepared && !prepared.success) return prepared
   const readyState = prepared as GameState
 
-  const before = readyState
+  if (readyState.turn.phase === 'leave_stable_phase') {
+    return { success: true, state: readyState, events: sliceNewEvents(before, readyState) }
+  }
+
   let next = rollTurn(readyState, rollFn)
 
   if (next.turn.phase === 'waiting_choice' && next.turn.legalMoves.length === 1) {

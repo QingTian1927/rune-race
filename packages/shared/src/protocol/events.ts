@@ -87,6 +87,8 @@ export interface ClientToServerEvents {
     cellId: number
     displayedIdentityId: string
   }) => void
+  'game:confirm_placement_ready': (payload: { playerId: string }) => void
+  'game:use_leave_stable': (payload: { playerId: string; heldCardId: string }) => void
   'game:choose_swap': (payload: { playerId: string; targetTokenId: string }) => void
   'game:choose_move': (payload: { playerId: string; moveId: string }) => void
   'game:sync_request': (payload: { playerId: string }) => void

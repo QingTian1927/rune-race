@@ -1,5 +1,5 @@
 import type { GameEvent, GameState, LegalMove, Player, TokenState } from '@rune-race/shared'
-import { PLAYER_COLORS } from '@rune-race/shared'
+import { PLAYER_COLORS, TOKENS_PER_PLAYER } from '@rune-race/shared'
 import boardLayoutData from '../data/board-layout.json' with { type: 'json' }
 import { createInitialRuneState } from './rune/state.js'
 import { openPlacementPhase } from './rune/placement.js'
@@ -61,7 +61,7 @@ function createBaseTokens(players: Player[]): MutableToken[] {
   const tokens: MutableToken[] = []
 
   players.forEach((player) => {
-    for (let tokenIndex = 0; tokenIndex < 4; tokenIndex += 1) {
+    for (let tokenIndex = 0; tokenIndex < TOKENS_PER_PLAYER; tokenIndex += 1) {
       tokens.push({
         id: `${player.id}:${tokenIndex}`,
         playerId: player.id,
