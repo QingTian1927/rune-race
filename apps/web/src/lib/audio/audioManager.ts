@@ -3,7 +3,16 @@ import { AUDIO_VOLUME_CHANGE_EVENT, readAudioVolume } from './audioSettings'
 import { SOUND_VOLUME_MUL, type SoundId } from './soundIds'
 
 const POOL_SIZE = 8
+const UI_POOL_SIZE = 4
 const HOVER_MIN_INTERVAL_MS = 140
+
+function poolSizeFor(soundId: SoundId): number {
+  return soundId.startsWith('ui.') ? UI_POOL_SIZE : POOL_SIZE
+}
+
+function preloadModeFor(soundId: SoundId): 'auto' | 'metadata' {
+  return soundId.startsWith('ui.') ? 'auto' : 'metadata'
+}
 
 type PlayOptions = {
   volumeMul?: number
@@ -35,25 +44,28 @@ class AudioManager {
     return this.volume
   }
 
+  /** Satisfy autoplay policy with one silent UI click — do not warm every SFX pool here. */
   unlock(): void {
     if (this.unlocked) return
     this.unlocked = true
 
-    for (const soundId of Object.keys(AUDIO_CATALOG) as SoundId[]) {
-      const audio = this.borrow(soundId)
-      audio.volume = 0
-      const playPromise = audio.play()
-      if (playPromise) {
-        void playPromise
-          .then(() => {
-            audio.pause()
-            audio.currentTime = 0
-          })
-          .catch(() => {
-            // Browser may still block until a later gesture.
-          })
-      }
-    }
+    const audio = this.borrow('ui.click')
+    audio.volume = 0
+    void audio
+      .play()
+      .then(() => {
+        audio.pause()
+        audio.currentTime = 0
+      })
+      .catch(() => {
+        // Browser may still block until a later gesture.
+      })
+  }
+
+  /** Warm small UI pools during idle time (optional). */
+  warmupUiSounds(): void {
+    this.borrow('ui.click')
+    this.borrow('ui.hover')
   }
 
   play(soundId: SoundId, options?: PlayOptions): void {
@@ -79,16 +91,17 @@ class AudioManager {
   private borrow(soundId: SoundId): HTMLAudioElement {
     let pool = this.pools.get(soundId)
     if (!pool) {
-      pool = Array.from({ length: POOL_SIZE }, () => {
+      const size = poolSizeFor(soundId)
+      pool = Array.from({ length: size }, () => {
         const audio = new Audio(AUDIO_CATALOG[soundId])
-        audio.preload = 'auto'
+        audio.preload = preloadModeFor(soundId)
         return audio
       })
       this.pools.set(soundId, pool)
     }
 
     const cursor = this.poolCursor.get(soundId) ?? 0
-    const audio = pool[cursor]
+    const audio = pool[cursor]!
     this.poolCursor.set(soundId, (cursor + 1) % pool.length)
     return audio
   }

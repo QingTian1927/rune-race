@@ -37,7 +37,9 @@ DiceShaker
 ### `lib/audio/audioManager.ts`
 
 - Singleton with a small **pooled** `HTMLAudioElement` set per `SoundId`.
-- **`unlock()`** on first user gesture (browser autoplay policy).
+- **`unlock()`** on first user gesture — primes **one** silent `ui.click` only (does not load/decode all game SFX at once).
+- **`warmupUiSounds()`** optionally pre-creates UI pools during idle time.
+- Game SFX pools are created lazily on first play; they use `preload="metadata"` until then.
 - **`play(id)`** respects master volume × per-sound gain (`SOUND_VOLUME_MUL` in `soundIds.ts`).
 - Hover uses a built-in throttle and is quieter by default (`ui.hover` × **0.28**).
 

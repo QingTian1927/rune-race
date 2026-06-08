@@ -12,11 +12,16 @@ function shouldSkipUiSoundTarget(target: Element): boolean {
   return false
 }
 
-function resolveActiveHoverTarget(clientX: number, clientY: number): Element | null {
+function resolveHoverTarget(clientX: number, clientY: number, eventTarget: EventTarget | null): Element | null {
+  const direct = resolveUiSoundTarget(eventTarget)
+  if (direct && !shouldSkipUiSoundTarget(direct)) {
+    return direct
+  }
+
   const hit = document.elementFromPoint(clientX, clientY)
-  const target = resolveUiSoundTarget(hit)
-  if (!target || shouldSkipUiSoundTarget(target)) return null
-  return target
+  const fromPoint = resolveUiSoundTarget(hit)
+  if (!fromPoint || shouldSkipUiSoundTarget(fromPoint)) return null
+  return fromPoint
 }
 
 /** Ignore brief leave/re-enter on the same control (CSS hover transforms shift hit boxes). */
@@ -24,32 +29,19 @@ const REENTER_SUPPRESS_MS = 280
 
 export function useUiSoundEffects(): void {
   useEffect(() => {
-    let unlocked = false
     let hoveredTarget: Element | null = null
     let leftTargetAt = 0
     let leftTargetEl: Element | null = null
+    let hoverRaf = 0
+    let pendingX = 0
+    let pendingY = 0
+    let pendingTarget: EventTarget | null = null
 
     const unlock = () => {
-      if (unlocked) return
-      unlocked = true
       audioManager.unlock()
     }
 
-    const onPointerDown = (event: PointerEvent) => {
-      unlock()
-      if (event.button !== 0) return
-
-      const target = resolveUiSoundTarget(event.target)
-      if (!target || shouldSkipUiSoundTarget(target)) return
-
-      audioManager.play('ui.click')
-    }
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!isFinePointerDevice()) return
-      if (event.pointerType !== 'mouse') return
-
-      const active = resolveActiveHoverTarget(event.clientX, event.clientY)
+    const applyHoverTarget = (active: Element | null) => {
       if (active === hoveredTarget) return
 
       if (active === null) {
@@ -74,6 +66,34 @@ export function useUiSoundEffects(): void {
       audioManager.playHover()
     }
 
+    const flushHover = () => {
+      hoverRaf = 0
+      const active = resolveHoverTarget(pendingX, pendingY, pendingTarget)
+      applyHoverTarget(active)
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      unlock()
+      if (event.button !== 0) return
+
+      const target = resolveUiSoundTarget(event.target)
+      if (!target || shouldSkipUiSoundTarget(target)) return
+
+      audioManager.play('ui.click')
+    }
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!isFinePointerDevice()) return
+      if (event.pointerType !== 'mouse') return
+
+      pendingX = event.clientX
+      pendingY = event.clientY
+      pendingTarget = event.target
+
+      if (hoverRaf) return
+      hoverRaf = requestAnimationFrame(flushHover)
+    }
+
     const onPointerLeave = (event: PointerEvent) => {
       if (event.pointerType !== 'mouse') return
       hoveredTarget = null
@@ -95,7 +115,19 @@ export function useUiSoundEffects(): void {
     document.addEventListener('pointerleave', onPointerLeave, true)
     document.addEventListener('keydown', onKeyDown, true)
 
+    const scheduleUiWarmup = () => {
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => audioManager.warmupUiSounds(), { timeout: 3000 })
+      } else {
+        window.setTimeout(() => audioManager.warmupUiSounds(), 1500)
+      }
+    }
+    scheduleUiWarmup()
+
     return () => {
+      if (hoverRaf) {
+        cancelAnimationFrame(hoverRaf)
+      }
       document.removeEventListener('pointerdown', onPointerDown, true)
       document.removeEventListener('pointermove', onPointerMove, true)
       document.removeEventListener('pointerleave', onPointerLeave, true)
