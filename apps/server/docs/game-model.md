@@ -22,7 +22,7 @@ See `packages/shared/src/types/game.ts` and `types/rune.ts`.
 
 - Main track: **44** steps (from layout JSON `meta.mainTrackSteps`).
 - Home lane: **5** steps per player (`homeLaneStepsPerPlayer`).
-- 2 tokens per player (`TOKENS_PER_PLAYER`).
+- **4** tokens per player in classic mode (`CLASSIC_TOKENS_PER_PLAYER`); **2** in rune mode (`RUNE_TOKENS_PER_PLAYER`). Use `tokensPerPlayer(config.runesEnabled)` from `@rune-race/shared`.
 - Shared-track cells only for rune marker placement (`board-cells.ts`).
 - Safe tiles and per-color spawn / home-lane entry: see layout `meta` and engine helpers.
 - Pawn colors on the 3D board use **color slot** (not raw player array index).
@@ -62,7 +62,7 @@ Phases `resolving_move`, `play_cards`, `turn_end` exist in types; runtime uses t
 | Home lane | Enter after completing main loop; exact count to finish |
 | Freeze | Token cannot be selected for `RUNE_FREEZE_TURNS` normal turns |
 | Shield | Blocks one capture while active |
-| Player “finished” | All 2 tokens in `in_home_lane` or `finished` → `token_finished` event with rank |
+| Player “finished” | All of that player’s tokens in `in_home_lane` or `finished` → `token_finished` event with rank |
 | Skip turn | Finished players are skipped in turn order |
 
 ## Game end
@@ -108,7 +108,7 @@ Appended to `GameState.events` (server sends **delta** on updates):
 | Module | Responsibility |
 |--------|----------------|
 | `LobbyStore` | Players, ready, countdown, host actions, `runesEnabled`, `onGameStart` |
-| `GameStore` | Session map, classic + rune commands, `buildClientGameSnapshot` listeners |
+| `GameStore` | Session map, classic + rune commands, `tickPlacementPhases` + `tickTurnTimeouts`, `buildClientGameSnapshot` listeners |
 | `ChatStore` | Lobby-scoped messages |
 | `game-engine` | Pure state transitions; no I/O |
 

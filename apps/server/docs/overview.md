@@ -33,9 +33,11 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 - **Spawn** only on dice **1** or **6** (see [Game model](./game-model.md)).
 - **Extra turn** when the active player rolls **6** (after resolving the move); bonus turns skip rune draw/placement.
 - **Single legal move** after roll: server auto-resolves in one snapshot.
-- **Multiple legal moves:** turn stays in `waiting_choice` until `game:choose_move`.
+- **Multiple legal moves:** turn stays in `waiting_choice` until `game:choose_move` (or server auto-picks first move after **20s** idle).
+- **Idle roll:** server auto-rolls after **10s** in `waiting_roll` or `leave_stable_phase` (`GameStore.tickTurnTimeouts`, 1s tick).
 - **Runes:** host can disable via lobby setting; when enabled, normal turns include draw + placement before roll.
-- **Finish:** a player is ranked when all 2 tokens are in the final zone (`in_home_lane` or `finished`).
+- **Tokens:** classic mode = **4** horses per player; rune mode = **2** (`tokensPerPlayer(runesEnabled)`).
+- **Finish:** a player is ranked when **all** of their tokens are in the final zone (`in_home_lane` or `finished`).
 - **Game end:** when **all but one** player have finished (`finishedCount >= playerCount - 1`).
 - **Auth:** when present, the socket handshake token is verified against Supabase and used to bind the socket to that user id.
 - Clients must **not** mutate authoritative state; use snapshots + delta `events` for animation only.

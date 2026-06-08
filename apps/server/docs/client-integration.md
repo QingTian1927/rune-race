@@ -56,9 +56,10 @@ How the **web app** (`apps/web`) connects to this server today.
 8. If `waiting_choice` and multiple moves: show 3D selection arrows **only for `localPlayerId`**. Send `game:choose_move` with chosen `moveId`.
 9. If `waiting_swap_choice`: select swap target → `game:choose_swap`.
 10. `game:roll` / rune commands only when phase and player id allow.
-11. **Chat:** `chat:sync_request` on connect; `chat:send` from in-game panel.
-12. **HUD timing (client-only):** current-turn and finish-order panels update after dice/token animations.
-13. **Audio (client-only):** SFX are driven by presentation (dice phases, pawn impacts, UI). Master volume is stored in `localStorage`; no socket events. See [Web audio](../../web/docs/audio.md).
+11. **Turn timeouts:** server auto-rolls after **10s** in roll phases and auto-picks the first legal move after **20s** in `waiting_choice` (2+ moves). Client mirrors countdown in `PhaseCountdownBar` for the active player.
+12. **Chat:** `chat:sync_request` on connect; `chat:send` from in-game panel.
+13. **HUD timing (client-only):** current-turn and finish-order panels update after dice/token animations.
+14. **Audio (client-only):** SFX are driven by presentation (dice phases, pawn impacts, UI). Master volume is stored in `localStorage`; no socket events. See [Web audio](../../web/docs/audio.md).
 
 ## Profile flow
 

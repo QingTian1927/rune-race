@@ -153,7 +153,7 @@ For authenticated users, `playerId` must match the Supabase user id attached to 
 | `game:connected` | `{ playerId, gameId }` |
 | `game:state_snapshot` | `ClientGameSnapshot` — see below |
 | `game:error` | `{ message, code }` |
-| `game:turn_timeout_warning` | `{ secondsRemaining }` — **defined but not emitted yet** |
+| `game:turn_timeout_warning` | `{ secondsRemaining }` — **defined but not emitted**; server auto-resolves via `tickTurnTimeouts` instead |
 
 **`ClientGameSnapshot`:**
 

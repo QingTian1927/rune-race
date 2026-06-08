@@ -14,7 +14,7 @@ Authoritative Rune layer implemented in `@rune-race/game-engine` and exposed via
 2. **`waiting_draw`** — active player may `game:draw_cards` or `game:finish_draw`.
 3. **`placement_phase`** — opened after draw; min 5s / max 30s window; all players with hand cards may `game:place_marker` and `game:confirm_placement_ready`.
 4. **Placement close** — server ticks every 1s (`GameStore.tickPlacementPhases`); closes when `now >= maxCloseAt` **or** (`now >= minCloseAt` and all players confirmed ready).
-5. **`leave_stable_phase`** — opened after placement if active player holds `LEAVE_STABLE`; optional `game:use_leave_stable` (not during placement).
+5. **`leave_stable_phase`** — opened after placement if active player holds `LEAVE_STABLE`; optional `game:use_leave_stable` when spawn is legal (tokens in base, start cell clear). Card is greyed out client-side when unusable.
 6. **`waiting_roll`** — active player `game:roll`. Roll during placement returns `PLACEMENT_NOT_CLOSED`.
 7. **Roll + resolve** — `handleRoll` → stepwise movement with marker triggers (`token_stepped`) when runes enabled.
 8. **`waiting_swap_choice`** — if SWAP marker triggers; resolved by `game:choose_swap`.
@@ -77,7 +77,18 @@ Implemented in `packages/shared/src/snapshot.ts`; called from `apps/server/src/s
 | SEND_HOME, SWAP | TRAP / SPECIAL | EXACT_STOP |
 | SHIELD, ADVANCE_2/3/4, BACK_3/4/5, FREEZE | SUPPORT / TRAP | PASS_THROUGH |
 
-Constants: `RUNE_MAX_HAND_SIZE = 5`, `RUNE_MAX_DRAW_PER_PLAYER = 25`, `RUNE_HELD_CARD_ROUNDS = 2`, `RUNE_FREEZE_TURNS = 3`, `RUNE_HONESTY_STREAK_FOR_REWARD = 5`, `TOKENS_PER_PLAYER = 2`.
+Constants: `RUNE_MAX_HAND_SIZE = 5`, `RUNE_MAX_DRAW_PER_PLAYER = 25`, `RUNE_HELD_CARD_ROUNDS = 2`, `RUNE_FREEZE_TURNS = 3`, `RUNE_HONESTY_STREAK_FOR_REWARD = 5`, `RUNE_TOKENS_PER_PLAYER = 2`, `CLASSIC_TOKENS_PER_PLAYER = 4`.
+
+## Turn timeouts (anti-AFK)
+
+`GameStore.tickTurnTimeouts` runs every **1s** alongside `tickPlacementPhases`:
+
+| Phase | Timeout | Server action |
+|-------|---------|---------------|
+| `waiting_roll` or `leave_stable_phase` | **10s** | `roll(gameId, currentPlayerId)` |
+| `waiting_choice` (2+ legal moves) | **20s** | `chooseMove` with first `legalMoves[0].id` |
+
+Timer resets when phase or turn id changes. `game:turn_timeout_warning` is still not emitted; clients show their own countdown bar for UX.
 
 ## Game events (rune-related)
 
