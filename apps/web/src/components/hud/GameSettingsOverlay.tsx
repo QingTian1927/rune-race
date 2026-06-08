@@ -1,10 +1,13 @@
 import { useEffect, useId, useRef } from 'react'
 import type { GraphicsQuality } from '../../lib/graphicsQuality'
+import { usePresenceTransition } from './usePresenceTransition'
 
 export type GameSettingsOverlayProps = {
   open: boolean
   quality: GraphicsQuality
   onQualityChange: (quality: GraphicsQuality) => void
+  volume: number
+  onVolumeChange: (volume: number) => void
   onClose: () => void
 }
 
@@ -12,10 +15,14 @@ export function GameSettingsOverlay({
   open,
   quality,
   onQualityChange,
+  volume,
+  onVolumeChange,
   onClose,
 }: GameSettingsOverlayProps) {
+  const volumePercent = Math.round(volume * 100)
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const { render, motionClass } = usePresenceTransition(open, 260)
 
   useEffect(() => {
     if (!open) return
@@ -31,11 +38,13 @@ export function GameSettingsOverlay({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open, onClose])
 
-  if (!open) return null
+  if (!render) return null
 
   return (
     <div
-      className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={['game-hud-overlay-root pointer-events-auto fixed inset-0 z-50 flex items-center justify-center p-4', motionClass]
+        .filter(Boolean)
+        .join(' ')}
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
@@ -47,7 +56,7 @@ export function GameSettingsOverlay({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="game-hud-modal game-hud-modal--sm"
+        className="game-hud-modal game-hud-modal--sm game-hud-modal--motion"
       >
         <div className="game-hud-modal-head">
           <div className="game-hud-modal-icon" aria-hidden>
@@ -95,6 +104,25 @@ export function GameSettingsOverlay({
           {quality === 'low'
             ? 'Tối đa FPS: không bóng, không khử răng cưa, đồ họa phẳng và tắt hiệu ứng.'
             : 'Đồ họa đầy đủ — bóng, ánh sáng và hiệu ứng bàn cờ.'}
+        </p>
+
+        <p className="game-hud-settings-label">Âm lượng</p>
+        <div className="game-hud-volume-row">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={volumePercent}
+            data-ui-sound="off"
+            aria-label="Âm lượng game"
+            className="game-hud-volume-slider"
+            onChange={(event) => onVolumeChange(Number(event.target.value) / 100)}
+          />
+          <span className="game-hud-volume-value">{volumePercent}%</span>
+        </div>
+        <p className="game-hud-settings-hint">
+          Điều chỉnh mọi tiếng trong game. Trang chủ và lobby dùng cùng mức âm lượng đã lưu.
         </p>
 
         <div className="game-hud-modal-actions">

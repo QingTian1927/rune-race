@@ -3,6 +3,8 @@
  * Shared between server and client for type safety and protocol consistency.
  */
 
+import type { PublicBoardMarker, RuneClientView, RuneGameState } from './rune.js'
+
 /** Player color constants */
 export type PlayerColor = 'red' | 'blue' | 'green' | 'yellow'
 
@@ -19,9 +21,22 @@ export interface Player {
 /** Token position state within the game board */
 export type TokenState = 'in_base' | 'on_track' | 'in_home_lane' | 'finished'
 
+/** Classic mode (runes off): four horses per player. */
+export const CLASSIC_TOKENS_PER_PLAYER = 4
+
+/** Rune mode: two horses per player. */
+export const RUNE_TOKENS_PER_PLAYER = 2
+
+/** @deprecated Use {@link tokensPerPlayer} or mode-specific constants. */
+export const TOKENS_PER_PLAYER = RUNE_TOKENS_PER_PLAYER
+
+export function tokensPerPlayer(runesEnabled: boolean): number {
+  return runesEnabled ? RUNE_TOKENS_PER_PLAYER : CLASSIC_TOKENS_PER_PLAYER
+}
+
 /**
  * Individual token (game piece)
- * Each player has 4 tokens.
+ * Count per player depends on {@link tokensPerPlayer} (classic 4, rune 2).
  */
 export interface Token {
   id: string // Format: "${playerId}:${tokenIndex}"
@@ -29,16 +44,29 @@ export interface Token {
   /** Current position on board (0-indexed). Meaning depends on tokenState. */
   position: number
   state: TokenState
+  hasShield?: boolean
+  /** Normal turns remaining while frozen (0 = not frozen). */
+  freezeTurnsRemaining?: number
 }
 
 /** Turn phase state machine */
 export type GamePhase =
+  | 'waiting_draw'
+  | 'placement_phase'
+  | 'leave_stable_phase'
   | 'waiting_roll'
   | 'rolled'
   | 'waiting_choice'
+  | 'waiting_swap_choice'
   | 'resolving_move'
   | 'play_cards'
   | 'turn_end'
+
+export interface PendingSwapChoice {
+  markerId: string
+  activatorTokenId: string
+  displayedIdentityId: string
+}
 
 /**
  * Turn context for current active turn.
@@ -51,6 +79,9 @@ export interface Turn {
   phase: GamePhase
   legalMoves: LegalMove[]
   startTime: number // Unix timestamp
+  /** Extra turn from rolling 6 — skips draw/placement. */
+  isBonusTurn?: boolean
+  pendingSwap?: PendingSwapChoice | null
 }
 
 /**
@@ -65,11 +96,33 @@ export interface LegalMove {
   capturedTokenId?: string // If capture, which token will be captured
 }
 
+export type GameEventType =
+  | 'dice_roll'
+  | 'token_moved'
+  | 'token_stepped'
+  | 'token_captured'
+  | 'token_finished'
+  | 'token_swapped'
+  | 'turn_advanced'
+  | 'cards_drawn'
+  | 'card_draw_preview'
+  | 'held_card_expired'
+  | 'placement_phase_opened'
+  | 'placement_ready_confirmed'
+  | 'marker_placed'
+  | 'marker_place_rejected'
+  | 'marker_expired'
+  | 'marker_triggered'
+  | 'horse_status_changed'
+  | 'honesty_reward_granted'
+  | 'leave_stable_used'
+  | 'error'
+
 /**
  * Event in the game log (animation + audit trail).
  */
 export interface GameEvent {
-  type: 'dice_roll' | 'token_moved' | 'token_captured' | 'token_finished' | 'turn_advanced' | 'error'
+  type: GameEventType
   timestamp: number
   playerId: string
   details: Record<string, unknown>
@@ -88,6 +141,17 @@ export interface RoomSnapshot {
   canStart: boolean
 }
 
+export interface GameConfig {
+  runesEnabled: boolean
+}
+
+/** Client-facing rune slice (markers without secrets). */
+export interface RunePublicState {
+  markers: PublicBoardMarker[]
+  players: RuneGameState['players']
+  placement: RuneGameState['placement']
+}
+
 /**
  * Complete game state.
  * Server is authoritative; clients receive snapshots and reconcile.
@@ -101,8 +165,18 @@ export interface GameState {
   phase: GamePhase // Mirrors turn.phase for convenience
   status: 'waiting' | 'playing' | 'finished'
   currentPlayerIndex: number // Index into players array
+  config: GameConfig
+  rune: RuneGameState | null
   winnerId?: string // Set when status='finished'
   createdAt: number
   updatedAt: number
   events: GameEvent[] // Recent events for animation/audit (keep last N)
+}
+
+/** Snapshot payload sent to a specific client (includes private rune tooltips). */
+export interface ClientGameSnapshot {
+  version: number
+  state: GameState
+  events: GameEvent[]
+  runeView: RuneClientView | null
 }

@@ -16,10 +16,9 @@ export function getSocket(token?: string | null): GameSocket {
       auth: currentToken ? { token: currentToken } : undefined,
     })
   } else if ((token ?? null) !== currentToken) {
+    // JWT refresh must not drop an active lobby/game socket.
     currentToken = token ?? null
     socket.auth = currentToken ? { token: currentToken } : {}
-    if (socket.connected) socket.disconnect()
-    socket.connect()
   }
   return socket
 }

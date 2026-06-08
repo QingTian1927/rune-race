@@ -4,7 +4,6 @@ import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
 import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { PLAYER_GRADIENT } from '../components/sky/skyColors'
-import { useLobbyBackButton } from '../components/sky/useLobbyBackButton'
 import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import { useLobbySocket } from '../hooks/useLobbySocket'
 import { useAuth } from '../hooks/useAuth'
@@ -24,6 +23,9 @@ const COLOR_TITLES: Record<PlayerColor, string> = {
   green: 'Lá',
   yellow: 'Vàng',
 }
+
+const LOBBY_RUNE_DESCRIPTION =
+  'Bốc thẻ ngẫu nhiên, đặt bí mật trên bàn cờ và kích hoạt hiệu ứng khi quân di chuyển — thêm lớp chiến thuật cho ván Cá ngựa.'
 
 export default function LobbyPage() {
   const { lobbyId } = useParams<{ lobbyId: string }>()
@@ -70,7 +72,6 @@ export default function LobbyPage() {
   const { loading: authLoading, isRegistered } = useAuth()
   const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
   const { playerId, playerName, accessToken, canEditNameOnHome, identityReady } = usePlayerIdentity()
-  const backRef = useLobbyBackButton(Boolean(lobbyId))
   const [nudgeOpen, setNudgeOpen] = useState(false)
   const canShowNudge =
     accountNudgeEnabled && !isRegistered && !authLoading && !flagsLoading
@@ -192,6 +193,12 @@ export default function LobbyPage() {
     navigate('/')
   }
 
+  const homeNavButton = (
+    <button type="button" className="nav-btn" onClick={handleGoHome}>
+      <i className="bi bi-arrow-left-short inline-icon" aria-hidden="true" /> Trang chủ
+    </button>
+  )
+
   if (!lobbyId) {
     return (
       <SkyPageLayout
@@ -211,6 +218,7 @@ export default function LobbyPage() {
   const emptySlotCount = Math.max(0, maxPlayers - players.length)
   const inLobbyPhase = snapshot?.status === 'lobby' || snapshot?.status === 'countdown'
   const enteringGame = snapshot?.status === 'in_game'
+  const runesEnabled = snapshot?.settings.runesEnabled ?? true
 
   const waitingSubtitle =
     snapshot?.status === 'countdown' && snapshot.countdownSeconds !== null
@@ -222,6 +230,7 @@ export default function LobbyPage() {
       playerName={name}
       onPlayerNameChange={setName}
       onPlayerNameBlur={() => void saveAnonDisplayName()}
+      topNavExtra={homeNavButton}
     >
       <AccountNudgeModal open={nudgeOpen} onClose={closeLobbyNudge} />
       {snapshot ? (
@@ -236,15 +245,6 @@ export default function LobbyPage() {
       ) : null}
 
       <div className="lobby-screen">
-        <button
-          ref={backRef}
-          type="button"
-          className="back-btn lobby-back-btn"
-          onClick={handleGoHome}
-        >
-          <i className="bi bi-arrow-left-short inline-icon" aria-hidden="true" /> Trang chủ
-        </button>
-
         <div className="lobby-stack">
           <div className="lobby-header">
           <div className="code-row">
@@ -270,6 +270,18 @@ export default function LobbyPage() {
             {snapshot?.status === 'countdown' && snapshot.countdownSeconds !== null ? (
               <div className="connected-tag" style={{ borderColor: 'rgba(255,200,60,0.6)', color: '#9A5500' }}>
                 Bắt đầu sau {snapshot.countdownSeconds}s
+              </div>
+            ) : null}
+            {snapshot ? (
+              <div
+                className={[
+                  'connected-tag',
+                  'lobby-rune-header-tag',
+                  runesEnabled ? 'lobby-rune-header-tag--on' : 'lobby-rune-header-tag--off',
+                ].join(' ')}
+              >
+                <i className="bi bi-stars inline-icon" aria-hidden="true" />
+                Rune: {runesEnabled ? 'Bật' : 'Tắt'}
               </div>
             ) : null}
           </div>
@@ -441,9 +453,12 @@ export default function LobbyPage() {
                     players={players}
                     currentName={snapshot.settings.name ?? ''}
                     hasPassword={snapshot.settings.hasPassword}
+                    runesEnabled={runesEnabled}
                     roomPassword={hostRoomPassword}
                   />
-                ) : null}
+                ) : (
+                  <LobbyRuneGuestPanel runesEnabled={runesEnabled} />
+                )}
 
                 <div className="lobby-actions">
                   <button
@@ -489,13 +504,20 @@ function HostPanel({
   players,
   currentName,
   hasPassword,
+  runesEnabled,
   roomPassword,
 }: {
-  onUpdateSettings: (p: { name?: string; password?: string; clearPassword?: boolean }) => void
+  onUpdateSettings: (p: {
+    name?: string
+    password?: string
+    clearPassword?: boolean
+    runesEnabled?: boolean
+  }) => void
   onTransferHost: (id: string) => void
   players: Array<{ id: string; name: string; isHost: boolean }>
   currentName: string
   hasPassword: boolean
+  runesEnabled: boolean
   roomPassword: string | null
 }) {
   const [draftPassword, setDraftPassword] = useState('')
@@ -528,8 +550,8 @@ function HostPanel({
           <div className="panel-subtitle">Quản lý phòng và chuyển quyền host</div>
         </div>
       </div>
-      <div className="panel-body">
-        <div>
+      <div className="panel-body lobby-panel-host-body">
+        <div className="field-block">
           <div className="field-label">Tên phòng</div>
           <input
             id="host-room-name"
@@ -541,7 +563,7 @@ function HostPanel({
             }}
           />
         </div>
-        <div>
+        <div className="field-block">
           <div className="field-label">Mật khẩu phòng</div>
           <div className="input-wrap host-password-wrap">
             <span className="input-icon">
@@ -576,17 +598,42 @@ function HostPanel({
               />
             </button>
           </div>
+          <button
+            type="button"
+            className="text-link-btn"
+            disabled={!hasPassword && !draftPassword.trim()}
+            onClick={handleClearPassword}
+          >
+            Xóa mật khẩu
+          </button>
         </div>
         {settingsMessage ? <p className="muted lobby-settings-hint">{settingsMessage}</p> : null}
-        <button
-          type="button"
-          className="text-link-btn"
-          disabled={!hasPassword && !draftPassword.trim()}
-          onClick={handleClearPassword}
-        >
-          Xóa mật khẩu
-        </button>
-        <div>
+        <div className="field-block lobby-host-rune-block">
+          <div className="field-label">Hệ thống Rune</div>
+          <p className="lobby-field-desc">{LOBBY_RUNE_DESCRIPTION}</p>
+          <label
+            className={['lobby-rune-toggle', runesEnabled ? 'lobby-rune-toggle--on' : ''].join(' ')}
+          >
+            <input
+              type="checkbox"
+              className="lobby-rune-toggle-input"
+              checked={runesEnabled}
+              onChange={(e) => {
+                onUpdateSettings({ runesEnabled: e.target.checked })
+              }}
+            />
+            <span className="lobby-rune-toggle-field">
+              <span className="lobby-rune-toggle-icon" aria-hidden="true">
+                <i className="bi bi-stars" />
+              </span>
+              <span className="lobby-rune-toggle-label">Bật cho ván này</span>
+              <span className="lobby-rune-toggle-track" aria-hidden="true">
+                <span className="lobby-rune-toggle-thumb" />
+              </span>
+            </span>
+          </label>
+        </div>
+        <div className="field-block">
           <div className="field-label">Chuyển host</div>
           <select
             id="host-transfer"
@@ -607,6 +654,55 @@ function HostPanel({
               ))}
           </select>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function LobbyRuneStatusRow({ runesEnabled }: { runesEnabled: boolean }) {
+  return (
+    <div
+      className={[
+        'lobby-rune-toggle-field',
+        'lobby-rune-status-field',
+        runesEnabled ? 'lobby-rune-status-field--on' : '',
+      ].join(' ')}
+      role="status"
+      aria-live="polite"
+    >
+      <span className="lobby-rune-toggle-icon" aria-hidden="true">
+        <i className="bi bi-stars" />
+      </span>
+      <span className="lobby-rune-toggle-label">
+        {runesEnabled ? 'Đang bật cho ván này' : 'Không dùng trong ván này'}
+      </span>
+      <span
+        className={[
+          'lobby-rune-status-badge',
+          runesEnabled ? 'lobby-rune-status-badge--on' : 'lobby-rune-status-badge--off',
+        ].join(' ')}
+      >
+        {runesEnabled ? 'Bật' : 'Tắt'}
+      </span>
+    </div>
+  )
+}
+
+function LobbyRuneGuestPanel({ runesEnabled }: { runesEnabled: boolean }) {
+  return (
+    <div className="panel p-green lobby-rune-guest-panel">
+      <div className="panel-head">
+        <div className="panel-icon icon-green">
+          <i className="bi bi-stars" aria-hidden="true" />
+        </div>
+        <div>
+          <div className="panel-title">Hệ thống Rune</div>
+          <div className="panel-subtitle">Host quyết định trước khi vào ván</div>
+        </div>
+      </div>
+      <div className="panel-body lobby-panel-host-body">
+        <p className="lobby-field-desc">{LOBBY_RUNE_DESCRIPTION}</p>
+        <LobbyRuneStatusRow runesEnabled={runesEnabled} />
       </div>
     </div>
   )

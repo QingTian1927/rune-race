@@ -40,10 +40,16 @@ export const LobbyUpdateSettingsSchema = z
     name: z.string().min(1).max(80).optional(),
     password: z.string().min(1).max(64).optional(),
     clearPassword: z.boolean().optional(),
+    runesEnabled: z.boolean().optional(),
   })
-  .refine((d) => d.name !== undefined || d.password !== undefined || d.clearPassword === true, {
-    message: 'At least one setting field is required',
-  })
+  .refine(
+    (d) =>
+      d.name !== undefined ||
+      d.password !== undefined ||
+      d.clearPassword === true ||
+      d.runesEnabled !== undefined,
+    { message: 'At least one setting field is required' },
+  )
 
 export const LobbyTransferHostSchema = z.object({
   playerId: z.string().min(1),
@@ -73,6 +79,40 @@ export const PingSchema = z.object({
   playerId: z.string().min(1),
 })
 
+export const DrawCardsSchema = z.object({
+  playerId: z.string().min(1),
+  count: z.number().int().min(1).max(1),
+})
+
+export const ConfirmDrawSchema = z.object({
+  playerId: z.string().min(1),
+})
+
+export const FinishDrawSchema = z.object({
+  playerId: z.string().min(1),
+})
+
+export const ConfirmPlacementReadySchema = z.object({
+  playerId: z.string().min(1),
+})
+
+export const PlaceMarkerSchema = z.object({
+  playerId: z.string().min(1),
+  heldCardId: z.string().min(1),
+  cellId: z.number().int().min(0),
+  displayedIdentityId: z.string().min(1),
+})
+
+export const ChooseSwapSchema = z.object({
+  playerId: z.string().min(1),
+  targetTokenId: z.string().min(1),
+})
+
+export const UseLeaveStableSchema = z.object({
+  playerId: z.string().min(1),
+  heldCardId: z.string().min(1),
+})
+
 export const ChatSendSchema = z.object({
   playerId: z.string().min(1),
   lobbyId: z.string().min(1),
@@ -99,6 +139,13 @@ const schemas: Record<string, z.ZodSchema> = {
   'chat:sync_request': ChatSyncRequestSchema,
   'game:join': GameJoinSchema,
   'game:roll': RollDiceSchema,
+  'game:draw_cards': DrawCardsSchema,
+  'game:confirm_draw': ConfirmDrawSchema,
+  'game:finish_draw': FinishDrawSchema,
+  'game:place_marker': PlaceMarkerSchema,
+  'game:confirm_placement_ready': ConfirmPlacementReadySchema,
+  'game:use_leave_stable': UseLeaveStableSchema,
+  'game:choose_swap': ChooseSwapSchema,
   'game:choose_move': ChooseMoveSchema,
   'game:sync_request': SyncRequestSchema,
   'game:ping': PingSchema,

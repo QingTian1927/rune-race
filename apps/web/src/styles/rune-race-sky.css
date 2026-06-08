@@ -537,8 +537,11 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
   position: fixed;
   top: 16px;
   left: 16px;
-  display: flex; gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   z-index: 20;
+  max-width: calc(100vw - 32px);
 }
 .nav-btn {
   background: rgba(255,255,255,0.6);
@@ -901,6 +904,42 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
   font-size: 12px;
 }
 
+.lobby-panel-host-body {
+  gap: 20px;
+  padding: 16px 20px 22px;
+}
+
+.lobby-panel-host-body .field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lobby-panel-host-body .field-label {
+  margin-bottom: 0;
+}
+
+.lobby-field-desc {
+  margin: 0;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  line-height: 1.5;
+}
+
+.lobby-host-rune-block {
+  gap: 10px;
+}
+
+.lobby-host-rune-block .lobby-rune-toggle {
+  margin-top: 2px;
+}
+
+.lobby-panel-host-body .lobby-settings-hint {
+  text-align: center;
+}
+
 .host-password-wrap {
   position: relative;
 }
@@ -930,6 +969,13 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
 .host-password-toggle:hover {
   color: #3d5f9e;
   background: rgba(255, 255, 255, 0.95);
+}
+
+.host-password-wrap + .text-link-btn {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  text-align: center;
 }
 
 .join-btn {
@@ -1641,6 +1687,26 @@ a.nav-btn {
   margin-bottom: 0;
 }
 
+.lobby-stack .lobby-rune-guest-panel {
+  width: 100%;
+  max-width: none;
+  margin-bottom: 0;
+}
+
+.lobby-rune-header-tag {
+  gap: 4px;
+}
+
+.lobby-rune-header-tag--on {
+  border-color: rgba(60, 180, 100, 0.55);
+  color: #1f6b3a;
+}
+
+.lobby-rune-header-tag--off {
+  border-color: rgba(150, 140, 130, 0.45);
+  color: #7a6550;
+}
+
 .lobby-actions {
   width: 100%;
   display: flex;
@@ -2185,6 +2251,11 @@ a.game-btn {
 }
 
 /* ===== IN-GAME HUD ===== */
+:root {
+  --hud-edge: 22px;
+  --hud-stack: 14px;
+}
+
 .game-hud-shell {
   background: #071427;
 }
@@ -2207,15 +2278,15 @@ a.game-btn {
 }
 
 .game-hud-slot--exit {
-  top: 16px;
-  left: 16px;
+  top: max(var(--hud-edge), env(safe-area-inset-top));
+  left: max(var(--hud-edge), env(safe-area-inset-left));
   max-width: none;
 }
 
 .game-hud-exit-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .game-hud-settings-btn {
@@ -2305,21 +2376,929 @@ a.game-btn {
   line-height: 1.45;
 }
 
+.game-hud-volume-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.game-hud-volume-slider {
+  flex: 1;
+  height: 8px;
+  appearance: none;
+  border-radius: 999px;
+  background: rgba(91, 130, 200, 0.22);
+  outline: none;
+}
+
+.game-hud-volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #f5c518;
+  background: linear-gradient(160deg, #fffef5 0%, #fff0b8 100%);
+  box-shadow: 0 2px 6px rgba(60, 100, 180, 0.25);
+  cursor: pointer;
+}
+
+.game-hud-volume-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #f5c518;
+  background: linear-gradient(160deg, #fffef5 0%, #fff0b8 100%);
+  box-shadow: 0 2px 6px rgba(60, 100, 180, 0.25);
+  cursor: pointer;
+}
+
+.game-hud-volume-value {
+  min-width: 42px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #3b5ba0;
+  text-align: right;
+}
+
 .game-hud-slot--turn {
-  top: 56px;
-  left: 16px;
+  top: max(calc(var(--hud-edge) + 52px), calc(env(safe-area-inset-top) + 52px));
+  left: max(var(--hud-edge), env(safe-area-inset-left));
+  z-index: 10;
 }
 
 .game-hud-slot--finish {
-  top: 16px;
-  right: 16px;
+  top: max(var(--hud-edge), env(safe-area-inset-top));
+  right: max(var(--hud-edge), env(safe-area-inset-right));
   left: auto;
 }
 
 .game-hud-slot--self {
-  bottom: 24px;
-  right: 16px;
+  bottom: max(var(--hud-edge), env(safe-area-inset-bottom));
+  right: max(var(--hud-edge), env(safe-area-inset-right));
   left: auto;
+}
+
+.game-hud-slot--hand {
+  bottom: max(var(--hud-edge), env(safe-area-inset-bottom));
+  left: max(var(--hud-edge), env(safe-area-inset-left));
+  right: auto;
+  width: max-content;
+  max-width: min(calc(100vw - 2 * var(--hud-edge) - 120px), 320px);
+  z-index: 12;
+}
+
+.game-hud-slot--hand-collapsed {
+  width: auto;
+  max-width: none;
+}
+
+.game-hud-slot--roll {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 14;
+  pointer-events: none;
+}
+
+/* Rune hand — compact strip, max 5 cards in one row */
+.rune-hand-panel {
+  width: max-content;
+  max-width: min(320px, calc(100vw - 2 * var(--hud-edge) - 120px));
+  box-sizing: border-box;
+  padding: 10px 12px;
+}
+
+.rune-hand-panel.game-hud-panel--collapsed {
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  padding: 6px 8px;
+  gap: 6px;
+}
+
+.rune-hand-header {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.rune-hand-title {
+  min-width: 0;
+  flex: 1;
+}
+
+.rune-hand-meta {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rune-hand-meta-sep {
+  color: #9aa8c0;
+}
+
+.rune-hand-reward-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 180, 40, 0.22);
+  color: #8a5a00;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.rune-hand-collapsed-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.rune-hand-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rune-hand-empty-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rune-hand-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.rune-hand-panel--empty {
+  padding: 8px 10px;
+}
+
+.rune-hand-panel--empty .rune-hand-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rune-hand-panel--empty .rune-hand-meta {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.rune-hand-panel--empty .rune-hand-draw-slot {
+  width: 40px;
+  height: 52px;
+}
+
+.rune-hand-panel--empty .rune-hand-draw {
+  width: 40px;
+  height: 52px;
+  font-size: 18px;
+  border-radius: 8px;
+}
+
+.rune-hand-cards {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.rune-hand-panel--full .rune-hand-cards {
+  flex: 0 0 auto;
+}
+
+.rune-hand-draw-slot {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 64px;
+}
+
+.rune-hand-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid rgba(90, 120, 180, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  overflow: hidden;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rune-hand-card:not(:disabled):hover {
+  transform: translateY(-2px);
+  border-color: rgba(74, 156, 245, 0.55);
+}
+
+.rune-hand-card--selected {
+  border-color: #4a9cf5;
+  box-shadow: 0 0 0 2px rgba(74, 156, 245, 0.35);
+  transform: translateY(-3px);
+}
+
+.rune-hand-card--disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+.rune-hand-card--pending {
+  opacity: 0.82;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(255, 214, 102, 0.55);
+  animation: rune-hand-pending-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes rune-hand-pending-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(255, 214, 102, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 214, 102, 0.85);
+  }
+}
+
+.rune-hand-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rune-hand-card-ttl {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: rgba(30, 40, 70, 0.88);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rune-hand-draw {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 64px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 2px dashed rgba(74, 156, 245, 0.45);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.65);
+  color: #3a7be8;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.rune-hand-draw:hover {
+  transform: translateY(-2px);
+  border-color: rgba(74, 156, 245, 0.75);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.rune-hand-draw--disabled {
+  opacity: 0.45;
+  cursor: default;
+  border-style: solid;
+  border-color: rgba(90, 120, 180, 0.25);
+  color: #9aa8c0;
+}
+
+/* Card preview before placement */
+.rune-card-preview-root {
+  pointer-events: auto;
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.rune-card-preview-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  background: linear-gradient(160deg, #fffef5 0%, #fff8e0 100%);
+  border: 4px solid var(--panel-border);
+  border-radius: 22px;
+  box-shadow: 0 8px 0 var(--panel-shadow), 0 14px 36px rgba(0, 0, 0, 0.22);
+  padding: 18px 18px 16px;
+  overflow: hidden;
+}
+
+.rune-card-preview-sheet::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #f5c518, #ffd740);
+}
+
+.rune-card-preview-art-wrap {
+  position: relative;
+  width: min(200px, 56vw);
+  margin: 4px auto 12px;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(40, 60, 100, 0.22);
+}
+
+.rune-card-preview-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.rune-card-preview-ttl {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(30, 40, 70, 0.88);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rune-card-preview-copy {
+  text-align: center;
+}
+
+.rune-card-preview-title {
+  margin: 0;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e3050;
+}
+
+.rune-card-preview-desc {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #5a6a8a;
+}
+
+.rune-card-preview-identities {
+  margin-top: 14px;
+}
+
+.rune-card-preview-avatar-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.rune-card-preview-avatar-btn {
+  padding: 4px;
+  border-radius: 999px;
+  border: 2px solid rgba(90, 120, 180, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rune-card-preview-avatar-btn:hover {
+  transform: scale(1.06);
+  border-color: rgba(90, 120, 180, 0.55);
+  box-shadow: 0 2px 8px rgba(60, 100, 180, 0.2);
+}
+
+.rune-card-preview-avatar-btn--self {
+  border-color: rgba(60, 160, 90, 0.65);
+  box-shadow: 0 0 0 2px rgba(60, 160, 90, 0.15);
+}
+
+.rune-card-preview-actions {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.rune-card-preview-btn {
+  width: min(100%, 240px);
+  min-height: 40px;
+}
+
+@media (min-width: 520px) {
+  .rune-card-preview-actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .rune-card-preview-btn {
+    width: auto;
+    min-width: 120px;
+  }
+}
+
+.rune-card-preview-root--draw {
+  z-index: 60;
+}
+
+.rune-card-preview-kicker {
+  margin: 0 0 6px;
+  text-align: center;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a7a50;
+}
+
+.rune-card-preview-sheet--draw-reveal {
+  animation: rune-card-preview-sheet-in 0.38s cubic-bezier(0.22, 1.05, 0.32, 1) both;
+}
+
+.rune-card-preview-art-wrap--reveal {
+  animation: rune-card-preview-reveal-pop 0.48s cubic-bezier(0.22, 1.08, 0.32, 1) 0.06s both;
+}
+
+.rune-card-preview-actions--single {
+  flex-direction: column;
+}
+
+@keyframes rune-card-preview-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rune-card-preview-reveal-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.86) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Activated rune reveal — right rail, stacked top → bottom */
+.game-hud-slot--rune-flash {
+  top: max(
+    calc(var(--hud-edge) + var(--hud-exit-h, 44px) + var(--hud-stack) + var(--hud-turn-h, 88px) + var(--hud-stack)),
+    calc(
+      env(safe-area-inset-top) + var(--hud-exit-h, 44px) + var(--hud-stack) + var(--hud-turn-h, 88px) +
+        var(--hud-stack)
+    )
+  );
+  right: max(var(--hud-edge), env(safe-area-inset-right));
+  left: auto;
+  bottom: max(calc(var(--hud-bottom-dock, 120px) + var(--hud-stack)), calc(env(safe-area-inset-bottom) + 120px));
+  width: min(30vw, 108px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  pointer-events: none;
+  z-index: 11;
+}
+
+.rune-trigger-flash-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+  width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.rune-trigger-flash-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  animation: rune-trigger-flash-stack-in 0.48s cubic-bezier(0.22, 1, 0.34, 1) both;
+}
+
+.rune-trigger-flash-item--exit {
+  animation: rune-trigger-flash-stack-out 0.48s ease-in both;
+}
+
+.rune-trigger-flash-card {
+  width: 100%;
+  max-width: 96px;
+  height: auto;
+  filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.28));
+  border-radius: 0.55rem;
+}
+
+.rune-trigger-flash-label {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.92);
+  text-shadow: 0 1px 8px rgba(15, 23, 42, 0.55);
+  line-height: 1.15;
+}
+
+@keyframes rune-trigger-flash-stack-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rune-trigger-flash-stack-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+
+.rune-marker-html {
+  pointer-events: none;
+  /* Anchor 3D point at the pin tip (bottom of teardrop). */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.rune-map-pin {
+  --rune-pin-color: #4a9cf5;
+  position: relative;
+  width: 28px;
+  height: 36px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.32));
+}
+
+.rune-map-pin-head {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--rune-pin-color);
+  background: rgba(255, 255, 255, 0.97);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 -1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.rune-map-pin-emoji {
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+}
+
+.rune-map-pin-head .game-hud-orb {
+  width: 100%;
+  height: 100%;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.rune-map-pin-head .game-hud-orb-emoji {
+  font-size: 22px;
+}
+
+.rune-map-pin-tail {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 9px solid var(--rune-pin-color);
+}
+
+.rune-map-pin--ghost {
+  opacity: 0.82;
+  filter: drop-shadow(0 0 10px rgba(255, 220, 80, 0.85));
+  animation: rune-ghost-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rune-ghost-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.95;
+  }
+}
+
+.game-hud-slot--rune-place {
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+.rune-identity-panel {
+  pointer-events: auto;
+  width: 100%;
+}
+
+.rune-identity-hint,
+.rune-identity-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5a6a8a;
+  margin-top: 4px;
+}
+
+.rune-identity-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rune-identity-btn {
+  width: 100%;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
+.rune-identity-cancel {
+  margin-top: 4px;
+}
+
+.rune-identity-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rune-identity-pick {
+  padding: 4px;
+  border-radius: 999px;
+  border: 2px solid rgba(90, 120, 180, 0.25);
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rune-identity-pick:hover {
+  transform: scale(1.06);
+  border-color: rgba(90, 120, 180, 0.55);
+  box-shadow: 0 2px 8px rgba(60, 100, 180, 0.2);
+}
+
+.rune-identity-pick--self {
+  border-color: rgba(60, 160, 90, 0.65);
+  box-shadow: 0 0 0 2px rgba(60, 160, 90, 0.15);
+}
+
+.rune-placement-identities {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rune-placement-identity-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 2px solid rgba(90, 120, 180, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-weight: 700;
+  color: #2a3a5a;
+}
+
+.rune-placement-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a6a8a;
+  margin-top: 4px;
+}
+
+.rune-placement-cancel {
+  margin-top: 10px;
+}
+
+.lobby-rune-toggle {
+  display: block;
+  cursor: pointer;
+}
+
+.lobby-rune-toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.lobby-rune-toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  position: relative;
+  background: linear-gradient(160deg, #ffffff, #fff9e8);
+  border: 3px solid #e8c85a;
+  border-radius: 16px;
+  padding: 11px 14px 11px 44px;
+  box-shadow: 0 3px 0 #d4a820, inset 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.lobby-rune-toggle:hover .lobby-rune-toggle-field {
+  border-color: #ffb300;
+  transform: translateY(-1px);
+}
+
+.lobby-rune-toggle--on .lobby-rune-toggle-field {
+  border-color: #52d475;
+  box-shadow: 0 3px 0 #28944c, inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.lobby-rune-toggle-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  line-height: 1;
+  color: #c4a060;
+  transition: color 0.2s;
+}
+
+.lobby-rune-toggle--on .lobby-rune-toggle-icon {
+  color: #28944c;
+}
+
+.lobby-rune-toggle-label {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1.35;
+}
+
+.lobby-rune-toggle-track {
+  flex-shrink: 0;
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(122, 92, 58, 0.14);
+  border: 2px solid rgba(232, 200, 90, 0.85);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.lobby-rune-toggle--on .lobby-rune-toggle-track {
+  background: linear-gradient(90deg, #4fd47a, #2e9452);
+  border-color: rgba(40, 148, 76, 0.55);
+}
+
+.lobby-rune-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff 0%, #f3ead8 100%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease;
+}
+
+.lobby-rune-toggle--on .lobby-rune-toggle-thumb {
+  transform: translateX(20px);
+  background: linear-gradient(180deg, #fffef5 0%, #fff 100%);
+}
+
+.lobby-rune-toggle-input:focus-visible + .lobby-rune-toggle-field {
+  border-color: #ffb300;
+  box-shadow: 0 3px 0 #d4a820, 0 0 0 4px rgba(255, 179, 0, 0.2);
+}
+
+.lobby-rune-toggle--on .lobby-rune-toggle-input:focus-visible + .lobby-rune-toggle-field {
+  border-color: #52d475;
+  box-shadow: 0 3px 0 #28944c, 0 0 0 4px rgba(82, 212, 117, 0.22);
+}
+
+.lobby-rune-status-field {
+  cursor: default;
+  pointer-events: none;
+}
+
+.lobby-rune-status-field--on {
+  border-color: #52d475;
+  box-shadow: 0 3px 0 #28944c, inset 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.lobby-rune-status-field--on .lobby-rune-toggle-icon {
+  color: #28944c;
+}
+
+.lobby-rune-status-badge {
+  flex-shrink: 0;
+  min-width: 44px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.lobby-rune-status-badge--on {
+  background: linear-gradient(90deg, #4fd47a, #2e9452);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(46, 148, 76, 0.28);
+}
+
+.lobby-rune-status-badge--off {
+  background: rgba(122, 92, 58, 0.12);
+  border: 2px solid rgba(232, 200, 90, 0.65);
+  color: var(--text-mid);
 }
 
 .game-hud-exit-btn {
@@ -2348,7 +3327,7 @@ a.game-btn {
   border: 3px solid var(--panel-border);
   border-radius: 18px;
   box-shadow: 0 5px 0 var(--panel-shadow), 0 8px 20px rgba(0, 0, 0, 0.18);
-  padding: 10px 12px;
+  padding: 12px 14px;
   position: relative;
   overflow: hidden;
   width: max-content;
@@ -2362,6 +3341,7 @@ a.game-btn {
   left: 0;
   right: 0;
   height: 4px;
+  border-radius: 15px 15px 0 0;
 }
 
 .game-hud-panel.hud-p-red::before { background: linear-gradient(90deg, #e8463a, #f07068); }
@@ -2373,8 +3353,160 @@ a.game-btn {
 .game-hud-panel--collapsed {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 9px 12px;
+}
+
+/* HUD motion — panel collapse, roll button, settings overlay */
+@keyframes game-hud-panel-expand {
+  from {
+    opacity: 0.35;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes game-hud-panel-collapse {
+  from {
+    opacity: 0.35;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes game-hud-presence-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes game-hud-presence-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+}
+
+@keyframes game-hud-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes game-hud-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes game-hud-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes game-hud-modal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+}
+
+.game-hud-panel--motion {
+  animation: game-hud-panel-expand 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.game-hud-panel--motion.game-hud-panel--collapsed {
+  animation-name: game-hud-panel-collapse;
+}
+
+.game-hud-slot--hand .game-hud-panel--motion {
+  transform-origin: bottom left;
+}
+
+.game-hud-slot--self .game-hud-panel--motion {
+  transform-origin: bottom right;
+}
+
+.game-hud-slot--turn .game-hud-panel--motion {
+  transform-origin: top left;
+}
+
+.game-hud-slot--chat .game-hud-panel--motion,
+.room-chat-slot .game-hud-panel--motion {
+  transform-origin: top left;
+}
+
+.game-hud-slot--finish .game-hud-panel--motion {
+  transform-origin: top right;
+}
+
+.game-hud-presence--in {
+  animation: game-hud-presence-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.game-hud-presence--out {
+  animation: game-hud-presence-out 0.2s cubic-bezier(0.4, 0, 0.85, 1) both;
+  pointer-events: none;
+}
+
+.game-hud-roll-btn.game-hud-presence--out {
+  animation-duration: 0.13s;
+  animation-timing-function: cubic-bezier(0.5, 0, 0.95, 0.4);
+}
+
+.game-hud-overlay-root.game-hud-presence--in .game-hud-backdrop {
+  animation: game-hud-backdrop-in 0.26s ease both;
+}
+
+.game-hud-overlay-root.game-hud-presence--out .game-hud-backdrop {
+  animation: game-hud-backdrop-out 0.22s ease both;
+}
+
+.game-hud-overlay-root.game-hud-presence--in .game-hud-modal--motion {
+  animation: game-hud-modal-in 0.3s cubic-bezier(0.22, 1.05, 0.36, 1) 0.04s both;
+}
+
+.game-hud-overlay-root.game-hud-presence--out .game-hud-modal--motion {
+  animation: game-hud-modal-out 0.22s cubic-bezier(0.4, 0, 0.85, 1) both;
+}
+
+.game-hud-overlay-root.game-hud-presence--out {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-hud-panel--motion,
+  .game-hud-presence--in,
+  .game-hud-presence--out,
+  .game-hud-overlay-root.game-hud-presence--in .game-hud-backdrop,
+  .game-hud-overlay-root.game-hud-presence--out .game-hud-backdrop,
+  .game-hud-overlay-root.game-hud-presence--in .game-hud-modal--motion,
+  .game-hud-overlay-root.game-hud-presence--out .game-hud-modal--motion {
+    animation: none !important;
+  }
 }
 
 .game-hud-label {
@@ -2415,6 +3547,12 @@ a.game-btn {
   transition: transform 0.2s ease;
 }
 
+.game-hud-orb--xs {
+  width: 16px;
+  height: 16px;
+  border-width: 0;
+}
+
 .game-hud-orb--sm {
   width: 40px;
   height: 40px;
@@ -2428,6 +3566,10 @@ a.game-btn {
   font-size: 22px;
   line-height: 1;
   user-select: none;
+}
+
+.game-hud-orb--xs .game-hud-orb-emoji {
+  font-size: 11px;
 }
 
 .game-hud-orb--sm .game-hud-orb-emoji {
@@ -2480,17 +3622,18 @@ a.game-btn {
 .game-hud-icon-btn svg {
   width: 18px;
   height: 18px;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .game-hud-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .game-hud-turn-copy {
-  min-width: 140px;
-  max-width: 200px;
+  min-width: 120px;
+  max-width: 160px;
 }
 
 .game-hud-self-copy {
@@ -2500,7 +3643,7 @@ a.game-btn {
 }
 
 .game-hud-finish-head {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .game-hud-collapse-end {
@@ -2514,14 +3657,14 @@ a.game-btn {
 .game-hud-finish-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .game-hud-finish-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 9px 11px;
   border-radius: 14px;
   border: 2px solid rgba(255, 217, 125, 0.7);
   background: rgba(255, 255, 255, 0.75);
@@ -2589,24 +3732,35 @@ a.game-btn {
 
 .game-hud-roll-btn {
   pointer-events: auto;
-  position: fixed;
-  left: 50%;
-  bottom: 64px;
-  z-index: 20;
-  transform: translateX(-50%);
+  position: relative;
+  left: auto;
+  bottom: auto;
+  top: auto;
+  transform: none;
+  margin-top: 192px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   width: auto;
-  min-width: 220px;
-  padding: 14px 28px;
-  font-size: 16px;
+  min-width: 240px;
+  padding: 16px 32px;
+  font-size: 17px;
   letter-spacing: 0.06em;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+}
+
+.game-hud-roll-icon {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .game-hud-roll-btn:hover {
-  transform: translateX(-50%) translateY(-2px);
+  transform: translateY(-3px);
 }
 
 .game-hud-roll-btn:active {
-  transform: translateX(-50%) translateY(3px) scale(0.98);
+  transform: translateY(2px) scale(0.98);
 }
 
 .btn-red {
@@ -2783,20 +3937,21 @@ a.game-btn {
 /* --- Room chat (lobby + in-game, shared thread per lobbyId) --- */
 
 .game-hud-slot--chat {
-  /* Below exit + current-turn panel with visible gap (not flush) */
-  top: 176px;
-  left: 16px;
+  /* Left column, below current-turn panel */
+  top: max(calc(var(--hud-edge) + 158px), calc(env(safe-area-inset-top) + 158px));
+  left: max(var(--hud-edge), env(safe-area-inset-left));
   right: auto;
   bottom: auto;
-  max-width: min(320px, calc(100vw - 32px));
+  max-width: min(300px, calc(100vw - 2 * var(--hud-edge)));
+  z-index: 11;
 }
 
 .room-chat-slot--lobby {
   position: fixed;
   z-index: 40;
-  top: 148px;
-  left: 16px;
-  max-width: min(320px, calc(100vw - 32px));
+  top: max(calc(var(--hud-edge) + 108px), calc(env(safe-area-inset-top) + 108px));
+  left: max(var(--hud-edge), env(safe-area-inset-left));
+  max-width: min(320px, calc(100vw - 2 * var(--hud-edge)));
   pointer-events: none;
 }
 
@@ -2806,19 +3961,43 @@ a.game-btn {
 
 .room-chat-panel {
   box-sizing: border-box;
-  width: min(300px, calc(100vw - 32px));
-  min-width: 260px;
-  max-width: min(300px, calc(100vw - 32px));
+  width: min(280px, calc(100vw - 2 * var(--hud-edge)));
+  min-width: 0;
+  max-width: min(280px, calc(100vw - 2 * var(--hud-edge)));
+  max-height: min(32vh, calc(100vh - var(--hud-edge) * 2 - 220px));
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 10px;
+  gap: 10px;
+  padding-bottom: 12px;
+  overflow: hidden;
 }
 
-.room-chat-panel--collapsed {
+.room-chat-panel--collapsed,
+.room-chat-panel.game-hud-panel--collapsed {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: auto;
   min-width: 0;
   max-width: none;
+  max-height: none;
+  height: auto;
+  padding: 8px;
+  gap: 0;
+}
+
+.room-chat-collapsed-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.room-chat-panel--collapsed .game-hud-icon-btn,
+.room-chat-panel.game-hud-panel--collapsed .game-hud-icon-btn {
+  width: 32px;
+  height: 32px;
 }
 
 .room-chat-collapsed-hit {
@@ -2826,16 +4005,20 @@ a.game-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
   cursor: pointer;
   padding: 0;
   color: #3b5ba0;
+  line-height: 0;
 }
 
 .room-chat-collapsed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 22px;
   line-height: 1;
 }
@@ -2861,27 +4044,21 @@ a.game-btn {
 
 .room-chat-head {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.room-chat-subtitle {
-  margin: 2px 0 0;
-  font-family: 'Be Vietnam Pro', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-mid);
-  opacity: 0.85;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
 }
 
 .room-chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: min(220px, 36vh);
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 2px;
+  gap: 10px;
+  padding: 6px 4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(90, 130, 200, 0.45) transparent;
 }
@@ -2913,7 +4090,7 @@ a.game-btn {
   background: rgba(255, 255, 255, 0.72);
   border: 2px solid rgba(255, 255, 255, 0.95);
   border-radius: 12px;
-  padding: 6px 10px;
+  padding: 8px 11px;
   box-shadow: 0 2px 6px rgba(60, 100, 180, 0.12);
 }
 
@@ -2927,7 +4104,7 @@ a.game-btn {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .room-chat-author {
@@ -2970,7 +4147,7 @@ a.game-btn {
 .room-chat-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
   width: 100%;
 }
@@ -3189,4 +4366,501 @@ a.game-btn {
 
 .account-nudge-dismiss:hover {
   color: #5a7098;
+}
+
+/* Portrait / narrow — compact in-game HUD (must follow base HUD rules) */
+@media (max-width: 519px), (orientation: portrait) and (max-width: 820px) {
+  .game-hud-shell {
+    --hud-edge: 12px;
+    --hud-stack: 10px;
+    --hud-exit-h: 40px;
+    --hud-turn-h: 80px;
+    --hud-bottom-dock: 108px;
+  }
+
+  .game-hud-slot--exit {
+    top: max(var(--hud-edge), env(safe-area-inset-top));
+    left: max(var(--hud-edge), env(safe-area-inset-left));
+  }
+
+  .game-hud-slot--turn {
+    top: max(
+      calc(var(--hud-edge) + var(--hud-exit-h) + var(--hud-stack)),
+      calc(env(safe-area-inset-top) + var(--hud-exit-h) + var(--hud-stack))
+    );
+    left: max(var(--hud-edge), env(safe-area-inset-left));
+  }
+
+  .game-hud-slot--finish {
+    top: max(var(--hud-edge), env(safe-area-inset-top));
+    right: max(var(--hud-edge), env(safe-area-inset-right));
+  }
+
+  .game-hud-slot--self {
+    bottom: max(var(--hud-edge), env(safe-area-inset-bottom));
+    right: max(var(--hud-edge), env(safe-area-inset-right));
+  }
+
+  .game-hud-slot--hand {
+    bottom: max(var(--hud-edge), env(safe-area-inset-bottom));
+    left: max(var(--hud-edge), env(safe-area-inset-left));
+    width: auto;
+    max-width: calc(100vw - 2 * var(--hud-edge) - 112px);
+  }
+
+  .game-hud-slot--hand-collapsed {
+    width: auto;
+    max-width: calc(100vw - 2 * var(--hud-edge) - 112px);
+  }
+
+  .game-hud-slot--chat {
+    top: max(
+      calc(var(--hud-edge) + var(--hud-exit-h) + var(--hud-stack) + var(--hud-turn-h) + var(--hud-stack)),
+      calc(
+        env(safe-area-inset-top) + var(--hud-exit-h) + var(--hud-stack) + var(--hud-turn-h) +
+          var(--hud-stack)
+      )
+    );
+    left: max(var(--hud-edge), env(safe-area-inset-left));
+    right: auto;
+    max-width: calc(100vw - 2 * var(--hud-edge));
+  }
+
+  .game-hud-slot--rune-flash {
+    top: max(calc(var(--hud-edge) + 52px), calc(env(safe-area-inset-top) + 52px));
+    bottom: max(
+      calc(var(--hud-bottom-dock) + var(--hud-stack)),
+      calc(env(safe-area-inset-bottom) + 108px)
+    );
+    width: min(22vw, 88px);
+  }
+
+  .game-hud-slot--hand,
+  .game-hud-slot--self {
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .game-hud-slot--hand > *,
+  .game-hud-slot--self > * {
+    pointer-events: auto;
+  }
+
+  .room-chat-slot--lobby {
+    top: max(calc(var(--hud-edge) + 100px), calc(env(safe-area-inset-top) + 100px));
+    left: max(var(--hud-edge), env(safe-area-inset-left));
+    right: auto;
+    bottom: auto;
+    max-width: calc(100vw - 2 * var(--hud-edge));
+  }
+
+  .game-hud-panel {
+    padding: 9px 11px;
+    border-radius: 14px;
+    border-width: 2px;
+    box-shadow: 0 4px 0 var(--panel-shadow), 0 6px 16px rgba(0, 0, 0, 0.16);
+  }
+
+  .game-hud-panel::before {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .game-hud-panel--collapsed {
+    padding: 7px 9px;
+    gap: 8px;
+  }
+
+  .game-hud-row {
+    gap: 10px;
+  }
+
+  .game-hud-label {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+
+  .game-hud-name {
+    font-size: 13px;
+  }
+
+  .game-hud-turn-copy {
+    min-width: 96px;
+    max-width: 128px;
+  }
+
+  .game-hud-self-copy {
+    min-width: 84px;
+    max-width: 116px;
+  }
+
+  .game-hud-orb:not(.game-hud-orb--xs):not(.game-hud-orb--sm) {
+    width: 40px;
+    height: 40px;
+    border-width: 2px;
+  }
+
+  .game-hud-orb-emoji {
+    font-size: 22px;
+  }
+
+  .game-hud-orb--sm {
+    width: 32px;
+    height: 32px;
+  }
+
+  .game-hud-orb--sm .game-hud-orb-emoji {
+    font-size: 18px;
+  }
+
+  .game-hud-icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .game-hud-icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .game-hud-settings-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .game-hud-exit-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .game-hud-finish-item {
+    padding: 7px 9px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  .game-hud-finish-rank {
+    width: 18px;
+    font-size: 12px;
+  }
+
+  .game-hud-finish-trophy {
+    font-size: 16px;
+  }
+
+  .game-hud-finish-count {
+    font-size: 13px;
+  }
+
+  .game-hud-roll-btn {
+    min-width: min(220px, calc(100vw - 2 * var(--hud-edge) - 24px));
+    padding: 11px 18px;
+    font-size: 14px;
+    margin-top: clamp(168px, 38vh, 260px);
+  }
+
+  .game-hud-roll-icon {
+    font-size: 19px;
+  }
+
+  .game-hud-banner {
+    top: 26%;
+    padding: 12px 24px;
+    border-radius: 18px;
+  }
+
+  .game-hud-banner .game-hud-label {
+    font-size: 14px;
+  }
+
+  .rune-hand-panel--empty {
+    padding: 7px 9px;
+  }
+
+  .rune-hand-empty-row {
+    gap: 8px;
+  }
+
+  .rune-hand-panel--empty .rune-hand-draw-slot,
+  .rune-hand-panel--empty .rune-hand-draw {
+    width: 36px;
+    height: 46px;
+    font-size: 16px;
+  }
+
+  .rune-hand-panel {
+    width: max-content;
+    max-width: min(calc(100vw - 2 * var(--hud-edge) - 112px), 280px);
+    padding: 8px 10px;
+  }
+
+  .rune-hand-panel.game-hud-panel--collapsed {
+    width: max-content;
+    max-width: min(calc(100vw - 24px), 252px);
+  }
+
+  .rune-hand-header {
+    margin-bottom: 6px;
+  }
+
+  .rune-hand-meta {
+    font-size: 12px;
+  }
+
+  .rune-hand-card {
+    width: 40px;
+    height: 52px;
+    border-radius: 8px;
+    border-width: 2px;
+  }
+
+  .rune-hand-cards {
+    gap: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 1px;
+  }
+
+  .rune-hand-cards::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rune-hand-draw-slot {
+    width: 40px;
+    height: 52px;
+  }
+
+  .rune-hand-draw {
+    width: 40px;
+    height: 52px;
+    font-size: 17px;
+    border-radius: 8px;
+  }
+
+  .rune-hand-card-ttl {
+    min-width: 13px;
+    height: 13px;
+    font-size: 8px;
+    right: 2px;
+    bottom: 2px;
+  }
+
+  .room-chat-panel:not(.room-chat-panel--collapsed) {
+    width: calc(100vw - 2 * var(--hud-edge));
+    max-width: calc(100vw - 2 * var(--hud-edge));
+    max-height: min(
+      200px,
+      calc(100vh - var(--hud-edge) * 2 - var(--hud-bottom-dock) - 168px)
+    );
+    gap: 8px;
+    padding-bottom: 10px;
+  }
+
+  .room-chat-messages {
+    max-height: min(140px, 22vh);
+    gap: 8px;
+  }
+
+  .room-chat-bubble {
+    padding: 7px 9px;
+    border-radius: 10px;
+  }
+
+  .room-chat-author {
+    font-size: 11px;
+  }
+
+  .room-chat-text {
+    font-size: 12px;
+  }
+
+  .room-chat-input {
+    padding: 8px 10px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .room-chat-send {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .room-chat-collapsed-hit {
+    width: 36px;
+    height: 36px;
+  }
+
+  .room-chat-collapsed-icon {
+    font-size: 20px;
+  }
+
+  .rune-card-preview-root {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .rune-card-preview-sheet {
+    max-width: none;
+    border-radius: 22px 22px 0 0;
+    border-bottom: none;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .rune-card-preview-root--draw {
+    align-items: flex-end;
+    padding: 0;
+  }
+}
+
+/* Landscape hint — phone portrait only (component gates visibility in JS) */
+.landscape-hint-root {
+  position: fixed;
+  inset: 0;
+  z-index: 56;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.landscape-hint-root > .game-hud-backdrop {
+  position: fixed;
+}
+
+.landscape-hint-sheet {
+  max-width: 360px;
+  text-align: center;
+}
+
+.landscape-hint-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.landscape-hint-phone {
+  display: inline-block;
+  font-size: 2.75rem;
+  line-height: 1;
+  animation: landscape-hint-rotate 2.4s ease-in-out infinite;
+  transform-origin: center center;
+}
+
+.landscape-hint-arrow {
+  font-size: 1.75rem;
+  line-height: 1;
+  color: #c47a00;
+  opacity: 0.85;
+}
+
+.landscape-hint-title {
+  margin: 0 0 8px;
+}
+
+.landscape-hint-body {
+  margin: 0;
+}
+
+.landscape-hint-actions {
+  margin-top: 18px;
+}
+
+@keyframes landscape-hint-rotate {
+  0%,
+  18% {
+    transform: rotate(0deg);
+  }
+  45%,
+  72% {
+    transform: rotate(90deg);
+  }
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+.game-hud-slot--placement-hint {
+  left: 50%;
+  bottom: max(calc(var(--hud-edge) + 118px), calc(env(safe-area-inset-bottom) + 118px));
+  transform: translateX(-50%);
+  z-index: 12;
+  max-width: min(420px, calc(100vw - 2 * var(--hud-edge)));
+  pointer-events: none;
+}
+
+.rune-placement-confirm-btn {
+  margin-top: 0.45rem;
+  width: 100%;
+  font-size: 0.82rem;
+  pointer-events: auto;
+}
+
+.rune-placement-hint,
+.rune-phase-countdown {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(40, 70, 130, 0.16);
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #2a4080;
+  text-align: center;
+}
+
+.rune-phase-countdown__label {
+  margin: 0;
+}
+
+.rune-phase-countdown__seconds {
+  color: #1a5fd4;
+}
+
+.rune-phase-countdown__track {
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(42, 64, 128, 0.14);
+  overflow: hidden;
+}
+
+.rune-phase-countdown__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f8cff, #1a5fd4);
+  transition: width 0.25s linear;
+}
+
+.rune-placement-hint--error {
+  border-color: rgba(232, 70, 58, 0.45);
+  background: rgba(255, 244, 242, 0.92);
+  color: #9a2d24;
+}
+
+@media (max-width: 519px), (orientation: portrait) and (max-width: 820px) {
+  .game-hud-slot--placement-hint {
+    bottom: max(calc(var(--hud-edge) + 96px), calc(env(safe-area-inset-bottom) + 96px));
+    max-width: calc(100vw - 2 * var(--hud-edge) - 8px);
+  }
+
+  .rune-placement-hint,
+  .rune-phase-countdown {
+    font-size: 11px;
+    padding: 8px 12px;
+  }
+
+  .rune-phase-countdown__track {
+    margin-top: 6px;
+    height: 4px;
+  }
 }

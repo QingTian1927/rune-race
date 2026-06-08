@@ -11,6 +11,8 @@ export interface LobbySettings {
   hasPassword: boolean
   maxPlayers: number
   minPlayersToStart: number
+  /** Host toggle — default true when room is created. */
+  runesEnabled: boolean
 }
 
 export interface LobbyPlayer {

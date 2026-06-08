@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
-import type { Player, GameState } from '@rune-race/shared'
+import type { Player, GameState, RuneClientView } from '@rune-race/shared'
+import {
+  isBoardMarkerCardType,
+  RUNE_MAX_DRAW_PER_PLAYER,
+  RUNE_MAX_HAND_SIZE,
+  type HeldCard,
+} from '@rune-race/shared'
+import { canSpawnFromLeaveStable, listValidPlacementCellIds } from '@rune-race/game-engine'
+import { placementRejectMessage } from '../lib/runeMarkerDisplay'
+import { HandArrayPanel } from './hud/HandArrayPanel'
+import { RuneCardPreviewOverlay } from './hud/RuneCardPreviewOverlay'
+import { RuneDrawRevealOverlay } from './hud/RuneDrawRevealOverlay'
+import { RuneTriggerFlashOverlay } from './hud/RuneTriggerFlashOverlay'
+import { RuneTriggerFlashProvider } from '../contexts/RuneTriggerFlashContext'
 import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
 import BoardScene from '../scenes/BoardScene'
 import type { CameraDebugInfo } from '../config/cameraConfig'
@@ -15,10 +28,19 @@ import { FinishOrderPanel } from './hud/FinishOrderPanel'
 import { GameEndOverlay } from './hud/GameEndOverlay'
 import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
+import { PhaseCountdownBar } from './hud/PhaseCountdownBar'
+import { usePhaseCountdown } from '../hooks/usePhaseCountdown'
 import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { GameSettingsOverlay } from './hud/GameSettingsOverlay'
+import { LandscapeHintOverlay } from './hud/LandscapeHintOverlay'
+import { useAudioSettings } from '../hooks/useAudioSettings'
 import { useGraphicsQuality } from '../hooks/useGraphicsQuality'
+import { useLandscapeHint } from '../hooks/useLandscapeHint'
+import { useFullscreen } from '../hooks/useFullscreen'
+
+const TURN_ROLL_TIMEOUT_MS = 10_000
+const TURN_MOVE_CHOICE_TIMEOUT_MS = 20_000
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -53,6 +75,16 @@ export type GameViewProps = {
   boardImpactFeedback?: BoardImpactFeedback
   /** Optional lobby chat overlay (online). */
   roomChat?: ReactNode
+  runeView?: RuneClientView | null
+  onDrawCards?: (count: number) => void
+  onConfirmDraw?: () => void
+  onFinishDraw?: () => void
+  onPlaceMarker?: (heldCardId: string, cellId: number, displayedIdentityId: string) => void
+  onConfirmPlacementReady?: () => void
+  onUseLeaveStable?: (heldCardId: string) => void
+  onChooseSwap?: (targetTokenId: string) => void
+  /** Socket / server action errors (online). */
+  gameActionError?: string | null
 }
 
 export default function GameView({
@@ -69,12 +101,24 @@ export default function GameView({
   onLeave,
   boardImpactFeedback: boardImpactFeedbackProp,
   roomChat,
+  runeView = null,
+  onDrawCards,
+  onConfirmDraw,
+  onFinishDraw,
+  onPlaceMarker,
+  onConfirmPlacementReady,
+  onUseLeaveStable,
+  onChooseSwap,
+  gameActionError = null,
 }: GameViewProps) {
   const navigate = useNavigate()
   const { active, progress } = useProgress()
+  const landscapeHint = useLandscapeHint()
+  const fullscreen = useFullscreen()
   const defaultBoardImpactFeedback = useBoardImpactFeedback()
   const boardImpactFeedback = boardImpactFeedbackProp ?? defaultBoardImpactFeedback
   const { quality: graphicsQuality, setQuality: setGraphicsQuality } = useGraphicsQuality()
+  const { volume: audioVolume, setVolume: setAudioVolume } = useAudioSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false)
   const [showDevMenu, setShowDevMenu] = useState(false)
@@ -85,6 +129,8 @@ export default function GameView({
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
   const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
   const resolveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const rollTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const moveChoiceTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const bannerHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const rollShowTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const moveBannerTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
@@ -105,6 +151,14 @@ export default function GameView({
   const [displayedTurnPlayerId, setDisplayedTurnPlayerId] = useState(gameState.turn.currentPlayerId)
   const [displayedFinishOrderIds, setDisplayedFinishOrderIds] = useState<string[]>([])
   const [endCountdownSeconds, setEndCountdownSeconds] = useState(10)
+  const [selectedHeldCardId, setSelectedHeldCardId] = useState<string | null>(null)
+  const [cardPreviewId, setCardPreviewId] = useState<string | null>(null)
+  const [placementConfirmCellId, setPlacementConfirmCellId] = useState<number | null>(null)
+  const [placementCellId, setPlacementCellId] = useState<number | null>(null)
+  const [hoveredPlacementCellId, setHoveredPlacementCellId] = useState<number | null>(null)
+  const [placementNotice, setPlacementNotice] = useState<string | null>(null)
+  const pendingPlacementRef = useRef<{ heldCardId: string; cellId: number } | null>(null)
+  const placementEventsCursorRef = useRef({ version: -1, eventCount: 0 })
 
   const finishOrder = useMemo(() => {
     const seen = new Set<string>()
@@ -126,6 +180,93 @@ export default function GameView({
   const isLocalPlayersTurn =
     localPlayerId === undefined || gameState.turn.currentPlayerId === localPlayerId
 
+  const currentTurnPlayer = gameState.players.find((p) => p.id === gameState.turn.currentPlayerId) ?? null
+  const localPlayer: Player | null = localPlayerId
+    ? gameState.players.find((p) => p.id === localPlayerId) ?? null
+    : gameState.players[0] ?? currentTurnPlayer
+  const isMyTurn = localPlayer
+    ? gameState.turn.currentPlayerId === localPlayer.id
+    : isLocalPlayersTurn
+
+  const runesOn = Boolean(gameState.config?.runesEnabled && gameState.rune)
+  const myRune = localPlayerId ? gameState.rune?.players[localPlayerId] : null
+  const runeWindowOpen =
+    runesOn &&
+    (gameState.turn.phase === 'placement_phase' || gameState.turn.phase === 'waiting_draw')
+  const placementPhaseActive = runeWindowOpen
+  const leaveStablePhaseActive = runesOn && gameState.turn.phase === 'leave_stable_phase'
+  const placementState = gameState.rune?.placement ?? null
+  const [placementClock, setPlacementClock] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!placementPhaseActive || !placementState) return
+    setPlacementClock(Date.now())
+    const id = window.setInterval(() => setPlacementClock(Date.now()), 250)
+    return () => window.clearInterval(id)
+  }, [placementPhaseActive, placementState?.phaseId])
+
+  const placementMinWaitMs = placementState
+    ? Math.max(0, placementState.minCloseAt - placementClock)
+    : 0
+  const placementMaxWaitMs = placementState
+    ? Math.max(0, placementState.maxCloseAt - placementClock)
+    : 0
+  const myHandCount = myRune?.hand.length ?? 0
+  const myPendingDraw = runeView?.myPendingDraw ?? myRune?.pendingDraw ?? null
+  const drawRevealOpen = Boolean(isMyTurn && myPendingDraw && runeWindowOpen)
+  /** Spec §3.1 step 3: any player holding cards may place during simultaneous placement. */
+  const canPlaceRunes =
+    placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)
+  const hasLeaveStableInHand = Boolean(
+    myRune?.hand.some((card) => card.cardType === 'LEAVE_STABLE'),
+  )
+  const leaveStableSpawnable = Boolean(
+    localPlayerId && canSpawnFromLeaveStable(gameState, localPlayerId),
+  )
+  /** Spec §3.1 step 4 / §11.5: only during leave_stable_phase after placement closed. */
+  const canUseLeaveStable =
+    isMyTurn &&
+    Boolean(onUseLeaveStable) &&
+    hasLeaveStableInHand &&
+    leaveStablePhaseActive &&
+    leaveStableSpawnable
+  const leaveStableCardGreyedOut =
+    isMyTurn && hasLeaveStableInHand && leaveStablePhaseActive && !leaveStableSpawnable
+  const isHandCardSelectable = useCallback(
+    (card: HeldCard) => {
+      if (card.cardType === 'LEAVE_STABLE') {
+        return canUseLeaveStable
+      }
+      if (placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)) {
+        return isBoardMarkerCardType(card.cardType)
+      }
+      return false
+    },
+    [canUseLeaveStable, myHandCount, onPlaceMarker, placementPhaseActive],
+  )
+  const isHandCardPending = useCallback(() => false, [])
+  const getHandCardDisabledTitle = useCallback(
+    (card: HeldCard) => {
+      if (card.cardType !== 'LEAVE_STABLE' || !leaveStableCardGreyedOut) return undefined
+      const inBase = gameState.tokens.some(
+        (token) => token.playerId === localPlayerId && token.state === 'in_base',
+      )
+      if (!inBase) return 'Không còn quân trong chuồng'
+      return 'Ô xuất phát đã có quân của bạn'
+    },
+    [gameState.tokens, leaveStableCardGreyedOut, localPlayerId],
+  )
+  const canSelectHandCards = canPlaceRunes || canUseLeaveStable || leaveStableCardGreyedOut
+  const effectiveCanRoll = canRoll
+  const placementReadyCount = placementState
+    ? gameState.players.filter((player) => placementState.readyByPlayer[player.id]).length
+    : 0
+  const iConfirmedPlacement = Boolean(
+    localPlayerId && placementState?.readyByPlayer[localPlayerId],
+  )
+  const canDrawDuringTurn =
+    isMyTurn && runeWindowOpen && Boolean(onDrawCards) && !myPendingDraw
+
   const isWaitingChoice =
     isLocalPlayersTurn &&
     !isPresentingDice &&
@@ -133,12 +274,48 @@ export default function GameView({
     gameState.turn.phase === 'waiting_choice' &&
     gameState.turn.legalMoves.length > 1
 
+  const isSwapChoicePhase =
+    gameState.turn.phase === 'waiting_swap_choice' && Boolean(gameState.turn.pendingSwap)
+
+  const canChooseSwapTarget =
+    isSwapChoicePhase &&
+    isMyTurn &&
+    !isPresentingDice &&
+    Boolean(onChooseSwap)
+
+  const isWaitingSwap = canChooseSwapTarget
+
+  const swapChoiceTargetIds = useMemo(() => {
+    if (!isSwapChoicePhase || !gameState.turn.pendingSwap) return []
+    const displayedId = gameState.turn.pendingSwap.displayedIdentityId
+    const activatorId = gameState.turn.pendingSwap.activatorTokenId
+    return gameState.tokens
+      .filter(
+        (t) =>
+          t.playerId === displayedId &&
+          t.state === 'on_track' &&
+          t.id !== activatorId,
+      )
+      .map((t) => t.id)
+  }, [gameState.tokens, gameState.turn.pendingSwap, isSwapChoicePhase])
+
+  const swapPreviewTokenIds = useMemo(() => {
+    if (!isSwapChoicePhase || !gameState.turn.pendingSwap) return []
+    return [gameState.turn.pendingSwap.activatorTokenId, ...swapChoiceTargetIds]
+  }, [gameState.turn.pendingSwap, isSwapChoicePhase, swapChoiceTargetIds])
+
   const selectableTokenIds = useMemo(() => {
+    if (isWaitingSwap) {
+      return swapChoiceTargetIds
+    }
     if (!isWaitingChoice) return []
     const seen = new Set<string>()
     gameState.turn.legalMoves.forEach((m) => seen.add(m.tokenId))
     return Array.from(seen)
-  }, [gameState.turn.legalMoves, isWaitingChoice])
+  }, [gameState.turn.legalMoves, isWaitingChoice, isWaitingSwap, swapChoiceTargetIds])
+
+  const tokenSelectionMode = isSwapChoicePhase ? 'swap' : 'move'
+  const swapActivatorTokenId = gameState.turn.pendingSwap?.activatorTokenId ?? null
 
   const moveIdByTokenId = useMemo(() => {
     const map = new Map<string, string>()
@@ -148,15 +325,11 @@ export default function GameView({
     return map
   }, [gameState.turn.legalMoves])
 
-  const currentTurnPlayer = gameState.players.find((p) => p.id === gameState.turn.currentPlayerId) ?? null
   const displayedTurnPlayer =
     gameState.players.find((p) => p.id === displayedTurnPlayerId) ?? currentTurnPlayer
   const displayedFinishOrder = displayedFinishOrderIds
     .map((id) => gameState.players.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
-  const localPlayer: Player | null = localPlayerId
-    ? gameState.players.find((p) => p.id === localPlayerId) ?? null
-    : gameState.players[0] ?? displayedTurnPlayer
 
   const finishOrderReady = useMemo(
     () => finishOrderIds.every((id) => displayedFinishOrderIds.includes(id)),
@@ -185,10 +358,6 @@ export default function GameView({
 
   const avatarFor = (playerId: string | undefined) =>
     playerId ? (avatarsByPlayerId[playerId] ?? null) : null
-
-  const isMyTurn = localPlayer
-    ? gameState.turn.currentPlayerId === localPlayer.id
-    : isLocalPlayersTurn
 
   const returnDestinationLabel = backHref.startsWith('/lobby/') ? 'lobby' : 'trang chủ'
   const showEndOverlay =
@@ -307,7 +476,7 @@ export default function GameView({
     }, movementDelayMs)
   }, [finishOrderIds, gameState.events, gameState.turn.currentPlayerId, gameState.version, isPresentingDice])
 
-  const showBannerOnce = (text: string) => {
+  const showBannerOnce = (text: string, durationMs = 1000) => {
     if (bannerHideTimerRef.current) {
       window.clearTimeout(bannerHideTimerRef.current)
       bannerHideTimerRef.current = null
@@ -317,7 +486,7 @@ export default function GameView({
     bannerHideTimerRef.current = window.setTimeout(() => {
       setShowYourTurnBanner(false)
       bannerHideTimerRef.current = null
-    }, 1000)
+    }, durationMs)
   }
 
   const showTurnBannerAndRollSync = (text: string) => {
@@ -358,6 +527,95 @@ export default function GameView({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  const isWaitingRollPhase =
+    gameState.turn.phase === 'waiting_roll' || gameState.turn.phase === 'leave_stable_phase'
+
+  const showRollCountdown =
+    isMyTurn &&
+    effectiveCanRoll &&
+    !isPresentingDice &&
+    gameState.status === 'playing' &&
+    isWaitingRollPhase
+
+  const rollCountdownPhaseKey = `${gameState.turn.id}:${gameState.turn.phase}:roll`
+  const rollCountdown = usePhaseCountdown(
+    showRollCountdown,
+    rollCountdownPhaseKey,
+    TURN_ROLL_TIMEOUT_MS,
+  )
+
+  const moveChoiceCountdownPhaseKey = `${gameState.turn.id}:choice`
+  const moveChoiceCountdown = usePhaseCountdown(
+    isWaitingChoice,
+    moveChoiceCountdownPhaseKey,
+    TURN_MOVE_CHOICE_TIMEOUT_MS,
+  )
+
+  useEffect(() => {
+    if (rollTimeoutRef.current) {
+      window.clearTimeout(rollTimeoutRef.current)
+      rollTimeoutRef.current = null
+    }
+    if (
+      !isMyTurn ||
+      !effectiveCanRoll ||
+      isPresentingDice ||
+      gameState.status !== 'playing' ||
+      !isWaitingRollPhase
+    ) {
+      return
+    }
+
+    rollTimeoutRef.current = window.setTimeout(() => {
+      rollTimeoutRef.current = null
+      onRoll()
+    }, TURN_ROLL_TIMEOUT_MS)
+
+    return () => {
+      if (rollTimeoutRef.current) {
+        window.clearTimeout(rollTimeoutRef.current)
+        rollTimeoutRef.current = null
+      }
+    }
+  }, [
+    effectiveCanRoll,
+    gameState.status,
+    gameState.turn.id,
+    gameState.turn.phase,
+    isMyTurn,
+    isPresentingDice,
+    isWaitingRollPhase,
+    onRoll,
+  ])
+
+  useEffect(() => {
+    if (moveChoiceTimeoutRef.current) {
+      window.clearTimeout(moveChoiceTimeoutRef.current)
+      moveChoiceTimeoutRef.current = null
+    }
+    if (!isWaitingChoice) return
+
+    const firstMove = gameState.turn.legalMoves[0]
+    if (!firstMove) return
+
+    moveChoiceTimeoutRef.current = window.setTimeout(() => {
+      moveChoiceTimeoutRef.current = null
+      onSelectMove(firstMove.id)
+    }, TURN_MOVE_CHOICE_TIMEOUT_MS)
+
+    return () => {
+      if (moveChoiceTimeoutRef.current) {
+        window.clearTimeout(moveChoiceTimeoutRef.current)
+        moveChoiceTimeoutRef.current = null
+      }
+    }
+  }, [
+    gameState.turn.id,
+    gameState.turn.legalMoves,
+    isWaitingChoice,
+    onSelectMove,
+  ])
+
   useEffect(() => {
     if (!autoResolveRolled || isPresentingDice) return
     if (resolveTimerRef.current) {
@@ -388,15 +646,15 @@ export default function GameView({
   ])
 
   useEffect(() => {
-    canRollRef.current = canRoll
-    if (!canRoll) {
+    canRollRef.current = effectiveCanRoll
+    if (!effectiveCanRoll) {
       setShowRollButton(false)
       return
     }
     if (!isSequencingRoll) {
       setShowRollButton(true)
     }
-  }, [canRoll, isSequencingRoll])
+  }, [effectiveCanRoll, isSequencingRoll])
 
   useEffect(() => {
     const presentationJustFinished = wasPresentingRef.current && !isPresentingDice
@@ -488,10 +746,216 @@ export default function GameView({
   )
 
   const handleSelectToken = (tokenId: string) => {
-    if (isPresentingDice || !isWaitingChoice) return
+    if (isPresentingDice) return
+    if (isWaitingSwap) {
+      onChooseSwap?.(tokenId)
+      return
+    }
+    if (!isWaitingChoice) return
     const moveId = moveIdByTokenId.get(tokenId)
     if (moveId) onSelectMove(moveId)
   }
+
+  const validPlacementCells = useMemo(() => {
+    if (!runesOn || !canPlaceRunes) return []
+    return listValidPlacementCellIds(gameState)
+  }, [canPlaceRunes, gameState, runesOn])
+
+  const selectedPlacementCard = useMemo(() => {
+    if (!myRune || !selectedHeldCardId) return null
+    return myRune.hand.find((card) => card.heldCardId === selectedHeldCardId) ?? null
+  }, [myRune, selectedHeldCardId])
+
+  const runePlacementActive = Boolean(
+    selectedHeldCardId && canPlaceRunes && !isEditorActive,
+  )
+
+  const resetPlacementUi = useCallback(() => {
+    setPlacementCellId(null)
+    setPlacementConfirmCellId(null)
+    setHoveredPlacementCellId(null)
+  }, [])
+
+  const clearPlacementSelection = useCallback(() => {
+    setSelectedHeldCardId(null)
+    setCardPreviewId(null)
+    resetPlacementUi()
+  }, [resetPlacementUi])
+
+  const handleCardSelect = useCallback(
+    (heldCardId: string) => {
+      const card = myRune?.hand.find((entry) => entry.heldCardId === heldCardId)
+      if (card?.cardType === 'LEAVE_STABLE') {
+        if (canUseLeaveStable) {
+          onUseLeaveStable?.(heldCardId)
+          setPlacementNotice(null)
+          return
+        }
+        return
+      }
+
+      if (!canPlaceRunes) {
+        if (!placementPhaseActive) {
+          setPlacementNotice('Chỉ đặt rune trong pha đặt thẻ.')
+        } else if (myHandCount <= 0) {
+          setPlacementNotice('Bạn không còn thẻ trong tay.')
+        }
+        return
+      }
+
+      if (card && !isBoardMarkerCardType(card.cardType)) {
+        setPlacementNotice('Thẻ này không đặt lên bàn được.')
+        return
+      }
+      if (selectedHeldCardId === heldCardId && cardPreviewId === null && placementConfirmCellId === null) {
+        clearPlacementSelection()
+        setPlacementNotice(null)
+        return
+      }
+      setSelectedHeldCardId(heldCardId)
+      setCardPreviewId(null)
+      setPlacementConfirmCellId(null)
+      setPlacementCellId(null)
+      setHoveredPlacementCellId(null)
+      setPlacementNotice(null)
+    },
+    [
+      canPlaceRunes,
+      canUseLeaveStable,
+      cardPreviewId,
+      clearPlacementSelection,
+      isHandCardPending,
+      myHandCount,
+      myRune?.hand,
+      onUseLeaveStable,
+      placementConfirmCellId,
+      placementPhaseActive,
+      selectedHeldCardId,
+    ],
+  )
+
+  const handleCardPreview = useCallback(
+    (heldCardId: string) => {
+      const card = myRune?.hand.find((entry) => entry.heldCardId === heldCardId)
+      if (!canPlaceRunes || !card || !isBoardMarkerCardType(card.cardType)) return
+      setSelectedHeldCardId(null)
+      setCardPreviewId(heldCardId)
+      setPlacementConfirmCellId(null)
+      setPlacementCellId(null)
+      setHoveredPlacementCellId(null)
+    },
+    [canPlaceRunes, myRune?.hand],
+  )
+
+  const handlePreviewPickLocation = useCallback(() => {
+    if (!cardPreviewId) return
+    setSelectedHeldCardId(cardPreviewId)
+    setCardPreviewId(null)
+  }, [cardPreviewId])
+
+  const handlePreviewCancel = useCallback(() => {
+    if (placementConfirmCellId !== null) {
+      setPlacementConfirmCellId(null)
+      setPlacementCellId(null)
+      setHoveredPlacementCellId(null)
+      return
+    }
+    setCardPreviewId(null)
+  }, [placementConfirmCellId])
+
+  const handlePlacementCell = (cellId: number) => {
+    if (!selectedHeldCardId) return
+    setPlacementCellId(cellId)
+    setPlacementConfirmCellId(cellId)
+  }
+
+  const commitPlacement = (displayedIdentityId: string) => {
+    if (!selectedHeldCardId || placementConfirmCellId === null) return
+    pendingPlacementRef.current = {
+      heldCardId: selectedHeldCardId,
+      cellId: placementConfirmCellId,
+    }
+    onPlaceMarker?.(selectedHeldCardId, placementConfirmCellId, displayedIdentityId)
+    setPlacementConfirmCellId(null)
+    setPlacementCellId(null)
+    setHoveredPlacementCellId(null)
+    setPlacementNotice(null)
+  }
+
+  const previewOverlayCard = useMemo(() => {
+    if (!myRune) return null
+    const previewId = cardPreviewId ?? (placementConfirmCellId !== null ? selectedHeldCardId : null)
+    if (!previewId) return null
+    return myRune.hand.find((card) => card.heldCardId === previewId) ?? null
+  }, [cardPreviewId, myRune, placementConfirmCellId, selectedHeldCardId])
+
+  const previewOverlayOpen = cardPreviewId !== null || placementConfirmCellId !== null
+  const previewOverlayMode = placementConfirmCellId !== null ? 'confirm' : 'preview'
+  const hideRollDuringRunePlacement = previewOverlayOpen || runePlacementActive
+
+  useEffect(() => {
+    if (gameState.turn.phase !== 'placement_phase') {
+      clearPlacementSelection()
+      pendingPlacementRef.current = null
+      setPlacementNotice(null)
+    }
+  }, [clearPlacementSelection, gameState.turn.phase])
+
+  useEffect(() => {
+    if (!localPlayerId) return
+
+    const deltaEvents =
+      gameState.version !== placementEventsCursorRef.current.version
+        ? gameState.events.slice(placementEventsCursorRef.current.eventCount)
+        : []
+    placementEventsCursorRef.current = {
+      version: gameState.version,
+      eventCount: gameState.events.length,
+    }
+
+    const pending = pendingPlacementRef.current
+    for (const event of deltaEvents) {
+      if (event.playerId !== localPlayerId) continue
+
+      if (event.type === 'marker_placed') {
+        const cellId = event.details?.cellId
+        if (pending && cellId === pending.cellId) {
+          pendingPlacementRef.current = null
+          clearPlacementSelection()
+          setPlacementNotice(null)
+          continue
+        }
+      }
+
+      if (event.type === 'marker_place_rejected') {
+        const reason = placementRejectMessage(event.details?.reason)
+        pendingPlacementRef.current = null
+        if (pending) {
+          setSelectedHeldCardId(pending.heldCardId)
+        }
+        setPlacementNotice(reason)
+      }
+    }
+  }, [clearPlacementSelection, gameState.events, gameState.version, localPlayerId])
+
+  useEffect(() => {
+    if (!gameActionError) return
+    if (/place|marker|rune|cell|thẻ/i.test(gameActionError)) {
+      setPlacementNotice(gameActionError)
+      pendingPlacementRef.current = null
+    }
+  }, [gameActionError])
+
+  useEffect(() => {
+    if (!runePlacementActive) return
+    if (validPlacementCells.length === 0) {
+      setPlacementNotice('Không còn ô trống để đặt rune.')
+      return
+    }
+    setPlacementNotice((prev) =>
+      prev === 'Không còn ô trống để đặt rune.' ? null : prev,
+    )
+  }, [runePlacementActive, validPlacementCells.length])
 
   const handleRollClick = () => {
     setShowRollButton(false)
@@ -525,13 +989,25 @@ export default function GameView({
   const exitConfirmLabel = onLeave ? 'Rời game' : 'Thoát'
 
   return (
+    <RuneTriggerFlashProvider
+      gameState={gameState}
+      localPlayerId={localPlayerId}
+      freezeTokenAnimations={isPresentingDice}
+    >
     <div className="game-hud-shell relative h-screen w-full overflow-hidden">
       <BoardScene
         onDebugInfoChange={showDevMenu ? setCameraDebugInfo : undefined}
         isEditorActive={isEditorActive}
         gameState={gameState}
+        runeView={runeView}
+        localPlayerId={localPlayerId}
         rollTrigger={rollTrigger}
         selectableTokenIds={selectableTokenIds}
+        tokenSelectionMode={tokenSelectionMode}
+        swapActivatorTokenId={swapActivatorTokenId}
+        swapPreviewTokenIds={swapPreviewTokenIds}
+        swapChoiceTargetIds={swapChoiceTargetIds}
+        swapSelectionEnabled={canChooseSwapTarget}
         onSelectToken={handleSelectToken}
         freezeTokenAnimations={isPresentingDice}
         boardImpactFeedback={boardImpactFeedback}
@@ -542,6 +1018,15 @@ export default function GameView({
         onEditorDataChange={setEditorData}
         editorMouseMode={editorMouseMode}
         setEditorMouseMode={setEditorMouseMode}
+        runePlacementActive={runePlacementActive}
+        validPlacementCellIds={validPlacementCells}
+        hoveredPlacementCellId={hoveredPlacementCellId}
+        selectedPlacementCellId={placementCellId}
+        selectedPlacementCardType={selectedPlacementCard?.cardType ?? null}
+        placementPreviewPlayer={localPlayer}
+        placementPreviewAvatar={avatarFor(localPlayer?.id)}
+        onHoverPlacementCell={setHoveredPlacementCellId}
+        onSelectPlacementCell={handlePlacementCell}
       />
 
       <div className="game-hud-overlay">
@@ -560,6 +1045,22 @@ export default function GameView({
                 >
                   <i className="bi bi-gear-fill" aria-hidden="true" />
                 </button>
+                {fullscreen.supported ? (
+                  <button
+                    type="button"
+                    onClick={() => void fullscreen.toggle()}
+                    className="game-hud-settings-btn"
+                    aria-label={fullscreen.active ? 'Thoát toàn màn hình' : 'Toàn màn hình'}
+                    aria-pressed={fullscreen.active}
+                  >
+                    <i
+                      className={
+                        fullscreen.active ? 'bi bi-fullscreen-exit' : 'bi bi-fullscreen'
+                      }
+                      aria-hidden="true"
+                    />
+                  </button>
+                ) : null}
               </div>
             </div>
             <CurrentTurnPanel
@@ -577,15 +1078,146 @@ export default function GameView({
               color={localPlayer?.color ?? 'red'}
               text={bannerText}
             />
-            <RollDiceButton
-              visible={showRollButton && canRoll && gameState.status !== 'finished'}
-              color={localPlayer?.color ?? 'red'}
-              onClick={handleRollClick}
-            />
+            <div className="game-hud-slot game-hud-slot--roll">
+              <RollDiceButton
+                visible={
+                  showRollButton &&
+                  effectiveCanRoll &&
+                  gameState.status !== 'finished' &&
+                  !hideRollDuringRunePlacement &&
+                  !drawRevealOpen
+                }
+                color={localPlayer?.color ?? 'red'}
+                onClick={handleRollClick}
+              />
+            </div>
+            {runesOn && myRune ? (
+              <HandArrayPanel
+                hand={myRune.hand}
+                pendingRewardCount={myRune.pendingRewards.length}
+                drawCount={myRune.drawCount}
+                selectedCardId={selectedHeldCardId}
+                onCardSelect={handleCardSelect}
+                onCardPreview={handleCardPreview}
+                canSelectCards={canSelectHandCards}
+                isCardSelectable={isHandCardSelectable}
+                getCardDisabledTitle={getHandCardDisabledTitle}
+                isCardPending={isHandCardPending}
+                canDraw={
+                  canDrawDuringTurn &&
+                  myRune.hand.length < RUNE_MAX_HAND_SIZE &&
+                  myRune.drawCount < RUNE_MAX_DRAW_PER_PLAYER
+                }
+                onDraw={() => onDrawCards?.(1)}
+                runeActionActive={Boolean(
+                  (isMyTurn && runeWindowOpen) ||
+                    canPlaceRunes ||
+                    canUseLeaveStable ||
+                    leaveStableCardGreyedOut ||
+                    (isMyTurn && hasLeaveStableInHand && placementPhaseActive),
+                )}
+                playerColor={localPlayer?.color ?? 'blue'}
+                drawDisabledTitle={
+                  isMyTurn && runeWindowOpen
+                    ? myPendingDraw
+                      ? 'Xác nhận thẻ đang bốc'
+                      : myRune.hand.length >= RUNE_MAX_HAND_SIZE
+                      ? 'Tay đầy'
+                      : myRune.drawCount >= RUNE_MAX_DRAW_PER_PLAYER
+                        ? 'Hết lượt bốc'
+                        : undefined
+                    : undefined
+                }
+              />
+            ) : null}
             {roomChat}
+            {placementPhaseActive && placementState ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <PhaseCountdownBar
+                  label={
+                    placementMinWaitMs > 0 ? 'Đặt thẻ: xác nhận sau' : 'Đặt thẻ: tự đóng sau'
+                  }
+                  remainingMs={placementMinWaitMs > 0 ? placementMinWaitMs : placementMaxWaitMs}
+                  totalMs={
+                    placementMinWaitMs > 0
+                      ? Math.max(1, placementState.minCloseAt - placementState.openedAt)
+                      : Math.max(1, placementState.maxCloseAt - placementState.minCloseAt)
+                  }
+                  suffix={`${placementReadyCount}/${gameState.players.length} đã xác nhận`}
+                >
+                  {onConfirmPlacementReady ? (
+                    <button
+                      type="button"
+                      className="game-btn btn-outline rune-placement-confirm-btn"
+                      disabled={iConfirmedPlacement}
+                      onClick={onConfirmPlacementReady}
+                    >
+                      <span>{iConfirmedPlacement ? 'Đã xác nhận đặt xong' : 'Xác nhận đặt xong'}</span>
+                    </button>
+                  ) : null}
+                </PhaseCountdownBar>
+              </div>
+            ) : null}
+            {leaveStablePhaseActive && isMyTurn && hasLeaveStableInHand ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <PhaseCountdownBar
+                  label={
+                    canUseLeaveStable
+                      ? 'Chạm Xuất chuồng hoặc tự tung sau'
+                      : 'Tự tung sau (thẻ Xuất chuồng không dùng được)'
+                  }
+                  remainingMs={rollCountdown.remainingMs}
+                  totalMs={TURN_ROLL_TIMEOUT_MS}
+                />
+              </div>
+            ) : null}
+            {showRollCountdown && !leaveStablePhaseActive ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <PhaseCountdownBar
+                  label="Tự tung sau"
+                  remainingMs={rollCountdown.remainingMs}
+                  totalMs={TURN_ROLL_TIMEOUT_MS}
+                />
+              </div>
+            ) : null}
+            {isWaitingChoice ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <PhaseCountdownBar
+                  label="Tự chọn quân sau"
+                  remainingMs={moveChoiceCountdown.remainingMs}
+                  totalMs={TURN_MOVE_CHOICE_TIMEOUT_MS}
+                />
+              </div>
+            ) : null}
+            {placementNotice ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <p className="rune-placement-hint rune-placement-hint--error" role="status" aria-live="polite">
+                  {placementNotice}
+                </p>
+              </div>
+            ) : null}
+            <RuneTriggerFlashOverlay />
           </>
         ) : null}
       </div>
+
+      <RuneDrawRevealOverlay
+        open={drawRevealOpen}
+        card={myPendingDraw}
+        onConfirm={() => onConfirmDraw?.()}
+      />
+
+      <RuneCardPreviewOverlay
+        open={previewOverlayOpen && Boolean(previewOverlayCard) && canPlaceRunes}
+        mode={previewOverlayMode}
+        card={previewOverlayCard}
+        localPlayer={localPlayer ?? gameState.players[0]!}
+        players={gameState.players}
+        avatarsByPlayerId={avatarsByPlayerId}
+        onCancel={handlePreviewCancel}
+        onPickLocation={handlePreviewPickLocation}
+        onPickIdentity={commitPlacement}
+      />
 
       {showDevMenu ? (
         <div className="pointer-events-none absolute right-4 top-4 z-30">
@@ -631,6 +1263,8 @@ export default function GameView({
         open={settingsOpen}
         quality={graphicsQuality}
         onQualityChange={setGraphicsQuality}
+        volume={audioVolume}
+        onVolumeChange={setAudioVolume}
         onClose={() => setSettingsOpen(false)}
       />
 
@@ -644,6 +1278,13 @@ export default function GameView({
         onConfirm={handleExitConfirm}
         onCancel={closeExitConfirm}
       />
+
+      <LandscapeHintOverlay
+        open={landscapeHint.visible && !active}
+        onDismiss={landscapeHint.dismissForNow}
+        onDismissForever={landscapeHint.dismissForever}
+      />
     </div>
+    </RuneTriggerFlashProvider>
   )
 }

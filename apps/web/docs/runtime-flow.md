@@ -3,9 +3,10 @@
 ## Boot
 
 1. `main.tsx` → `App` router.
-2. `AuthProvider` restores the Supabase session and guest id.
-3. `HomePage` uses `usePlayerIdentity()` to derive the active player id and display name.
-4. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
+2. `App` registers `useUiSoundEffects()` — UI click/hover SFX on all routes (unlocks audio on first gesture).
+3. `AuthProvider` restores the Supabase session and guest id.
+4. `HomePage` uses `usePlayerIdentity()` to derive the active player id and display name.
+5. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
 
 ## Lobby flow (`LobbyPage`)
 
@@ -19,17 +20,20 @@
 
 ## Online game flow (`OnlineGamePage`)
 
-1. `useGameSocket(gameId, playerId, accessToken)` → `game:join` on connect.
+1. `useGameSocket(gameId, playerId, accessToken, lobbyPresence)` → `game:join` on connect; re-joins lobby for chat/removal.
 2. **Back** → `/lobby/:lobbyId` (still a lobby member).
 3. **Rời game** → `lobby:leave` + navigate home (forfeit + leave lobby).
 4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect if removed while in match.
-5. `GameView` receives display state from presentation hook.
-6. **Roll:** if `canRoll` (my turn, `waiting_roll`, not presenting dice) → `game:roll`.
-7. Server snapshot with delta `dice_roll` (+ maybe `token_moved` if auto-resolved):
+5. `GameView` receives display state from presentation hook + `runeView` for marker tooltips.
+6. **Rune turn (when enabled):** active player draws → all players place during `placement_phase` (confirm when done) → optional leave-stable → active player rolls — see [Rune system](./rune-system.md). Roll is hidden until placement ends.
+7. **Roll:** if `canRoll` → `game:roll`. After **10s** idle in roll phases, client and server auto-roll; countdown bar shown for active player.
+8. Server snapshot with delta `dice_roll` (+ maybe `token_moved` / `token_stepped` if auto-resolved):
    - Increment `rollTrigger` → `DiceShaker` animates.
    - Tokens frozen until animation completes.
-8. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only (no HUD move list) → `game:choose_move`.
-9. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
+9. **Choice:** if `waiting_choice` and multiple moves and `localPlayerId === currentPlayerId` → arrows on **my** pawns only → `game:choose_move`. After **20s** idle, client and server auto-pick the first legal move; `PhaseCountdownBar` shows remaining time.
+10. **Swap:** if `waiting_swap_choice` → pick target pawn → `game:choose_swap`.
+11. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
+12. **Chat:** `RoomChatPanel` via `useRoomChat` (same lobby id in `sessionStorage`).
 
 ## Local game flow (`LocalGamePage`)
 
@@ -51,6 +55,13 @@ From `dicePresentation.ts`:
 | bucket hold | 1.0s |
 | **Total gate** | ~2.96s |
 
+**SFX during presentation** (client-only, see [Audio](./audio.md)):
+
+| Phase start (approx.) | Sound |
+|-----------------------|-------|
+| shaking (~0.22s) | `game.diceShake` |
+| revealing (~1.74s) | `game.jackpot` if result is 6 |
+
 After gate: apply full snapshot; `BoardPieces` processes delta `token_moved` / `token_captured`.
 
 ## Token animation
@@ -58,6 +69,9 @@ After gate: apply full snapshot; `BoardPieces` processes delta `token_moved` / `
 - `getDeltaEventsSinceVersion` — only new events when `version` bumps.
 - First snapshot after join: skip replaying full history.
 - During `freezeTokenAnimations`: do not advance version cursor or animate.
+- With runes enabled, movement may emit `token_stepped` per cell (marker triggers) before final `token_moved`.
+- `token_moved.details.path` may include `motion: 'teleport'` waypoints for ADVANCE/BACK bursts. Each teleport waypoint is one animation segment (disappear → appear); chains play per link.
+- Dice steps use arc motion (~300ms per segment). Capture plays `game.kill` on `capture_hit` when `token_captured` fires (final dice landing or teleport burst landing).
 
 ## Game rules (display / testing)
 
@@ -65,7 +79,8 @@ Aligned with `@rune-race/game-engine`:
 
 - Spawn on **1** or **6**
 - Extra turn on **6**
-- Finish rank when all tokens in final zone
+- **4** tokens per player in classic mode; **2** in rune mode
+- Finish rank when all of a player's tokens are in the final zone
 - Game ends when **all but one** player have finished
 - Finished players skipped in turn order
 

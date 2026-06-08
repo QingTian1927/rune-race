@@ -3,7 +3,7 @@
  */
 
 import type { ChatMessage } from '../types/chat'
-import type { GameState, GameEvent } from '../types/game'
+import type { ClientGameSnapshot, GameState, GameEvent } from '../types/game'
 import type { LobbySnapshot } from '../types/lobby'
 import type { PlayerColor } from '../types/game'
 
@@ -35,11 +35,7 @@ export interface ServerToClientEvents {
 
   // --- Game ---
   'game:connected': (payload: { playerId: string; gameId: string }) => void
-  'game:state_snapshot': (payload: {
-    version: number
-    state: GameState
-    events: GameEvent[]
-  }) => void
+  'game:state_snapshot': (payload: ClientGameSnapshot) => void
   'game:error': (payload: { message: string; code: string }) => void
   'game:turn_timeout_warning': (payload: { secondsRemaining: number }) => void
 }
@@ -67,6 +63,7 @@ export interface ClientToServerEvents {
     name?: string
     password?: string
     clearPassword?: boolean
+    runesEnabled?: boolean
   }) => void
   'lobby:transfer_host': (payload: {
     playerId: string
@@ -81,6 +78,18 @@ export interface ClientToServerEvents {
   // --- Game ---
   'game:join': (payload: { playerId: string; gameId: string }) => void
   'game:roll': (payload: { playerId: string }) => void
+  'game:draw_cards': (payload: { playerId: string; count: number }) => void
+  'game:confirm_draw': (payload: { playerId: string }) => void
+  'game:finish_draw': (payload: { playerId: string }) => void
+  'game:place_marker': (payload: {
+    playerId: string
+    heldCardId: string
+    cellId: number
+    displayedIdentityId: string
+  }) => void
+  'game:confirm_placement_ready': (payload: { playerId: string }) => void
+  'game:use_leave_stable': (payload: { playerId: string; heldCardId: string }) => void
+  'game:choose_swap': (payload: { playerId: string; targetTokenId: string }) => void
   'game:choose_move': (payload: { playerId: string; moveId: string }) => void
   'game:sync_request': (payload: { playerId: string }) => void
   'game:ping': (payload: { playerId: string }) => void

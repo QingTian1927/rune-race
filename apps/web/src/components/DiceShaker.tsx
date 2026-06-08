@@ -10,6 +10,7 @@ import {
 } from '../lib/dicePresentation'
 import boardLayout from '../../data/board-layout.json'
 import { applyCartoonMaterialsToObject } from '../lib/sceneMaterials'
+import { audioManager } from '../lib/audio/audioManager'
 import type { GraphicsQuality } from '../lib/graphicsQuality'
 import { getGraphicsQualityFlags } from '../lib/graphicsQuality'
 
@@ -275,6 +276,8 @@ export default function DiceShaker({
   const phaseStartRef = useRef<number>(-1)
   const signalRef = useRef<string>('')
   const triggerRef = useRef<number>(rollTrigger)
+  const jackpotPlayedSignalRef = useRef<string | null>(null)
+  const diceShakePlayedSignalRef = useRef<string | null>(null)
 
   const bucketScene = useGLTF(BUCKET_MODEL_PATH).scene
   const diceScene = useGLTF(DICE_MODEL_PATH).scene
@@ -384,6 +387,25 @@ export default function DiceShaker({
       nextPhase = 'revealing'
     } else {
       nextPhase = 'finished'
+    }
+
+    const previousPhase = phaseRef.current
+    if (
+      nextPhase === 'shaking' &&
+      previousPhase !== 'shaking' &&
+      diceShakePlayedSignalRef.current !== signalRef.current
+    ) {
+      diceShakePlayedSignalRef.current = signalRef.current
+      audioManager.play('game.diceShake')
+    }
+    if (
+      nextPhase === 'revealing' &&
+      previousPhase !== 'revealing' &&
+      rollResult === 6 &&
+      jackpotPlayedSignalRef.current !== signalRef.current
+    ) {
+      jackpotPlayedSignalRef.current = signalRef.current
+      audioManager.play('game.jackpot')
     }
 
     phaseRef.current = nextPhase

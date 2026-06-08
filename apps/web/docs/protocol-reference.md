@@ -16,17 +16,30 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | `lobby:leave` | Leave lobby |
 | `lobby:kick` | Host removes player |
 | `lobby:cancel_countdown` | Host stops auto-start timer |
-| `lobby:update_settings` | Host renames room / password |
+| `lobby:update_settings` | Host renames room / password / `runesEnabled` |
 | `lobby:transfer_host` | Host transfer |
 | `lobby:sync_request` | Resync snapshot after reconnect |
+
+### Chat (lobby-scoped)
+
+| Event | When |
+|-------|------|
+| `chat:send` | Send message `{ playerId, lobbyId, text }` |
+| `chat:sync_request` | Request history after connect |
 
 ### Game
 
 | Event | When |
 |-------|------|
 | `game:join` | Enter match (`gameId` from `lobby:game_started`) |
-| `game:roll` | Your turn, phase `waiting_roll` |
+| `game:draw_cards` | Active player, phase `waiting_draw` |
+| `game:finish_draw` | Active player, phase `waiting_draw` — open placement window |
+| `game:place_marker` | Phase `placement_phase` — place held card on shared track |
+| `game:confirm_placement_ready` | Phase `placement_phase` — confirm done placing markers |
+| `game:use_leave_stable` | Active player, phase `leave_stable_phase` — direct-use Xuất Chuồng |
+| `game:roll` | Active player — phase `waiting_roll` or `leave_stable_phase` only (not during `placement_phase`) |
 | `game:choose_move` | Phase `waiting_choice`; `moveId` from snapshot |
+| `game:choose_swap` | Phase `waiting_swap_choice`; target token for SWAP marker |
 | `game:sync_request` | Resync full game state |
 | `game:ping` | Optional heartbeat (no-op on server) |
 
@@ -37,6 +50,7 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | Event | Payload |
 |-------|---------|
 | `lobby:connected` | `{ playerId, lobbyId }` |
+| `lobby:host_secrets` | `{ roomPassword }` — **host only**, for settings UI |
 | `lobby:snapshot` | `LobbySnapshot` |
 | `lobby:start_countdown` | `{ seconds }` |
 | `lobby:start_countdown_cancelled` | `{ reason }` |
@@ -44,16 +58,24 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | `lobby:error` | `{ message, code }` |
 | `lobby:closed` | `{ lobbyId, reason: 'empty' }` |
 | `lobby:kicked` | `{ lobbyId, reason: 'kicked' }` |
-| `lobby:removed` | `{ lobbyId, reason: 'disconnect_timeout' }` |
+| `lobby:removed` | `{ lobbyId, reason: 'left' \| 'disconnect_timeout' }` |
+
+### Chat
+
+| Event | Payload |
+|-------|---------|
+| `chat:history` | `{ lobbyId, messages: ChatMessage[] }` |
+| `chat:message` | `ChatMessage` (user or system) |
+| `chat:error` | `{ message, code }` |
 
 ### Game
 
 | Event | Payload |
 |-------|---------|
 | `game:connected` | `{ playerId, gameId }` |
-| `game:state_snapshot` | `{ version, state, events }` |
+| `game:state_snapshot` | `ClientGameSnapshot` — `{ version, state, events, runeView }` |
 | `game:error` | `{ message, code }` |
-| `game:turn_timeout_warning` | Not emitted in MVP |
+| `game:turn_timeout_warning` | Not emitted; server auto-resolves idle roll (10s) and move choice (20s) via `tickTurnTimeouts` |
 
 ## Client handling rules
 
@@ -61,7 +83,8 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 2. Use **`events` delta** for animations; do not replay entire `state.events` every frame.
 3. On **`dice_roll` in delta**, run presentation gate before showing moves / animating tokens.
 4. **Legal moves** — render from `state.turn.legalMoves` only; never sole client-side derivation online.
-5. **Reconnect** — `lobby:sync_request` / `game:sync_request` immediately.
+5. **Rune secrets** — use `runeView.myMarkers` for your card types; never infer opponent marker types from `state.rune.markers`.
+6. **Reconnect** — `lobby:sync_request` / `game:sync_request` / `chat:sync_request` immediately.
 
 ## Deprecated names (removed)
 

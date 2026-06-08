@@ -1,5 +1,6 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
 import { removePlayerFromGame, rollTurn, resolveTurn, type RollDiceFn } from './engine.js'
+import { chooseMoveWithRunes, rollTurnWithRunes } from './rune-commands.js'
 
 export type GameCommandError = {
   code: string
@@ -25,6 +26,10 @@ export function handleRoll(
   if (state.turn.currentPlayerId !== playerId) {
     return { success: false, error: { code: 'NOT_YOUR_TURN', message: 'Not your turn' }, events: [] }
   }
+  if (state.config.runesEnabled) {
+    return rollTurnWithRunes(state, playerId, rollFn)
+  }
+
   if (state.turn.phase !== 'waiting_roll') {
     return {
       success: false,
@@ -89,6 +94,10 @@ export function handleChooseMove(
   const legal = state.turn.legalMoves.find((m) => m.id === moveId)
   if (!legal) {
     return { success: false, error: { code: 'INVALID_MOVE', message: 'Move is not legal' }, events: [] }
+  }
+
+  if (state.config.runesEnabled) {
+    return chooseMoveWithRunes(state, playerId, moveId)
   }
 
   const before = state

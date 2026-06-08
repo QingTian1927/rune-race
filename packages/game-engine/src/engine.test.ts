@@ -10,6 +10,35 @@ import {
 } from './engine.js'
 
 describe('createInitialGameState', () => {
+  const players = [
+    { id: 'p-red', name: 'R', color: 'red' as const },
+    { id: 'p-blue', name: 'B', color: 'blue' as const },
+  ]
+
+  it('creates four tokens per player in classic mode', () => {
+    const state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-red',
+      runesEnabled: false,
+    })
+
+    expect(state.tokens.filter((t) => t.playerId === 'p-red')).toHaveLength(4)
+    expect(state.tokens.filter((t) => t.playerId === 'p-blue')).toHaveLength(4)
+  })
+
+  it('creates two tokens per player in rune mode', () => {
+    const state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-red',
+      runesEnabled: true,
+    })
+
+    expect(state.tokens.filter((t) => t.playerId === 'p-red')).toHaveLength(2)
+    expect(state.tokens.filter((t) => t.playerId === 'p-blue')).toHaveLength(2)
+  })
+
   it('sorts players by color order and sets first player', () => {
     const state = createInitialGameState({
       gameId: 'g1',

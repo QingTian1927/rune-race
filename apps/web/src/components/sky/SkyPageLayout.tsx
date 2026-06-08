@@ -7,6 +7,8 @@ type SkyPageLayoutProps = {
   onPlayerNameChange: (value: string) => void
   onPlayerNameBlur: () => void
   footer?: ReactNode
+  /** Extra controls rendered at the start of the fixed top nav (e.g. lobby back). */
+  topNavExtra?: ReactNode
 }
 
 export function SkyPageLayout({
@@ -15,6 +17,7 @@ export function SkyPageLayout({
   onPlayerNameChange,
   onPlayerNameBlur,
   footer,
+  topNavExtra,
 }: SkyPageLayoutProps) {
   return (
     <div className="page">
@@ -22,6 +25,7 @@ export function SkyPageLayout({
         name={playerName}
         onNameChange={onPlayerNameChange}
         onNameBlur={onPlayerNameBlur}
+        topNavExtra={topNavExtra}
       />
       {children}
       {footer}

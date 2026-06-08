@@ -19,7 +19,7 @@ export function MyPlayerPanel({ player, avatarEmoji }: MyPlayerPanelProps) {
   if (collapsed) {
     return (
       <div className="game-hud-slot game-hud-slot--self">
-        <div className="game-hud-panel game-hud-panel--collapsed">
+        <div key="collapsed" className="game-hud-panel game-hud-panel--collapsed game-hud-panel--motion">
           <PanelCollapseButton
             collapsed={collapsed}
             expandDirection="left"
@@ -33,7 +33,7 @@ export function MyPlayerPanel({ player, avatarEmoji }: MyPlayerPanelProps) {
 
   return (
     <div className="game-hud-slot game-hud-slot--self">
-      <div className={['game-hud-panel', colorStyles.hudPanel].join(' ')}>
+      <div key="expanded" className={['game-hud-panel game-hud-panel--motion', colorStyles.hudPanel].join(' ')}>
         <div className="game-hud-row game-hud-row--reverse">
           <div className="game-hud-self-copy">
             <p className={HUD_PANEL_LABEL_CLASS}>BẠN</p>

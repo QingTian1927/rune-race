@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import GameView from '../components/GameView'
@@ -21,12 +21,32 @@ function GameLoadingScreen({ message }: { message: string }) {
 export default function OnlineGamePage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
-  const { playerId, accessToken, avatarEmoji, identityReady } = usePlayerIdentity()
+  const { playerId, playerName, accessToken, avatarEmoji, identityReady } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
   const lobbyHref = lobbyId ? `/lobby/${lobbyId}` : '/'
 
-  const { gameState, connected, rollTrigger, roll, chooseMove, isPresentingDice } =
-    useGameSocket(gameId ?? '', playerId, accessToken)
+  const {
+    gameState,
+    runeView,
+    error,
+    connected,
+    rollTrigger,
+    roll,
+    chooseMove,
+    drawCards,
+    confirmDraw,
+    finishDraw,
+    placeMarker,
+    confirmPlacementReady,
+    useLeaveStable,
+    chooseSwap,
+    isPresentingDice,
+  } = useGameSocket(
+    gameId ?? '',
+    playerId,
+    accessToken,
+    lobbyId ? { lobbyId, playerName } : null,
+  )
 
   const {
     messages: chatMessages,
@@ -71,6 +91,17 @@ export default function OnlineGamePage() {
     }
   }, [accessToken, lobbyId, navigate])
 
+  const canRoll = useMemo(() => {
+    if (!gameState || isPresentingDice || gameState.status !== 'playing') return false
+    if (gameState.turn.currentPlayerId !== playerId) return false
+
+    const phase = gameState.turn.phase
+    if (phase === 'waiting_roll') return true
+    if (phase === 'leave_stable_phase') return true
+
+    return false
+  }, [gameState, isPresentingDice, playerId])
+
   if (!gameId) {
     return <GameLoadingScreen message="Thiếu mã game." />
   }
@@ -80,13 +111,6 @@ export default function OnlineGamePage() {
       <GameLoadingScreen message={connected ? 'Đang tải game…' : 'Đang kết nối…'} />
     )
   }
-
-  const isMyTurn = gameState.turn.currentPlayerId === playerId
-  const canRoll =
-    isMyTurn &&
-    !isPresentingDice &&
-    gameState.status === 'playing' &&
-    gameState.turn.phase === 'waiting_roll'
 
   return (
     <GameView
@@ -100,15 +124,24 @@ export default function OnlineGamePage() {
       localPlayerId={playerId}
       localAvatarEmoji={avatarEmoji}
       onLeave={handleLeaveGame}
+      runeView={runeView}
+      onDrawCards={drawCards}
+      onConfirmDraw={confirmDraw}
+      onFinishDraw={finishDraw}
+      onPlaceMarker={placeMarker}
+      onConfirmPlacementReady={confirmPlacementReady}
+      onUseLeaveStable={useLeaveStable}
+      onChooseSwap={chooseSwap}
+      gameActionError={error}
       roomChat={
         lobbyId ? (
           <RoomChatPanel
-            placement="game"
             messages={chatMessages}
             localPlayerId={playerId}
             onSend={sendChatMessage}
             sendError={chatSendError}
             onClearSendError={clearChatSendError}
+            placement="game"
           />
         ) : null
       }

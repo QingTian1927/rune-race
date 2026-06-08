@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useUiSoundEffects } from './hooks/useUiSoundEffects'
 import { SkyRouteLayout } from './components/sky/SkyRouteLayout'
 import HomePage from './pages/HomePage'
 import LobbyPage from './pages/LobbyPage'
@@ -11,6 +12,8 @@ import ProfileViewPage from './pages/ProfileView'
 import ProfileEditPage from './pages/ProfileEdit'
 
 function App() {
+  useUiSoundEffects()
+
   return (
     <BrowserRouter
       future={{

@@ -46,6 +46,10 @@ export function createGatedDisplayState(prev: GameState, incoming: GameState): G
   return {
     ...incoming,
     tokens: prev.tokens,
+    rune:
+      incoming.rune && prev.rune
+        ? { ...incoming.rune, markers: prev.rune.markers }
+        : incoming.rune,
     phase: 'waiting_roll',
     turn: {
       ...incoming.turn,

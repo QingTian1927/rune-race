@@ -1,5 +1,6 @@
 import type { PlayerColor } from '@rune-race/shared'
 import { PLAYER_COLOR_MAP } from './playerColorStyles'
+import { usePresenceTransition } from './usePresenceTransition'
 
 type RollDiceButtonProps = {
   visible: boolean
@@ -9,16 +10,26 @@ type RollDiceButtonProps = {
 
 export function RollDiceButton({ visible, color, onClick }: RollDiceButtonProps) {
   const colorStyles = PLAYER_COLOR_MAP[color]
+  const { render, motionClass } = usePresenceTransition(visible, { enterMs: 240, exitMs: 130 })
 
-  if (!visible) return null
+  if (!render) return null
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={['game-btn game-hud-roll-btn', colorStyles.rollBtn].join(' ')}
+      className={[
+        'game-btn game-hud-roll-btn game-hud-presence',
+        motionClass,
+        colorStyles.rollBtn,
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
-      <span>🎲 TUNG XÚC XẮC</span>
+      <span className="game-hud-roll-icon" aria-hidden>
+        🎲
+      </span>
+      <span>TUNG XÚC XẮC</span>
     </button>
   )
 }
