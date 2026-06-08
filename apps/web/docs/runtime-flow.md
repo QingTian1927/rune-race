@@ -25,7 +25,7 @@
 3. **Rời game** → `lobby:leave` + navigate home (forfeit + leave lobby).
 4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect if removed while in match.
 5. `GameView` receives display state from presentation hook + `runeView` for marker tooltips.
-6. **Rune turn (when enabled):** active player may draw cards; all players with hand cards may place during `placement_phase`; roll button closes draw/placement then rolls — see [Rune system](./rune-system.md).
+6. **Rune turn (when enabled):** active player draws → all players place during `placement_phase` (confirm when done) → optional leave-stable → active player rolls — see [Rune system](./rune-system.md). Roll is hidden until placement ends.
 7. **Roll:** if `canRoll` → `game:roll`.
 8. Server snapshot with delta `dice_roll` (+ maybe `token_moved` / `token_stepped` if auto-resolved):
    - Increment `rollTrigger` → `DiceShaker` animates.
@@ -70,7 +70,8 @@ After gate: apply full snapshot; `BoardPieces` processes delta `token_moved` / `
 - First snapshot after join: skip replaying full history.
 - During `freezeTokenAnimations`: do not advance version cursor or animate.
 - With runes enabled, movement may emit `token_stepped` per cell (marker triggers) before final `token_moved`.
-- Each animated cell landing fires `onImpact` → `game.walk` (~300ms per segment). Capture plays `game.kill` on `capture_hit`.
+- `token_moved.details.path` may include `motion: 'teleport'` waypoints for ADVANCE/BACK bursts. Each teleport waypoint is one animation segment (disappear → appear); chains play per link.
+- Dice steps use arc motion (~300ms per segment). Capture plays `game.kill` on `capture_hit` when `token_captured` fires (final dice landing or teleport burst landing).
 
 ## Game rules (display / testing)
 

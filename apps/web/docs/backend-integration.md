@@ -63,7 +63,7 @@ Works in lobby and in-game (same `lobbyId`). `OnlineGamePage` passes `RoomChatPa
 
 ### Game (`useGameSocket`)
 
-Emit: `game:join`, `game:draw_cards`, `game:finish_draw`, `game:place_marker`, `game:roll`, `game:choose_move`, `game:choose_swap`, `game:sync_request`.
+Emit: `game:join`, `game:draw_cards`, `game:finish_draw`, `game:place_marker`, `game:confirm_placement_ready`, `game:use_leave_stable`, `game:roll`, `game:choose_move`, `game:choose_swap`, `game:sync_request`.
 
 Listen: `game:connected`, `game:state_snapshot`, `game:error`.
 
@@ -96,11 +96,12 @@ Rune marker animations follow the same delta cursor as `tokenMotion.ts` (`token_
 
 | Input | Rule |
 |-------|------|
-| `canRoll` | `turn.currentPlayerId === playerId` + phase in `waiting_roll` / `waiting_draw` / `placement_phase` + `!isPresentingDice` + `status === 'playing'` |
+| `canRoll` | `turn.currentPlayerId === playerId` + phase in `waiting_roll` / `leave_stable_phase` + `!isPresentingDice` + `status === 'playing'` |
 | `localPlayerId` | Move-selection arrows only for this client's pawns when `waiting_choice` with multiple moves |
 | `isPresentingDice` | From `useGameSocket` / `usePresentationGameState`; freezes tokens and delays HUD turn/finish panels |
-| Rune draw | Active player only during `waiting_draw` / `placement_phase` |
+| Rune draw | Active player only during `waiting_draw` |
 | Rune place | Any player with cards in hand during `placement_phase` |
+| Placement confirm | Any player during `placement_phase` via `game:confirm_placement_ready` |
 
 Opponents see board updates from snapshots but not selection arrows, roll button, or your marker card types.
 

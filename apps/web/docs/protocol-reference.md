@@ -32,10 +32,12 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | Event | When |
 |-------|------|
 | `game:join` | Enter match (`gameId` from `lobby:game_started`) |
-| `game:draw_cards` | Your turn, phase `waiting_draw` or `placement_phase` |
-| `game:finish_draw` | Your turn, phase `waiting_draw` — open placement window |
+| `game:draw_cards` | Active player, phase `waiting_draw` |
+| `game:finish_draw` | Active player, phase `waiting_draw` — open placement window |
 | `game:place_marker` | Phase `placement_phase` — place held card on shared track |
-| `game:roll` | Your turn — closes rune window if needed, then rolls when `waiting_roll` |
+| `game:confirm_placement_ready` | Phase `placement_phase` — confirm done placing markers |
+| `game:use_leave_stable` | Active player, phase `leave_stable_phase` — direct-use Xuất Chuồng |
+| `game:roll` | Active player — phase `waiting_roll` or `leave_stable_phase` only (not during `placement_phase`) |
 | `game:choose_move` | Phase `waiting_choice`; `moveId` from snapshot |
 | `game:choose_swap` | Phase `waiting_swap_choice`; target token for SWAP marker |
 | `game:sync_request` | Resync full game state |

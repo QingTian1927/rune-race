@@ -76,12 +76,12 @@ Shared shell for local and online: 3D viewport + warm glass HUD overlay + option
 
 | Prop | Role |
 |------|------|
-| `canRoll` | Page computes: my turn + (`waiting_roll` \| `waiting_draw` \| `placement_phase`) + not presenting dice + game playing |
+| `canRoll` | Page computes: my turn + (`waiting_roll` \| `leave_stable_phase`) + not presenting dice + game playing |
 | `localPlayerId` | Online: restricts move-selection arrows to this client |
 | `isPresentingDice` | From `usePresentationGameState`; gates token motion and parts of HUD timing |
 | `autoResolveRolled` | Local only: auto-pick sole legal move after dice gate |
 | `runeView` | Per-client marker tooltips from snapshot (`RuneClientView`) |
-| `onDrawCards` / `onPlaceMarker` / `onChooseSwap` | Online rune intents via `useGameSocket` |
+| `onDrawCards` / `onPlaceMarker` / `onConfirmPlacementReady` / `onUseLeaveStable` / `onChooseSwap` | Online rune intents via `useGameSocket` |
 | `roomChat` | Optional `RoomChatPanel` slot (online) |
 
 Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`. Player identity comes from the page layer (`usePlayerIdentity()`), not from `localStorage` directly.
@@ -98,8 +98,8 @@ All panels sit in `absolute inset-0 pointer-events-none`; buttons and links use 
 | `MyPlayerPanel` | Bottom-right | Local client identity (`BẠN`); collapsible. |
 | `FinishOrderPanel` | Top-right | Ranked finishers from `token_finished` events; hidden until ≥1 finisher; collapsible. **Display** list is delayed like current-turn panel. |
 | `YourTurnBanner` | Center (~30% from top) | Short auto-dismiss (~1s). Shown after presentation completes when it is the local player's turn, or after turn advances to local player. Synced with roll button reveal when applicable. Uses authoritative `gameState.turn.currentPlayerId` for ownership (not delayed HUD state). |
-| `RollDiceButton` | Bottom-center | Visible when `canRoll`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. During rune draw/placement, roll also closes the rune window server-side. |
-| `HandArrayPanel` | Bottom-left | Rune hand (max 10), draw button on active player's turn; see [rune-system](./rune-system.md) |
+| `RollDiceButton` | Bottom-center | Visible when `canRoll` (`waiting_roll` or `leave_stable_phase` only); hidden during `placement_phase` and `waiting_draw`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. |
+| `HandArrayPanel` | Bottom-left | Rune hand (max 5), draw button on active player's turn; placement confirm in `GameView`; see [rune-system](./rune-system.md) |
 | `RuneCardPreviewOverlay` | Center overlay | Card preview and placement confirm |
 | `GameSettingsOverlay` | Settings gear | Graphics quality, master volume, fullscreen, landscape hint |
 | `GameEndOverlay` | Center | Rankings + countdown when `status === 'finished'` |

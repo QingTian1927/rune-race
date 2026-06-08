@@ -5,9 +5,9 @@ CƠ CHẾ GIẢ DANH VÀ HỆ THỐNG THẺ RUNE**
 
 *Gameplay Rule & Rune System Specification*
 
-| **Phiên bản**    | 1.1 - Rule Lock: cập nhật Xuất Chuồng và số lượng quân     |
+| **Phiên bản**    | 1.2 - Rule Lock: placement confirm, đá quân, teleport chain |
 |------------------|-----------------------------------------------------------|
-| **Trạng thái**   | Đã cập nhật theo các quyết định gameplay được xác nhận     |
+| **Trạng thái**   | Đã đồng bộ với engine + client MVP (tháng 6/2026)           |
 | **Phạm vi**      | MVP web multiplayer 2-4 người chơi                        |
 | **Mục đích**     | Dùng cho game design, UI/UX và triển khai gameplay server |
 | **Tài liệu nền** | Briefing Rune Race ban đầu và chuỗi xác nhận rule mới     |
@@ -51,7 +51,19 @@ CƠ CHẾ GIẢ DANH VÀ HỆ THỐNG THẺ RUNE**
 | **Quy tắc ưu tiên:** Tài liệu này thay thế các mô tả Rune cũ khi có mâu thuẫn. Luật Cá Ngựa truyền thống đang tồn tại trong MVP vẫn được kế thừa, trừ những điểm được tài liệu này sửa đổi hoặc mở rộng rõ ràng. |
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
-## Thay đổi chính trong phiên bản 1.1
+## Thay đổi chính trong phiên bản 1.2
+
+- **Pha đặt thẻ:** Mỗi người có nút **Xác nhận đặt xong**; sau tối thiểu 5 giây, nếu mọi người đã xác nhận thì pha đặt đóng sớm. Tung xúc xắc chỉ được phép sau khi pha đặt kết thúc (không thể roll để cắt ngắn pha đặt của người khác).
+
+- **Đá quân — di chuyển xúc xắc:** Chỉ đá ở **ô đáp cuối** của lượt; chỉ đá **quân địch**; đáp vào ô có quân cùng màu là **illegal move**. Đi qua ô có quân không đá.
+
+- **Đá quân — teleport Tiến/Lùi:** Chỉ đá ở **điểm kết thúc mỗi link teleport** (mỗi burst); đá cả quân cùng màu lẫn địch. Ô nằm trên đường teleport (không phải điểm dừng) không bị ảnh hưởng.
+
+- **Chuỗi teleport:** Mỗi link chain (Tiến → Tiến → Lùi, v.v.) là một burst riêng, kết thúc bằng một lần teleport và điểm đáp riêng. Khi marker chain kích hoạt giữa burst đang chạy, burst hiện tại kết thúc tại ô đó trước khi stack hiệu ứng tiếp theo.
+
+- **Animation client:** Mỗi waypoint `motion: 'teleport'` trong path phát animation biến mất / xuất hiện riêng; không gộp cả chuỗi thành một nhảy duy nhất.
+
+## Thay đổi trong phiên bản 1.1 (kế thừa)
 
 - Mỗi người chơi có 2 quân ngựa; thắng khi đưa đủ 2 quân về đích.
 
@@ -118,9 +130,9 @@ Tài liệu này đặc tả phiên bản luật Rune Race mới dành cho MVP. 
 |----------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | 1        | Mở lượt bình thường   | Xử lý thẻ trong hand array đã hết hạn của người chơi đang đến lượt trước khi người này bốc, đặt hoặc dùng thẻ.                            |
 | 2        | Bốc thẻ               | Người chơi đang đến lượt có thể bốc 0 hoặc nhiều thẻ ngẫu nhiên, miễn tổng lượt bốc cá nhân chưa vượt 25 và hand array chưa vượt 10 thẻ.  |
-| 3        | Pha đặt thẻ đồng thời | Tất cả người chơi đang giữ thẻ đặt được có thể rải không giới hạn số thẻ còn hạn xuống các ô hợp lệ. Người chơi được phép giữ lại thẻ.  |
+| 3        | Pha đặt thẻ đồng thời | Tất cả người chơi đang giữ thẻ đặt được có thể rải không giới hạn số thẻ còn hạn xuống các ô hợp lệ. Mỗi người có thể bấm **Xác nhận đặt xong**. Pha đóng sau tối thiểu 5 giây khi mọi người đã xác nhận, hoặc sau tối đa 30 giây. |
 | 4        | Cửa sổ dùng Xuất Chuồng | Sau pha đặt marker, người đang đến lượt có thể bấm một hoặc nhiều thẻ Xuất Chuồng đang giữ. Mỗi lần bấm đều tiêu hao thẻ ngay.            |
-| 5        | Tung xúc xắc          | Chỉ người đang đến lượt tung xúc xắc.                                                                                                     |
+| 5        | Tung xúc xắc          | Chỉ người đang đến lượt tung xúc xắc, **sau khi** pha đặt đã đóng. Không được tung trong `placement_phase`.                               |
 | 6        | Chọn quân ngựa        | Người đang đến lượt chọn một quân ngựa hợp lệ theo luật Cá Ngựa truyền thống và các trạng thái hiện tại.                                  |
 | 7        | Di chuyển từng bước   | Quân ngựa nhảy theo số xúc xắc. Server resolve từng ô và xử lý marker trên đường đi theo luật tại Mục 8.                                  |
 | 8        | Kết thúc lượt         | Cập nhật bộ đếm trạng thái, vòng đời marker và các hiệu ứng liên quan.                                                                    |
@@ -230,6 +242,20 @@ Bộ Rune phiên bản mới gồm 11 loại thẻ. Thẻ Nhân đôi bước đ
 
 Nếu nhiều người chơi gửi yêu cầu đặt marker vào cùng một ô còn trống trong cùng pha, server chấp nhận yêu cầu đến sớm nhất. Các yêu cầu đến sau thất bại; thẻ tương ứng vẫn nằm trong array của người đặt thất bại và không bị tiêu hao.
 
+## 6.4. Xác nhận đặt xong và đóng pha sớm
+
+- Cửa sổ placement: tối thiểu **5 giây** (`minCloseAt`), tối đa **30 giây** (`maxCloseAt`). Server tick mỗi giây để đóng khi hết hạn hoặc khi đủ điều kiện đóng sớm.
+
+- Mỗi người chơi có thể bấm **Xác nhận đặt xong** (`game:confirm_placement_ready`) một lần trong pha. Trạng thái lưu trong `placement.readyByPlayer[playerId]`.
+
+- **Đóng sớm:** Khi `now >= minCloseAt` **và** mọi người trong ván đã xác nhận → server đóng placement phase ngay (chuyển sang `leave_stable_phase` hoặc `waiting_roll`).
+
+- **Đóng theo hạn:** Khi `now >= maxCloseAt` → đóng placement bất kể ai chưa xác nhận.
+
+- **Tung xúc xắc trong placement:** Không được phép. `game:roll` trả lỗi `PLACEMENT_NOT_CLOSED` cho đến khi placement đã đóng. Chỉ người đang đến lượt mới roll sau đó.
+
+- Khi placement kết thúc, client **bỏ chọn thẻ** đang chọn trong hand array để tránh che nút roll.
+
 # 7. Cơ chế giả danh
 
 ## 7.1. Phạm vi áp dụng
@@ -310,6 +336,36 @@ resolveTraditionalRuleIfApplicable(horse)</th>
 - Nếu đang lùi và gặp thêm Lùi, số bước lùi mới được cộng dồn với số bước lùi còn lại.
 
 - Marker dừng đúng ô được kiểm tra sau khi mọi bước chuyển động hiện tại kết thúc, bất kể điểm dừng sinh ra từ xúc xắc, Tiến hay Lùi.
+
+## 8.4. Quy tắc đá quân (capture / kick)
+
+### Di chuyển xúc xắc (bước thường)
+
+| Tình huống | Kết quả |
+|------------|---------|
+| Đi **qua** ô có quân (cùng màu hoặc khác màu) | Không đá |
+| **Đáp** ô có quân **khác màu** (ô cuối lượt) | Đá về chuồng |
+| **Đáp** ô có quân **cùng màu** | Illegal move — không cho chọn nước đi |
+
+Capture chỉ chạy **một lần** sau khi hết bước xúc xắc (và chain rune nếu có), tại ô đáp cuối cùng.
+
+### Di chuyển teleport (Tiến / Lùi — rune burst)
+
+| Tình huống | Kết quả |
+|------------|---------|
+| Quân nằm **trên đường** burst (ô trung gian, không phải điểm dừng) | Không bị ảnh hưởng |
+| Quân nằm ở **điểm kết thúc** mỗi link teleport | Bị đá ngay (cùng màu **hoặc** khác màu) |
+| Teleport đáp vào ô có marker Tiến/Lùi khác | Chain tiếp tục (effect stacking) |
+
+Mỗi link trong chuỗi chain là một **burst** riêng: engine ghi một waypoint `motion: 'teleport'` cho mỗi điểm dừng burst. Nếu marker chain (Tiến/Lùi) kích hoạt **giữa** burst đang chạy, burst hiện tại kết thúc tại ô đó (teleport + kick landing) rồi burst mới bắt đầu.
+
+## 8.5. Path animation cho client
+
+- Bước xúc xắc: `motion: 'step'` — animate từng ô.
+
+- Mỗi kết thúc burst Tiến/Lùi: `motion: 'teleport'` — animation biến mất tại điểm bắt đầu link, xuất hiện tại điểm đích link.
+
+- Chuỗi nhiều teleport liên tiếp (ví dụ Tiến rồi Lùi): client phát **từng segment** teleport; không gộp thành một nhảy từ điểm đầu tới điểm cuối chuỗi.
 
 # 9. Quy tắc chi tiết theo từng thẻ
 
@@ -488,11 +544,19 @@ Nếu quân của A bị Đóng băng trong lượt của B, hai lượt bình t
 
 - Hiển thị trạng thái pha rõ ràng để mọi người biết đang được phép rải marker.
 
+- Hiển thị đồng hồ đếm ngược placement (5–30 giây) và số người đã **Xác nhận đặt xong** (ví dụ `2/4`).
+
+- Nút **Xác nhận đặt xong** gửi `game:confirm_placement_ready`. Sau khi bấm, nút disabled cho đến hết pha.
+
 - Khi chọn một thẻ đặt được trong array, highlight các ô đường đi chung hợp lệ và ẩn hoặc khóa các ô không hợp lệ. Xuất Chuồng không mở giao diện chọn ô.
 
 - Khi người chơi chọn ô, mở bước chọn danh tính hiển thị trước khi gửi yêu cầu đặt marker.
 
 - Nếu server từ chối do ô vừa bị người khác chiếm trước, giữ nguyên thẻ trong array và thông báo đặt thất bại.
+
+- **Nút tung xúc xắc ẩn** trong suốt `placement_phase`. Chỉ hiện lại sau khi placement đóng (`waiting_roll` hoặc `leave_stable_phase`).
+
+- Khi placement kết thúc, client tự bỏ chọn thẻ trong hand array.
 
 
 ## 11.5. Tương tác dùng thẻ Xuất Chuồng
@@ -509,9 +573,13 @@ Nếu quân của A bị Đóng băng trong lượt của B, hai lượt bình t
 
 ## 11.6. Animation khi kích hoạt
 
-- Quân ngựa di chuyển theo từng ô để người chơi nhìn thấy chuỗi Rune được resolve theo thứ tự.
+- Quân ngựa di chuyển theo từng ô (bước xúc xắc) để người chơi nhìn thấy chuỗi Rune được resolve theo thứ tự.
+
+- **Teleport Tiến/Lùi:** Mỗi waypoint `motion: 'teleport'` trong `token_moved.details.path` phát animation riêng — quân chìm xuống / biến mất tại điểm bắt đầu link, xuất hiện tại điểm đích link. Chuỗi chain nhiều link (Tiến → Lùi, Tiến → Tiến → Lùi, …) phát **lần lượt từng link**, không gộp một nhảy tới ô cuối.
 
 - Khi marker kích hoạt, marker biến mất và animation ngắn thể hiện hiệu ứng: mũi tên tiến, mũi tên lùi, lớp Khiên, đóng băng, về chuồng hoặc đổi chỗ.
+
+- Đá quân (`token_captured`) animate khi có capture tại điểm đáp teleport hoặc đáp cuối xúc xắc.
 
 - Animation được phép tiết lộ hiệu ứng vừa xảy ra nhưng không bao giờ tiết lộ người đặt thật.
 
@@ -572,13 +640,24 @@ Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất 
 | pendingRewards        | CardType\[\]     | Hàng chờ thưởng trung thực; có thể tích lũy nhiều thẻ.            |
 | honestPlacementStreak | number           | 0-4 trước khi tạo thưởng; reset khi giả danh hoặc sau khi thưởng. |
 
-## 12.6. Sự kiện server chính
+## 12.6. PlacementPhaseState
+
+| **Trường**     | **Kiểu dữ liệu**      | **Ý nghĩa**                                                          |
+|----------------|-----------------------|----------------------------------------------------------------------|
+| phaseId        | string                | ID pha placement hiện tại.                                           |
+| openedAt       | number                | Timestamp mở pha.                                                    |
+| minCloseAt     | number                | Sớm nhất có thể đóng sớm (openedAt + 5s).                            |
+| maxCloseAt     | number                | Đóng bắt buộc (openedAt + 30s).                                      |
+| readyByPlayer  | Record\<string, bool\> | `playerId → true` khi người đó đã bấm Xác nhận đặt xong.           |
+
+## 12.7. Sự kiện server chính
 
 | **Event**              | **Ý nghĩa**                                                                |
 |------------------------|----------------------------------------------------------------------------|
 | TURN_STARTED           | Bắt đầu lượt bình thường; xóa held card hết hạn và cập nhật TTL liên quan. |
 | CARDS_DRAWN            | Người đang đến lượt bốc một hoặc nhiều thẻ.                                |
 | PLACEMENT_PHASE_OPENED | Mở quyền đặt đồng thời cho tất cả người chơi với các thẻ tạo marker.       |
+| PLACEMENT_READY_CONFIRMED | Một người chơi bấm Xác nhận đặt xong; cập nhật `readyByPlayer`.          |
 | MARKER_PLACE_REQUESTED | Client gửi card instance, cellId và displayedIdentityId.                   |
 | MARKER_PLACED          | Server chấp nhận marker đầu tiên tại ô.                                    |
 | MARKER_PLACE_REJECTED  | Server từ chối vì ô không hợp lệ hoặc đã bị chiếm; held card không mất.    |
@@ -621,6 +700,13 @@ Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất 
 | TC-24  | Chuỗi trung thực            | A đặt marker chính danh trong 5 lượt đặt liên tiếp; lượt không đặt xen giữa.  | Lượt không đặt giữ streak; sau mốc 5 tạo một support reward và reset streak.             |
 | TC-25  | Giả danh phá streak         | A có streak 4 nhưng đặt ít nhất một marker giả danh.                          | Streak trở về 0.                                                                         |
 | TC-26  | Điều kiện chiến thắng       | A đưa đủ 2 quân ngựa về đích.                                                 | A được xác định là người chiến thắng theo rule mới.                                      |
+| TC-27  | Placement confirm           | 4 người; sau 5s tất cả bấm Xác nhận đặt xong.                                 | Placement đóng sớm; phase chuyển sang roll/leave-stable; không còn `placement_phase`.     |
+| TC-28  | Roll trong placement        | Active player bấm roll khi vẫn `placement_phase`.                           | Server từ chối `PLACEMENT_NOT_CLOSED`; xúc xắc không được tung.                         |
+| TC-29  | Xúc xắc — đi qua            | Ngựa đi qua ô có quân địch/cùng màu nhưng đáp ô khác.                         | Không có `token_captured`.                                                               |
+| TC-30  | Xúc xắc — đáp cùng màu      | Legal move list không chứa ô có quân cùng màu.                                | Không thể chọn nước đi đáp lên quân đồng đội.                                            |
+| TC-31  | Teleport — đi qua           | BACK_4 đi qua ô có quân; đáp ô khác.                                          | Quân trên đường không bị đá; chỉ kick nếu đứng ở điểm dừng teleport.                     |
+| TC-32  | Teleport — đáp cùng màu     | ADVANCE đáp ô có quân cùng màu.                                               | Quân bị đá về chuồng (`token_captured`).                                                 |
+| TC-33  | Chain Tiến → Lùi            | Tiến rồi chain Lùi; path có 2 waypoint teleport.                              | Client phát 2 animation teleport riêng; engine ghi 2 link trong path.                    |
 
 # 14. Phạm vi kế thừa, giới hạn và điểm cần lưu ý
 
@@ -651,7 +737,10 @@ Các xử lý Cá Ngựa nền đã có trong MVP tiếp tục được sử d�
 | Quota bốc         | Tối đa 25 lượt bốc ngẫu nhiên cho mỗi người chơi trong một ván.                                                    |
 | Hand array        | Tối đa 5 thẻ còn hạn; thẻ chưa đặt hoặc chưa dùng hết hạn sau 2 lượt bình thường tiếp theo của chủ thẻ.           |
 | Lượt thưởng số 6  | Chỉ lặp từ tung xúc xắc; không bốc, không mở placement phase và không dùng Xuất Chuồng.                               |
-| Placement phase   | Mở sau khi active player bốc; mọi người đặt đồng thời các thẻ tạo marker, không giới hạn số thẻ đặt.                  |
+| Placement phase   | Mở sau khi active player bốc; mọi người đặt đồng thời; min 5s / max 30s; đóng sớm khi tất cả xác nhận; roll bị chặn cho đến khi đóng. |
+| Capture xúc xắc   | Chỉ ô đáp cuối; chỉ địch; cùng màu = illegal move.                                                                  |
+| Capture teleport  | Chỉ điểm dừng mỗi link burst; cùng màu và địch đều bị đá.                                                             |
+| Teleport chain    | Mỗi link burst = một waypoint teleport; animation client từng link.                                                    |
 | Ô hợp lệ          | Chỉ ô đường đi chung; không ô đang có ngựa, không đường về đích riêng, không ô đã có marker.                       |
 | Xung đột ô        | Request server đến trước thắng; request sau thất bại và giữ thẻ.                                                   |
 | Giả danh          | Áp dụng cho mọi marker; không áp dụng cho Xuất Chuồng vì thẻ này dùng trực tiếp. True placer không bao giờ bị lộ.      |

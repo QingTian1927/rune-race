@@ -74,7 +74,8 @@ On `game:join`, the socket also joins `game:{gameId}`. Clients typically remain 
 
 - **`createGame`:** passes `runesEnabled` from lobby into `GameState.config`.
 - **`drawCards` / `finishDraw` / `placeMarker` / `chooseSwap`:** delegate to `@rune-race/game-engine` rune commands.
-- **`roll`:** `rollTurnWithRunes` — closes draw/placement phase if needed, then rolls; may auto-resolve single legal move.
+- **`roll`:** `rollTurnWithRunes` — rejects roll during `placement_phase` (`PLACEMENT_NOT_CLOSED`); may close `leave_stable_phase`; may auto-resolve single legal move.
+- **`tickPlacementPhases`:** called every 1s from `index.ts` — auto-close placement at max window or when all players confirmed after min window.
 - **`chooseMove`:** `chooseMoveWithRunes` — stepwise movement when runes enabled.
 - **`onChange`:** emits `game:state_snapshot` via `buildClientGameSnapshot` with **`events` = delta** since the previous state.
 - **`onFinished`:** emits final snapshot, then `lobbyStore.resetAfterGame`.

@@ -89,10 +89,12 @@ When the handshake contains a valid Supabase access token, the server checks tha
 | Event | Payload | Semantics |
 |-------|---------|-----------|
 | `game:join` | `{ playerId, gameId }` | Must be a player in that game |
-| `game:draw_cards` | `{ playerId, count }` | Active player; `waiting_draw` or `placement_phase` |
+| `game:draw_cards` | `{ playerId, count }` | Active player; `waiting_draw` |
 | `game:finish_draw` | `{ playerId }` | Active player; `waiting_draw` → opens placement |
 | `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` | `placement_phase` |
-| `game:roll` | `{ playerId }` | Closes rune window if needed; then roll when `waiting_roll` |
+| `game:confirm_placement_ready` | `{ playerId }` | `placement_phase` — mark player ready; may close early when all ready after min window |
+| `game:use_leave_stable` | `{ playerId, heldCardId }` | Active player; `leave_stable_phase` only |
+| `game:roll` | `{ playerId }` | Active player; `waiting_roll` or `leave_stable_phase`. Fails with `PLACEMENT_NOT_CLOSED` during `placement_phase` |
 | `game:choose_move` | `{ playerId, moveId }` | Phase `waiting_choice`; `moveId` from `legalMoves` |
 | `game:choose_swap` | `{ playerId, targetTokenId }` | Phase `waiting_swap_choice` |
 | `game:sync_request` | `{ playerId }` | Full state resync |
@@ -181,7 +183,7 @@ For authenticated users, `playerId` must match the Supabase user id attached to 
 
 **Chat:** rate limit / validation errors via `chat:error`
 
-**Game:** `JOIN_FAILED`, `ROLL_FAILED`, `MOVE_FAILED`, `DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `SWAP_FAILED`, `SYNC_FAILED`
+**Game:** `JOIN_FAILED`, `ROLL_FAILED`, `MOVE_FAILED`, `DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `PLACEMENT_NOT_CLOSED`, `SWAP_FAILED`, `SYNC_FAILED`
 
 ## Deprecated (do not use)
 

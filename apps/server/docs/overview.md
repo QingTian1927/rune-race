@@ -8,7 +8,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 2. **Lobby:** client emits `lobby:join` (by `lobbyId` or `joinCode`), receives `lobby:snapshot`.
 3. Players pick **color**, toggle **ready**. Host may toggle **runesEnabled**. When all ready → **5s countdown** → game starts.
 4. Server emits `lobby:game_started` with `gameId`; clients navigate to `/game/:gameId` and emit `game:join`.
-5. **Rune gameplay (when enabled):** draw cards → simultaneous placement → roll → move with stepwise marker triggers; see [Rune system](./rune-system.md).
+5. **Rune gameplay (when enabled):** draw cards → simultaneous placement (confirm + 5–30s window) → optional leave-stable → roll → move with stepwise marker triggers and per-link teleport animation; see [Rune system](./rune-system.md).
 6. **Classic flow:** `game:roll` and `game:choose_move`; each accepted action broadcasts `game:state_snapshot`.
 7. **Chat:** lobby-scoped messages via `chat:*` (persisted in memory for the room lifetime).
 8. **Auth/profile:** Supabase email/password, Google, or anonymous auth. Profile data in Supabase; public profiles viewable by id.
@@ -35,7 +35,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 - **Single legal move** after roll: server auto-resolves in one snapshot.
 - **Multiple legal moves:** turn stays in `waiting_choice` until `game:choose_move`.
 - **Runes:** host can disable via lobby setting; when enabled, normal turns include draw + placement before roll.
-- **Finish:** a player is ranked when all 4 tokens are in the final zone (`in_home_lane` or `finished`).
+- **Finish:** a player is ranked when all 2 tokens are in the final zone (`in_home_lane` or `finished`).
 - **Game end:** when **all but one** player have finished (`finishedCount >= playerCount - 1`).
 - **Auth:** when present, the socket handshake token is verified against Supabase and used to bind the socket to that user id.
 - Clients must **not** mutate authoritative state; use snapshots + delta `events` for animation only.

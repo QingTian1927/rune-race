@@ -22,7 +22,7 @@ See `packages/shared/src/types/game.ts` and `types/rune.ts`.
 
 - Main track: **44** steps (from layout JSON `meta.mainTrackSteps`).
 - Home lane: **5** steps per player (`homeLaneStepsPerPlayer`).
-- 4 tokens per player.
+- 2 tokens per player (`TOKENS_PER_PLAYER`).
 - Shared-track cells only for rune marker placement (`board-cells.ts`).
 - Safe tiles and per-color spawn / home-lane entry: see layout `meta` and engine helpers.
 - Pawn colors on the 3D board use **color slot** (not raw player array index).
@@ -42,11 +42,12 @@ See `packages/shared/src/types/game.ts` and `types/rune.ts`.
 
 1. Turn start housekeeping (expire hand cards, marker TTL, freeze ticks, honesty rewards).
 2. **`waiting_draw`** — active player may `game:draw_cards`.
-3. **`placement_phase`** — simultaneous marker placement (5–30s window); any player with hand cards may place.
-4. **`waiting_roll`** — active player `game:roll` (or auto-close after max placement time).
-5. Roll + **stepwise** resolve with marker triggers (`token_stepped`).
-6. **`waiting_swap_choice`** if SWAP marker requires target selection.
-7. Extra turn on **6** skips steps 1–3 (`isBonusTurn`).
+3. **`placement_phase`** — simultaneous marker placement (5–30s min / 30s max, server tick 1s); any player with hand cards may place; each player may `game:confirm_placement_ready`; closes early when all confirmed after min window.
+4. **`leave_stable_phase`** — optional direct-use `LEAVE_STABLE` for active player (skipped if not in hand).
+5. **`waiting_roll`** — active player `game:roll`. Roll is **blocked** during `placement_phase` (`PLACEMENT_NOT_CLOSED`).
+6. Roll + **stepwise** resolve with marker triggers (`token_stepped`).
+7. **`waiting_swap_choice`** if SWAP marker requires target selection.
+8. Extra turn on **6** skips steps 1–4 (`isBonusTurn`).
 
 Phases `resolving_move`, `play_cards`, `turn_end` exist in types; runtime uses the subset above.
 
@@ -56,11 +57,12 @@ Phases `resolving_move`, `play_cards`, `turn_end` exist in types; runtime uses t
 |------|----------|
 | Spawn | Dice **1** or **6**; entry square must be free |
 | Move | Forward by dice value on track / home lane |
-| Capture | Enemy on non-safe tile; captured token → base |
+| Capture (dice) | Enemy only at **final landing** of turn; pass-through does not capture; friendly landing = illegal move |
+| Capture (teleport) | Friendly or enemy at **each teleport burst landing**; pass-through cells unaffected |
 | Home lane | Enter after completing main loop; exact count to finish |
 | Freeze | Token cannot be selected for `RUNE_FREEZE_TURNS` normal turns |
 | Shield | Blocks one capture while active |
-| Player “finished” | All 4 tokens in `in_home_lane` or `finished` → `token_finished` event with rank |
+| Player “finished” | All 2 tokens in `in_home_lane` or `finished` → `token_finished` event with rank |
 | Skip turn | Finished players are skipped in turn order |
 
 ## Game end
@@ -93,7 +95,8 @@ Appended to `GameState.events` (server sends **delta** on updates):
 | `turn_advanced` | `details.nextPlayerId`, `reason` |
 | `cards_drawn` | Rune draw |
 | `held_card_expired` | Hand TTL |
-| `placement_phase_opened` | Placement window |
+| `placement_phase_opened` | Placement window (`minCloseAt`, `maxCloseAt`) |
+| `placement_ready_confirmed` | Player confirmed placement done |
 | `marker_placed` / `marker_place_rejected` | Placement |
 | `marker_expired` / `marker_triggered` | Marker lifecycle |
 | `horse_status_changed` | Shield / freeze |

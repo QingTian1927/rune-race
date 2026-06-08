@@ -1,6 +1,6 @@
 # Rune system (client)
 
-Implementation reference for the Rune layer on the web client. Full gameplay rules: [docs/rune-specs.md](../../../docs/rune-specs.md) (Rule Lock v1.0).
+Implementation reference for the Rune layer on the web client. Full gameplay rules: [docs/rune-specs.md](../../../docs/rune-specs.md) (Rule Lock v1.2).
 
 ## When runes are active
 
@@ -12,18 +12,33 @@ Implementation reference for the Rune layer on the web client. Full gameplay rul
 Normal turn (not bonus from rolling 6):
 
 ```
-waiting_draw → placement_phase → waiting_roll → … → waiting_choice? → resolve
+waiting_draw → placement_phase → leave_stable_phase? → waiting_roll → … → waiting_choice? → resolve
 ```
 
 | Phase | Client action |
 |-------|----------------|
-| `waiting_draw` | Active player may draw cards (`game:draw_cards`) or press roll to skip remaining draw |
-| `placement_phase` | All players with cards in hand may place markers (`game:place_marker`); active player may roll after min window (5s) to close placement |
+| `waiting_draw` | Active player may draw cards (`game:draw_cards`) or finish draw (`game:finish_draw`) |
+| `placement_phase` | All players with cards in hand may place markers (`game:place_marker`); confirm when done (`game:confirm_placement_ready`); **roll hidden** until phase ends |
+| `leave_stable_phase` | Active player may tap `LEAVE_STABLE` (`game:use_leave_stable`) or roll to skip |
 | `waiting_roll` | Active player rolls dice (`game:roll`) |
 | `waiting_choice` | Pick pawn on board → `game:choose_move` |
 | `waiting_swap_choice` | Pick swap target pawn → `game:choose_swap` |
 
-Bonus turn (rolled 6): skips draw/placement → `waiting_roll` with `turn.isBonusTurn === true`.
+Bonus turn (rolled 6): skips draw/placement/leave-stable → `waiting_roll` with `turn.isBonusTurn === true`.
+
+## Placement phase UX
+
+1. HUD shows countdown (5–30s) and ready count (`readyByPlayer`).
+2. Select a card in `HandArrayPanel`.
+3. Tap a valid shared-track cell (`listValidPlacementCellIds` from game-engine).
+4. Choose displayed identity (self or another player).
+5. Confirm in overlay → `placeMarker`.
+6. When finished placing (or with nothing left to place), press **Xác nhận đặt xong** → `confirmPlacementReady`.
+7. When placement closes, hand card selection clears automatically; roll button appears for active player.
+
+**Roll during placement:** Not allowed. `canRoll` is `false` in `placement_phase`. Server returns `PLACEMENT_NOT_CLOSED` if roll is attempted early.
+
+Any seated player with cards may place during simultaneous placement, not only the active player.
 
 ## Snapshot shape
 
@@ -40,14 +55,18 @@ Bonus turn (rolled 6): skips draw/placement → `waiting_roll` with `turn.isBonu
 
 `runeView.myMarkers` lists `{ markerId, cardType }` only for markers **you** placed. Use this for tooltips; opponents see pin + displayed identity only.
 
+`state.rune.placement.readyByPlayer` drives the confirm counter in `GameView`.
+
 ## Socket commands
 
 | Emit | When |
 |------|------|
-| `game:draw_cards` | `{ playerId, count }` — your turn, `waiting_draw` or `placement_phase` |
-| `game:finish_draw` | `{ playerId }` — optional explicit transition `waiting_draw` → `placement_phase` (roll also closes draw) |
+| `game:draw_cards` | `{ playerId, count }` — active player, `waiting_draw` |
+| `game:finish_draw` | `{ playerId }` — active player, `waiting_draw` → opens placement |
 | `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` — during `placement_phase` |
-| `game:choose_swap` | `{ playerId, targetTokenId }` — during `waiting_swap_choice` |
+| `game:confirm_placement_ready` | `{ playerId }` — during `placement_phase` |
+| `game:use_leave_stable` | `{ playerId, heldCardId }` — during `leave_stable_phase` only |
+| `game:roll` | Active player — `waiting_roll` or `leave_stable_phase` (not during placement) |
 
 Handled in `hooks/useGameSocket.ts`; wired through `GameView` props.
 
@@ -55,7 +74,7 @@ Handled in `hooks/useGameSocket.ts`; wired through `GameView` props.
 
 | Component | Role |
 |-----------|------|
-| `HandArrayPanel` | Bottom-left hand (max 10); draw button when active player's turn |
+| `HandArrayPanel` | Bottom-left hand (max 5); draw button when active player's turn |
 | `RuneCardPreviewOverlay` | Card preview + placement confirm |
 | `RuneMarkers` / `RuneMapPin3D` | 3D pins on shared track cells |
 | `RunePlacementLayer` | Cell picking during placement phase |
@@ -70,19 +89,12 @@ runeView?: RuneClientView | null
 onDrawCards?: (count: number) => void
 onFinishDraw?: () => void
 onPlaceMarker?: (heldCardId, cellId, displayedIdentityId) => void
+onConfirmPlacementReady?: () => void
+onUseLeaveStable?: (heldCardId: string) => void
 onChooseSwap?: (targetTokenId: string) => void
 ```
 
-`canRoll` (from `OnlineGamePage`) is true when it is your turn and phase is `waiting_roll`, `waiting_draw`, or `placement_phase` — pressing roll during draw/placement closes the rune window server-side then rolls.
-
-## Placement UX
-
-1. Select a card in `HandArrayPanel`.
-2. Tap a valid shared-track cell (`listValidPlacementCellIds` from game-engine).
-3. Choose displayed identity (self or another player).
-4. Confirm in overlay → `placeMarker`.
-
-Any seated player with cards may place during simultaneous placement, not only the active player.
+`canRoll` (from `OnlineGamePage`) is true when it is your turn and phase is `waiting_roll` or `leave_stable_phase` — **not** during `placement_phase` or `waiting_draw`.
 
 ## Swap UX
 
@@ -92,10 +104,18 @@ When a SWAP marker triggers, phase becomes `waiting_swap_choice`. Selectable tok
 
 Watch delta `events` for rune-related types (same version cursor as `tokenMotion.ts`):
 
-- `cards_drawn`, `held_card_expired`, `placement_phase_opened`
+- `cards_drawn`, `held_card_expired`, `placement_phase_opened`, `placement_ready_confirmed`
 - `marker_placed`, `marker_place_rejected`, `marker_expired`, `marker_triggered`
-- `token_stepped` (per-cell movement with rune resolution)
+- `token_stepped` (per-cell movement with rune resolution; `details.motion` may be `step`, `rune_step`, or `teleport`)
+- `token_moved` — `details.path[]` with `motion: 'step' | 'teleport'` for client animation
+- `token_captured` — kick at final dice landing or teleport burst landing
 - `token_swapped`, `horse_status_changed` (shield / freeze)
+
+### Teleport animation (`BoardPieces.tsx`)
+
+- Each path waypoint with `motion: 'teleport'` is one animation segment (shrink/disappear → appear at destination).
+- Consecutive teleports in a chain (e.g. ADVANCE then BACK) play **one segment per link**; the client does not merge them into a single jump.
+- Dice steps use arc `step` motion; teleport uses `runeTeleportMotion`.
 
 ## Local mode
 
