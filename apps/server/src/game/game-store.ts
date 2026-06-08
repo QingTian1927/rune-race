@@ -6,9 +6,12 @@ import {
   handleDrawCards,
   handleConfirmDraw,
   handleFinishDraw,
+  handleConfirmPlacementReady,
   handlePlaceMarker,
   handlePlayerLeft,
   handleRoll,
+  handleUseLeaveStable,
+  tickPlacementPhase,
 } from '@rune-race/game-engine'
 
 export type GameChangeListener = (gameId: string, state: GameState, events: GameState['events']) => void
@@ -141,6 +144,15 @@ export class GameStore {
     this.onChange?.(gameId, session.state, result.events)
   }
 
+  useLeaveStable(gameId: string, playerId: string, heldCardId: string): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleUseLeaveStable(session.state, playerId, heldCardId)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+  }
+
   placeMarker(
     gameId: string,
     playerId: string,
@@ -154,6 +166,29 @@ export class GameStore {
     if (!result.success) throw new Error(result.error.message)
     session.state = result.state
     this.onChange?.(gameId, session.state, result.events)
+  }
+
+  confirmPlacementReady(gameId: string, playerId: string): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleConfirmPlacementReady(session.state, playerId)
+    if (!result.success) throw new Error(result.error.message)
+    session.state = result.state
+    this.onChange?.(gameId, session.state, result.events)
+  }
+
+  tickPlacementPhases(): void {
+    const timestamp = Date.now()
+    for (const [gameId, session] of this.games) {
+      if (session.state.status !== 'playing') continue
+      if (session.state.turn.phase !== 'placement_phase') continue
+      const before = session.state
+      const next = tickPlacementPhase(before, timestamp)
+      if (next === before) continue
+      session.state = next
+      const events = next.events.slice(before.events.length)
+      this.onChange?.(gameId, next, events)
+    }
   }
 
   chooseSwap(gameId: string, playerId: string, targetTokenId: string): void {

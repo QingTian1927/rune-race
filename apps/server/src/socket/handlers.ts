@@ -606,6 +606,34 @@ export function setupSocketHandlers(
       }
     })
 
+    socket.on('game:confirm_placement_ready', (payload) => {
+      try {
+        const cmd = validateCommand('game:confirm_placement_ready', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.confirmPlacementReady(gameId, playerId)
+      } catch (error) {
+        gameError(
+          socket,
+          error instanceof Error ? error.message : 'Confirm placement failed',
+          'CONFIRM_PLACEMENT_FAILED',
+        )
+      }
+    })
+
+    socket.on('game:use_leave_stable', (payload) => {
+      try {
+        const cmd = validateCommand('game:use_leave_stable', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.useLeaveStable(gameId, playerId, cmd.heldCardId)
+      } catch (error) {
+        gameError(socket, error instanceof Error ? error.message : 'Leave stable failed', 'LEAVE_STABLE_FAILED')
+      }
+    })
+
     socket.on('game:choose_swap', (payload) => {
       try {
         const cmd = validateCommand('game:choose_swap', payload)

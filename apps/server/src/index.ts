@@ -46,6 +46,7 @@ const matchmaking = new MatchmakingQueue(lobbyStore)
 setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService, matchmaking)
 
 lobbyStore.startCleanupTimer()
+setInterval(() => gameStore.tickPlacementPhases(), 1000)
 
 registerRoomRoutes(fastify, lobbyStore)
 registerMatchmakingRoutes(fastify, matchmaking)
