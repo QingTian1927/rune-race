@@ -19,7 +19,7 @@ waiting_draw → placement_phase → leave_stable_phase? → waiting_roll → �
 |-------|----------------|
 | `waiting_draw` | Active player may draw cards (`game:draw_cards`) or finish draw (`game:finish_draw`) |
 | `placement_phase` | All players with cards in hand may place markers (`game:place_marker`); confirm when done (`game:confirm_placement_ready`); **roll hidden** until phase ends |
-| `leave_stable_phase` | Active player may tap `LEAVE_STABLE` (`game:use_leave_stable`) or roll to skip |
+| `leave_stable_phase` | Active player may tap `LEAVE_STABLE` (`game:use_leave_stable`) when spawn is legal, or roll to skip. Card is **greyed out** when no tokens remain in base or own horse blocks start cell (`canSpawnFromLeaveStable`) |
 | `waiting_roll` | Active player rolls dice (`game:roll`) |
 | `waiting_choice` | Pick pawn on board → `game:choose_move` |
 | `waiting_swap_choice` | Pick swap target pawn → `game:choose_swap` |
@@ -28,7 +28,7 @@ Bonus turn (rolled 6): skips draw/placement/leave-stable → `waiting_roll` with
 
 ## Placement phase UX
 
-1. HUD shows countdown (5–30s) and ready count (`readyByPlayer`).
+1. HUD shows `PhaseCountdownBar` (label + shrinking progress bar) for placement window (5–30s) and ready count (`readyByPlayer`).
 2. Select a card in `HandArrayPanel`.
 3. Tap a valid shared-track cell (`listValidPlacementCellIds` from game-engine).
 4. Choose displayed identity (self or another player).
@@ -74,7 +74,8 @@ Handled in `hooks/useGameSocket.ts`; wired through `GameView` props.
 
 | Component | Role |
 |-----------|------|
-| `HandArrayPanel` | Bottom-left hand (max 5); draw button when active player's turn |
+| `HandArrayPanel` | Bottom-left hand (max 5); draw button when active player's turn; disabled card tooltip via `getCardDisabledTitle` |
+| `PhaseCountdownBar` | Small HUD countdown bar (placement, roll timeout, move-choice timeout) |
 | `RuneCardPreviewOverlay` | Card preview + placement confirm |
 | `RuneMarkers` / `RuneMapPin3D` | 3D pins on shared track cells |
 | `RunePlacementLayer` | Cell picking during placement phase |
@@ -95,6 +96,17 @@ onChooseSwap?: (targetTokenId: string) => void
 ```
 
 `canRoll` (from `OnlineGamePage`) is true when it is your turn and phase is `waiting_roll` or `leave_stable_phase` — **not** during `placement_phase` or `waiting_draw`.
+
+## Turn timeouts (anti-AFK)
+
+When it is the local player's turn, `GameView` starts client timers aligned with the server:
+
+| Phase | Timeout | Auto action |
+|-------|---------|-------------|
+| `waiting_roll` / `leave_stable_phase` | **10s** | `onRoll()` |
+| `waiting_choice` (2+ moves) | **20s** | `onSelectMove(legalMoves[0].id)` |
+
+`PhaseCountdownBar` + `usePhaseCountdown` show remaining time. Timers clear on phase change or when the player acts. Online play still relies on server `tickTurnTimeouts` for disconnected clients.
 
 ## Swap UX
 

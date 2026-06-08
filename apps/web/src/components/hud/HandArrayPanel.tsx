@@ -15,6 +15,7 @@ type HandArrayPanelProps = {
   onCardPreview: (heldCardId: string) => void
   canSelectCards?: boolean
   isCardSelectable?: (card: HeldCard) => boolean
+  getCardDisabledTitle?: (card: HeldCard) => string | undefined
   isCardPending?: (card: HeldCard) => boolean
   canDraw: boolean
   onDraw: () => void
@@ -32,6 +33,7 @@ export function HandArrayPanel({
   onCardPreview,
   canSelectCards = true,
   isCardSelectable,
+  getCardDisabledTitle,
   isCardPending,
   canDraw,
   onDraw,
@@ -171,12 +173,14 @@ export function HandArrayPanel({
             {hand.map((card) => {
               const selectable = isCardSelectable ? isCardSelectable(card) : canSelectCards
               const pending = isCardPending?.(card) ?? false
+              const disabledTitle = !selectable && !pending ? getCardDisabledTitle?.(card) : undefined
               return (
                 <HandCardButton
                   key={card.heldCardId}
                   card={card}
                   selected={selectedCardId === card.heldCardId}
                   disabled={!selectable && !pending}
+                  disabledTitle={disabledTitle}
                   pending={pending}
                   onSelect={() => onCardSelect(card.heldCardId)}
                   onPreview={() => onCardPreview(card.heldCardId)}
@@ -195,12 +199,21 @@ type HandCardButtonProps = {
   card: HeldCard
   selected: boolean
   disabled: boolean
+  disabledTitle?: string
   pending?: boolean
   onSelect: () => void
   onPreview: () => void
 }
 
-function HandCardButton({ card, selected, disabled, pending = false, onSelect, onPreview }: HandCardButtonProps) {
+function HandCardButton({
+  card,
+  selected,
+  disabled,
+  disabledTitle,
+  pending = false,
+  onSelect,
+  onPreview,
+}: HandCardButtonProps) {
   const pressHandlers = useHandCardPress(onSelect, onPreview, disabled)
   const label = RUNE_CARD_LABELS[card.cardType]
   const description = RUNE_CARD_DESCRIPTIONS[card.cardType]
@@ -217,7 +230,7 @@ function HandCardButton({ card, selected, disabled, pending = false, onSelect, o
         .filter(Boolean)
         .join(' ')}
       disabled={disabled}
-      title={description}
+      title={disabledTitle ?? description}
       aria-label={label}
       {...pressHandlers}
     >

@@ -1,8 +1,9 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
 import * as THREE from 'three'
 import type { PlayerColor, RuneTriggerMode } from '@rune-race/shared'
+import { MARKER_FADE_DURATION_MS } from '../../contexts/RuneMarkerVisibilityContext'
 
 /** Tip of pin sits slightly above board mesh to avoid z-fighting. */
 export const RUNE_MARKER_Y_OFFSET = 0.006
@@ -100,6 +101,8 @@ type RuneMapPin3DProps = {
   avatarEmoji?: string | null
   ghost?: boolean
   triggerMode?: RuneTriggerMode | null
+  fadeOutStartedAt?: number
+  onFadeComplete?: () => void
 }
 
 /** Flat on board (world XZ) — outside Billboard so rings stay circular. */
@@ -155,8 +158,37 @@ function TriggerModeGroundRing({
   )
 }
 
-export function RuneMapPin3D({ color, avatarEmoji, ghost = false, triggerMode = null }: RuneMapPin3DProps) {
+function applyOpacityToGroup(root: THREE.Object3D, multiplier: number) {
+  root.traverse((node) => {
+    if (!(node as THREE.Mesh).isMesh) return
+    const mesh = node as THREE.Mesh
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    materials.forEach((material) => {
+      if (!material || !('opacity' in material)) return
+      const typed = material as THREE.Material & {
+        opacity: number
+        userData: { baseOpacity?: number }
+      }
+      if (typed.userData.baseOpacity === undefined) {
+        typed.userData.baseOpacity = typed.opacity
+      }
+      typed.opacity = typed.userData.baseOpacity * multiplier
+      typed.transparent = true
+    })
+  })
+}
+
+export function RuneMapPin3D({
+  color,
+  avatarEmoji,
+  ghost = false,
+  triggerMode = null,
+  fadeOutStartedAt,
+  onFadeComplete,
+}: RuneMapPin3DProps) {
+  const rootRef = useRef<THREE.Group>(null)
   const pinRef = useRef<THREE.Group>(null)
+  const fadeCompleteFiredRef = useRef(false)
   const pinColor = PLAYER_PIN_HEX[color]
   const emoji = avatarEmoji?.trim() ?? ''
 
@@ -165,40 +197,56 @@ export function RuneMapPin3D({ color, avatarEmoji, ghost = false, triggerMode = 
     [emoji],
   )
 
+  useEffect(() => {
+    fadeCompleteFiredRef.current = false
+  }, [fadeOutStartedAt, color, emoji])
+
   useFrame((state) => {
-    if (!ghost || !pinRef.current) return
-    const pulse = 1 + Math.sin(state.clock.elapsedTime * 4.2) * 0.05
-    pinRef.current.scale.setScalar(MARKER_SCALE * pulse)
+    if (ghost && pinRef.current) {
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 4.2) * 0.05
+      pinRef.current.scale.setScalar(MARKER_SCALE * pulse)
+    }
+
+    let multiplier = 1
+    if (fadeOutStartedAt) {
+      const fadeProgress = THREE.MathUtils.clamp(
+        (Date.now() - fadeOutStartedAt) / MARKER_FADE_DURATION_MS,
+        0,
+        1,
+      )
+      const eased = fadeProgress * fadeProgress
+      multiplier = 1 - eased
+      if (fadeProgress >= 1 && !fadeCompleteFiredRef.current) {
+        fadeCompleteFiredRef.current = true
+        onFadeComplete?.()
+      }
+    }
+
+    if (rootRef.current) {
+      applyOpacityToGroup(rootRef.current, multiplier)
+    }
   })
 
+  const ghostOpacity = ghost ? 0.78 : BOARD_ICON_OPACITY
+
   return (
-    <group>
-      {triggerMode ? <TriggerModeGroundRing triggerMode={triggerMode} ghost={ghost} /> : null}
+    <group ref={rootRef}>
+      {triggerMode ? (
+        <TriggerModeGroundRing triggerMode={triggerMode} ghost={ghost || Boolean(fadeOutStartedAt)} />
+      ) : null}
       <Billboard follow lockX={false} lockY={false} lockZ={false}>
         <group ref={pinRef} scale={[MARKER_SCALE, MARKER_SCALE, MARKER_SCALE]}>
           <mesh renderOrder={12}>
             <shapeGeometry args={[RUNE_PIN_TAIL]} />
-            <meshBasicMaterial
-              color={pinColor}
-              opacity={ghost ? 0.78 : BOARD_ICON_OPACITY}
-              {...BOARD_ICON_MATERIAL}
-            />
+            <meshBasicMaterial color={pinColor} opacity={ghostOpacity} {...BOARD_ICON_MATERIAL} />
           </mesh>
           <mesh renderOrder={13}>
             <shapeGeometry args={[RUNE_PIN_HEAD_RING]} />
-            <meshBasicMaterial
-              color={pinColor}
-              opacity={ghost ? 0.82 : BOARD_ICON_OPACITY}
-              {...BOARD_ICON_MATERIAL}
-            />
+            <meshBasicMaterial color={pinColor} opacity={ghost ? 0.82 : BOARD_ICON_OPACITY} {...BOARD_ICON_MATERIAL} />
           </mesh>
           <mesh renderOrder={14}>
             <shapeGeometry args={[RUNE_PIN_HEAD_FILL]} />
-            <meshBasicMaterial
-              color={HEAD_FILL}
-              opacity={ghost ? 0.72 : 0.97}
-              {...BOARD_ICON_MATERIAL}
-            />
+            <meshBasicMaterial color={HEAD_FILL} opacity={ghost ? 0.72 : 0.97} {...BOARD_ICON_MATERIAL} />
           </mesh>
           {avatarTexture ? (
             <mesh position={[0, HEAD_Y, 0.001]} renderOrder={15}>

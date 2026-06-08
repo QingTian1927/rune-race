@@ -56,7 +56,7 @@ Static board geometry and track markers.
 
 ### `BoardPieces`
 
-- Positions tokens from `GameState` (`in_base`, `on_track`, `in_home_lane`, `finished`).
+- Positions tokens from `GameState` (`in_base`, `on_track`, `in_home_lane`, `finished`). Stable uses a **2×2** slot grid (supports classic 4 horses; rune mode uses two slots).
 - **Color slot:** `boardSlotForPlayer()` maps player color → board slot (fixes pawn/house colors vs player order).
 - **Motion:** `tokenMotion.ts` — animates only **delta** events since last `version`; `freezeTokenAnimations` during dice presentation.
 - **Selection:** arrows + click handler when `selectableTokenIds` is non-empty.
@@ -99,7 +99,8 @@ All panels sit in `absolute inset-0 pointer-events-none`; buttons and links use 
 | `FinishOrderPanel` | Top-right | Ranked finishers from `token_finished` events; hidden until ≥1 finisher; collapsible. **Display** list is delayed like current-turn panel. |
 | `YourTurnBanner` | Center (~30% from top) | Short auto-dismiss (~1s). Shown after presentation completes when it is the local player's turn, or after turn advances to local player. Synced with roll button reveal when applicable. Uses authoritative `gameState.turn.currentPlayerId` for ownership (not delayed HUD state). |
 | `RollDiceButton` | Bottom-center | Visible when `canRoll` (`waiting_roll` or `leave_stable_phase` only); hidden during `placement_phase` and `waiting_draw`; hidden immediately on click; returns after presentation + 1s buffer if still allowed to roll. |
-| `HandArrayPanel` | Bottom-left | Rune hand (max 5), draw button on active player's turn; placement confirm in `GameView`; see [rune-system](./rune-system.md) |
+| `HandArrayPanel` | Bottom-left | Rune hand (max 5), draw button on active player's turn; greyed `LEAVE_STABLE` when spawn impossible; see [rune-system](./rune-system.md) |
+| `PhaseCountdownBar` | Bottom-center (hint slot) | Placement / roll / move-choice countdown with progress bar |
 | `RuneCardPreviewOverlay` | Center overlay | Card preview and placement confirm |
 | `GameSettingsOverlay` | Settings gear | Graphics quality, master volume, fullscreen, landscape hint |
 | `GameEndOverlay` | Center | Rankings + countdown when `status === 'finished'` |

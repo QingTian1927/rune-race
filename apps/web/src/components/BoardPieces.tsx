@@ -8,6 +8,8 @@ import { boardSlotForPlayer } from '../utils/boardSlots'
 import {
   extractCaptureDetailsFromDelta,
   extractMoveDetailsFromDelta,
+  shouldDeferCaptureUntilMoverLands,
+  shouldDeferSentHomeUntilMoverLands,
   extractSentHomeDetailsFromDelta,
   extractShieldConsumedFromDelta,
   extractShieldGrantedFromDelta,
@@ -34,6 +36,7 @@ import type { ImpactPuffKind } from '../lib/boardImpact'
 import ImpactPuffPool, { type SpawnImpactPuff } from './board/ImpactPuffPool'
 import type { BoardImpactFeedback } from '../lib/boardImpact'
 import { useRuneMarkerVisibility } from '../contexts/RuneMarkerVisibilityContext'
+import { useRuneTriggerFlash } from '../contexts/RuneTriggerFlashContext'
 import { applyMaterialOpacity, getBoardGradientMap } from '../lib/sceneMaterials'
 import type { GraphicsQuality } from '../lib/graphicsQuality'
 import { getGraphicsQualityFlags } from '../lib/graphicsQuality'
@@ -223,6 +226,11 @@ type MotionWaypoint = {
 }
 
 const PAWN_DISPLAY_SCALE = 0.92
+
+/** Shield/freeze billboards clutter the home lane — hide them once a pawn has entered. */
+function tokenShowsRuneStatusEffects(token: Pick<Token, 'state'>): boolean {
+  return token.state !== 'in_home_lane'
+}
 
 /** Shared accent palette with move / swap selectors. */
 const TOKEN_ACCENT_CYAN = '#22d3ee'
@@ -487,6 +495,11 @@ type RuneTeleportFrame = {
   opacity: number
 }
 
+/** Progress at destination before emerge — used to sync teleport kick with arrival. */
+const TELEPORT_BURST_ARRIVE_PROGRESS = 0.5
+/** Start marker fade shortly before a step waypoint lands. */
+const STEP_APPROACH_PROGRESS = 0.78
+
 /** Rune advance/back: shrink into ground at origin, hidden travel, burst up at destination. */
 function runeTeleportMotion(start: THREE.Vector3, end: THREE.Vector3, progress: number): RuneTeleportFrame {
   const t = THREE.MathUtils.clamp(progress, 0, 1)
@@ -496,7 +509,7 @@ function runeTeleportMotion(start: THREE.Vector3, end: THREE.Vector3, progress: 
   const easeOut = (x: number) => 1 - (1 - x) * (1 - x)
 
   const SINK_END = 0.34
-  const HIDDEN_END = 0.5
+  const HIDDEN_END = TELEPORT_BURST_ARRIVE_PROGRESS
 
   if (t < SINK_END) {
     const p = smooth(t / SINK_END)
@@ -1269,7 +1282,7 @@ function getHomeLaneWorldPosition(playerIndex: number, laneIndex: number) {
 }
 
 const STABLE_SLOT_COLS = 2
-const STABLE_SLOT_ROWS = 1
+const STABLE_SLOT_ROWS = 2
 
 function getStableSlotWorldPosition(playerIndex: number, tokenId: string) {
   const stable = boardLayout.players[playerIndex]?.stable
@@ -1983,6 +1996,10 @@ function PawnInstance({
   onMoveAnimationDone,
   onMoveSegmentComplete,
   onMoveStepLanded,
+  onMoveStepApproaching,
+  onMoveTeleportArrived,
+  onTeleportBurstStarted,
+  onCaptureAnimationComplete,
   cartoonMaterials = true,
   basicMaterials = false,
   reduceMeshDetail = false,
@@ -2026,6 +2043,13 @@ function PawnInstance({
   onMoveAnimationDone?: (motionPlanKey: string) => void
   onMoveSegmentComplete?: (motionPlanKey: string) => void
   onMoveStepLanded?: (step: MockPathStep, worldX: number, worldZ: number) => void
+  /** Fires shortly before a step waypoint lands — used to fade markers ahead of the pawn. */
+  onMoveStepApproaching?: (step: MockPathStep, worldX: number, worldZ: number) => void
+  /** Fires when a teleport burst reaches the destination cell, before emerge. */
+  onMoveTeleportArrived?: (step: MockPathStep, worldX: number, worldZ: number) => void
+  /** Fires when a teleport burst segment begins — fades markers skipped by the burst. */
+  onTeleportBurstStarted?: (targetStep: MockPathStep, remainingPathSteps: MockPathStep[]) => void
+  onCaptureAnimationComplete?: (motionKey: string) => void
   cartoonMaterials?: boolean
   basicMaterials?: boolean
   reduceMeshDetail?: boolean
@@ -2045,22 +2069,34 @@ function PawnInstance({
   const captureKeyRef = useRef<string>('')
   const captureStartTimeRef = useRef<number>(-1)
   const capturePhaseRef = useRef<'idle' | 'hit' | 'return' | 'done'>('idle')
+  const captureCompleteFiredRef = useRef(false)
   const swapKeyRef = useRef<string>('')
   const swapStartTimeRef = useRef<number>(-1)
   const swapPhaseRef = useRef<'idle' | 'flight' | 'done'>('idle')
   const swapImpactFiredRef = useRef(false)
   const swapPreviewWasSpinningRef = useRef(false)
   const segmentsLandedRef = useRef(0)
+  const stepApproachFiredRef = useRef(false)
+  const teleportArriveFiredRef = useRef(false)
+  const teleportBurstStartedFiredRef = useRef(false)
   const captureImpactFiredRef = useRef(false)
   const statusIconRef = useRef<THREE.Mesh | null>(null)
   const shieldIconRef = useRef<THREE.Mesh | null>(null)
   const moveBaseKeyRef = useRef<string | null>(null)
   const onMoveAnimationDoneRef = useRef(onMoveAnimationDone)
+  const onCaptureAnimationCompleteRef = useRef(onCaptureAnimationComplete)
   const onMoveSegmentCompleteRef = useRef(onMoveSegmentComplete)
   const onMoveStepLandedRef = useRef(onMoveStepLanded)
+  const onMoveStepApproachingRef = useRef(onMoveStepApproaching)
+  const onMoveTeleportArrivedRef = useRef(onMoveTeleportArrived)
+  const onTeleportBurstStartedRef = useRef(onTeleportBurstStarted)
   onMoveAnimationDoneRef.current = onMoveAnimationDone
+  onCaptureAnimationCompleteRef.current = onCaptureAnimationComplete
   onMoveSegmentCompleteRef.current = onMoveSegmentComplete
   onMoveStepLandedRef.current = onMoveStepLanded
+  onMoveStepApproachingRef.current = onMoveStepApproaching
+  onMoveTeleportArrivedRef.current = onMoveTeleportArrived
+  onTeleportBurstStartedRef.current = onTeleportBurstStarted
 
   const isMoveAnimationActive = () =>
     queueRef.current.length > 0 || segmentStartTimeRef.current >= 0
@@ -2086,7 +2122,8 @@ function PawnInstance({
     if (!modelRef.current || !captureMotion) return
     try {
       modelRef.current.position.copy(captureMotion.sourcePosition)
-      modelRef.current.scale.setScalar(1)
+      modelRef.current.scale.setScalar(PAWN_DISPLAY_SCALE)
+      setOpacity(modelRef.current, 1)
     } catch (e) {
       // ignore if model not ready
     }
@@ -2133,6 +2170,7 @@ function PawnInstance({
       captureKeyRef.current = ''
       captureStartTimeRef.current = -1
       capturePhaseRef.current = 'idle'
+      captureCompleteFiredRef.current = false
       setOpacity(effectRef.current, 0)
       return
     }
@@ -2145,9 +2183,14 @@ function PawnInstance({
     captureStartTimeRef.current = -1
     capturePhaseRef.current = 'hit'
     captureImpactFiredRef.current = false
+    captureCompleteFiredRef.current = false
     queueRef.current = []
     segmentStartTimeRef.current = -1
     setOpacity(effectRef.current, 1)
+    if (modelRef.current) {
+      modelRef.current.scale.setScalar(PAWN_DISPLAY_SCALE)
+      setOpacity(modelRef.current, 1)
+    }
   }, [captureMotion])
 
   useEffect(() => {
@@ -2160,6 +2203,13 @@ function PawnInstance({
         return
       }
       if (pendingMoveAnimation) {
+        if (!moveAnimationHold && token.state === 'on_track' && moveFromState === 'in_base') {
+          motionKeyRef.current = settleKey
+          queueRef.current = []
+          segmentStartTimeRef.current = -1
+          modelRef.current.position.set(targetX, targetY, targetZ)
+          onMoveAnimationDoneRef.current?.(motionPlanKey ?? `${token.id}:spawn-recover`)
+        }
         return
       }
       if (motionKeyRef.current === settleKey) {
@@ -2215,7 +2265,10 @@ function PawnInstance({
     segmentTargetRef.current.copy(queueRef.current[0]?.position ?? new THREE.Vector3(targetX, targetY, targetZ))
     segmentTargetStepRef.current = queueRef.current[0]?.step ?? null
     segmentStartTimeRef.current = -1
-  }, [captureMotion, swapMotion, moveAnimationHold, motionPlan, motionPlanKey, motionOriginWorld, moveFromState, pendingMoveAnimation, targetX, targetY, targetZ, token, playerIndex, settleKey])
+    stepApproachFiredRef.current = false
+    teleportArriveFiredRef.current = false
+    teleportBurstStartedFiredRef.current = false
+  }, [captureMotion, swapMotion, moveAnimationHold, motionPlan, motionPlanKey, motionOriginWorld, moveFromState, pendingMoveAnimation, targetX, targetY, targetZ, token.id, token.state, token.position, playerIndex, settleKey])
 
   const isAnimatingMove = () =>
     queueRef.current.length > 0 || segmentStartTimeRef.current >= 0
@@ -2232,7 +2285,12 @@ function PawnInstance({
       statusIconRef.current.position.y = bob
       statusIconRef.current.scale.setScalar(statusPulse(4.5))
     }
-    if (shieldIconRef.current && token.hasShield && !suppressShieldStatusIcon) {
+    if (
+      shieldIconRef.current &&
+      tokenShowsRuneStatusEffects(token) &&
+      token.hasShield &&
+      !suppressShieldStatusIcon
+    ) {
       shieldIconRef.current.rotation.z = 0
       const bob = Math.sin(state.clock.elapsedTime * 2.8) * 0.008
       shieldIconRef.current.position.y = bob
@@ -2345,7 +2403,10 @@ function PawnInstance({
         modelRef.current.position.x += wobble
         modelRef.current.position.y += lift
         modelRef.current.position.z -= wobble * 0.6
-        modelRef.current.scale.setScalar(1 + Math.sin(hitProgress * Math.PI) * 0.22)
+        modelRef.current.scale.setScalar(
+          PAWN_DISPLAY_SCALE * (1 + Math.sin(hitProgress * Math.PI) * 0.22),
+        )
+        setOpacity(modelRef.current, 1)
         modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getBaseFacingYaw(playerIndex), Math.min(1, delta * 10))
         return
       }
@@ -2353,15 +2414,21 @@ function PawnInstance({
       capturePhaseRef.current = 'return'
       const returnProgress = THREE.MathUtils.clamp((elapsed - hitDuration) / returnDuration, 0, 1)
       modelRef.current.position.copy(smoothArcPosition(captureMotion.sourcePosition, captureMotion.targetPosition, returnProgress))
-      modelRef.current.scale.setScalar(1 - returnProgress * 0.05)
+      modelRef.current.scale.setScalar(PAWN_DISPLAY_SCALE * (1 - returnProgress * 0.05))
+      setOpacity(modelRef.current, 1)
       modelRef.current.rotation.y = lerpAngle(modelRef.current.rotation.y, getBaseFacingYaw(playerIndex), Math.min(1, delta * 10))
 
       if (returnProgress >= 1) {
         modelRef.current.position.copy(captureMotion.targetPosition)
-        modelRef.current.scale.setScalar(1)
+        modelRef.current.scale.setScalar(PAWN_DISPLAY_SCALE)
+        setOpacity(modelRef.current, 1)
         capturePhaseRef.current = 'done'
         if (effectRef.current) {
           setOpacity(effectRef.current, 0)
+        }
+        if (!captureCompleteFiredRef.current) {
+          captureCompleteFiredRef.current = true
+          onCaptureAnimationCompleteRef.current?.(captureMotion.key)
         }
       }
 
@@ -2393,6 +2460,9 @@ function PawnInstance({
 
     if (segmentStartTimeRef.current < 0) {
       segmentStartTimeRef.current = state.clock.elapsedTime
+      stepApproachFiredRef.current = false
+      teleportArriveFiredRef.current = false
+      teleportBurstStartedFiredRef.current = false
     }
 
     const segmentMotion = queueRef.current[0]?.motion ?? 'step'
@@ -2402,6 +2472,17 @@ function PawnInstance({
     const progress = Math.min(1, elapsed / duration)
 
     if (segmentMotion === 'teleport') {
+      if (
+        !teleportBurstStartedFiredRef.current &&
+        segmentTargetStepRef.current
+      ) {
+        teleportBurstStartedFiredRef.current = true
+        onTeleportBurstStartedRef.current?.(
+          segmentTargetStepRef.current,
+          queueRef.current.map((waypoint) => waypoint.step),
+        )
+      }
+
       const { position, scaleMul, opacity } = runeTeleportMotion(
         segmentStartRef.current,
         segmentTargetRef.current,
@@ -2410,6 +2491,19 @@ function PawnInstance({
       modelRef.current.position.copy(position)
       modelRef.current.scale.setScalar(PAWN_DISPLAY_SCALE * scaleMul)
       setOpacity(modelRef.current, opacity)
+
+      if (
+        progress >= TELEPORT_BURST_ARRIVE_PROGRESS &&
+        !teleportArriveFiredRef.current &&
+        segmentTargetStepRef.current
+      ) {
+        teleportArriveFiredRef.current = true
+        onMoveTeleportArrivedRef.current?.(
+          segmentTargetStepRef.current,
+          segmentTargetRef.current.x,
+          segmentTargetRef.current.z,
+        )
+      }
     } else {
       const segmentWaypoint = queueRef.current[0]
       modelRef.current.position.copy(
@@ -2424,6 +2518,19 @@ function PawnInstance({
       )
       modelRef.current.scale.setScalar(PAWN_DISPLAY_SCALE)
       setOpacity(modelRef.current, 1)
+
+      if (
+        progress >= STEP_APPROACH_PROGRESS &&
+        !stepApproachFiredRef.current &&
+        segmentTargetStepRef.current
+      ) {
+        stepApproachFiredRef.current = true
+        onMoveStepApproachingRef.current?.(
+          segmentTargetStepRef.current,
+          segmentTargetRef.current.x,
+          segmentTargetRef.current.z,
+        )
+      }
     }
 
     if (segmentTargetStepRef.current) {
@@ -2488,6 +2595,9 @@ function PawnInstance({
       segmentTargetRef.current.copy(queueRef.current[0].position)
       segmentTargetStepRef.current = queueRef.current[0].step
       segmentStartTimeRef.current = state.clock.elapsedTime
+      stepApproachFiredRef.current = false
+      teleportArriveFiredRef.current = false
+      teleportBurstStartedFiredRef.current = false
     }
   })
 
@@ -2522,7 +2632,11 @@ function PawnInstance({
             </mesh>
           </Billboard>
         ) : null}
-        {token.hasShield && !shieldBreakMotion && !shieldGrantMotion && !suppressShieldStatusIcon ? (
+        {tokenShowsRuneStatusEffects(token) &&
+        token.hasShield &&
+        !shieldBreakMotion &&
+        !shieldGrantMotion &&
+        !suppressShieldStatusIcon ? (
           <Billboard
             position={[0, statusBillboardY(isSelectable, shieldStackIndex), 0]}
             follow
@@ -2546,7 +2660,7 @@ function PawnInstance({
             </mesh>
           </Billboard>
         ) : null}
-        {shieldGrantMotion ? (
+        {tokenShowsRuneStatusEffects(token) && shieldGrantMotion ? (
           <ShieldGrantBillboard
             motion={shieldGrantMotion}
             spawnImpact={spawnImpact}
@@ -2554,7 +2668,7 @@ function PawnInstance({
             playerIndex={playerIndex}
           />
         ) : null}
-        {shieldBreakMotion ? (
+        {tokenShowsRuneStatusEffects(token) && shieldBreakMotion ? (
           <ShieldBreakBillboard
             motion={shieldBreakMotion}
             spawnImpact={spawnImpact}
@@ -2562,7 +2676,7 @@ function PawnInstance({
             playerIndex={playerIndex}
           />
         ) : null}
-        {freezeApplyMotion ? (
+        {tokenShowsRuneStatusEffects(token) && freezeApplyMotion ? (
           <FreezeApplyBillboard
             motion={freezeApplyMotion}
             spawnImpact={spawnImpact}
@@ -2570,7 +2684,7 @@ function PawnInstance({
             playerIndex={playerIndex}
           />
         ) : null}
-        {freezeExpireMotion ? (
+        {tokenShowsRuneStatusEffects(token) && freezeExpireMotion ? (
           <FreezeExpireBillboard
             motion={freezeExpireMotion}
             spawnImpact={spawnImpact}
@@ -2578,7 +2692,7 @@ function PawnInstance({
             playerIndex={playerIndex}
           />
         ) : null}
-        {showFrozenStatusIcon ? (
+        {tokenShowsRuneStatusEffects(token) && showFrozenStatusIcon ? (
           <Billboard
             position={[0, statusBillboardY(isSelectable, 0), 0]}
             follow
@@ -2644,6 +2758,7 @@ export default function BoardPieces({
   shadowsEnabled = true,
 }: BoardPiecesProps) {
   const markerVisibility = useRuneMarkerVisibility()
+  const triggerFlash = useRuneTriggerFlash()
   const { cartoonMaterials, basicMaterials, reduceMeshDetail } =
     getGraphicsQualityFlags(graphicsQuality)
   const layout = boardLayout as any
@@ -2653,6 +2768,7 @@ export default function BoardPieces({
   const [freezeApplyRevision, setFreezeApplyRevision] = useState(0)
   const [freezeExpireRevision, setFreezeExpireRevision] = useState(0)
   const [sentHomeRevision, setSentHomeRevision] = useState(0)
+  const [sentHomeReleaseRevision, setSentHomeReleaseRevision] = useState(0)
   const [moveOrchestrationRevision, setMoveOrchestrationRevision] = useState(0)
   const [swapDeferRevision, setSwapDeferRevision] = useState(0)
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null)
@@ -2660,6 +2776,8 @@ export default function BoardPieces({
   const latchedSwapRef = useRef<LatchedSwapAnimation | null>(null)
   const latchedMoveByTokenIdRef = useRef(new Map<string, MoveAnimationPayload>())
   const latchedCaptureByTokenIdRef = useRef(new Map<string, CaptureEventDetails>())
+  const pendingTeleportCaptureByTokenIdRef = useRef(new Map<string, CaptureEventDetails>())
+  const [captureReleaseRevision, setCaptureReleaseRevision] = useState(0)
   const selectableTokenSet = useMemo(() => new Set(selectableTokenIds ?? []), [selectableTokenIds])
   const swapPreviewTokenSet = useMemo(() => new Set(swapPreviewTokenIds ?? []), [swapPreviewTokenIds])
   const swapChoiceTargetSet = useMemo(() => new Set(swapChoiceTargetIds ?? []), [swapChoiceTargetIds])
@@ -2675,6 +2793,10 @@ export default function BoardPieces({
   const activeSentHomeByTokenIdRef = useRef(
     new Map<string, SentHomeAnimationPayload>(),
   )
+  const pendingSentHomeByTokenIdRef = useRef(
+    new Map<string, SentHomeAnimationPayload>(),
+  )
+  const immediateSentHomeHandledKeysRef = useRef(new Set<string>())
   const activeShieldBreakByTokenIdRef = useRef(new Map<string, ShieldConsumedPayload>())
   const activeShieldGrantByTokenIdRef = useRef(new Map<string, ShieldGrantedPayload>())
   const activeFreezeApplyByTokenIdRef = useRef(new Map<string, FreezeAppliedPayload>())
@@ -2683,7 +2805,6 @@ export default function BoardPieces({
   const scheduledShieldGrantKeysRef = useRef(new Set<string>())
   const scheduledFreezeApplyKeysRef = useRef(new Set<string>())
   const scheduledFreezeExpireKeysRef = useRef(new Set<string>())
-  const scheduledSentHomeKeysRef = useRef(new Set<string>())
   const activeMoveSessionsRef = useRef(new Map<string, ActiveMoveSession>())
   const activeMoveByTokenIdRef = useRef(
     new Map<string, { key: string; plan: MotionWaypoint[] }>(),
@@ -2730,18 +2851,163 @@ export default function BoardPieces({
     activeFreezeExpireByTokenIdRef.current.delete(tokenId)
   }, [])
 
+  const releasePendingCapturesAtStep = useCallback(
+    (moverTokenId: string, step: MockPathStep) => {
+      let released = false
+      pendingTeleportCaptureByTokenIdRef.current.forEach((capture, capturedTokenId) => {
+        if (capture.tokenId !== moverTokenId) {
+          return
+        }
+        if (!capture.from || !stepsEqual(capture.from, step)) {
+          return
+        }
+        latchedCaptureByTokenIdRef.current.set(capturedTokenId, capture)
+        pendingTeleportCaptureByTokenIdRef.current.delete(capturedTokenId)
+        clearTokenStatusVisuals(capturedTokenId)
+        released = true
+      })
+      if (released) {
+        setCaptureReleaseRevision((revision) => revision + 1)
+      }
+    },
+    [clearTokenStatusVisuals],
+  )
+
+  const releaseAllPendingCapturesForMover = useCallback((moverTokenId: string) => {
+    let released = false
+    pendingTeleportCaptureByTokenIdRef.current.forEach((capture, capturedTokenId) => {
+      if (capture.tokenId !== moverTokenId) {
+        return
+      }
+      latchedCaptureByTokenIdRef.current.set(capturedTokenId, capture)
+      pendingTeleportCaptureByTokenIdRef.current.delete(capturedTokenId)
+      clearTokenStatusVisuals(capturedTokenId)
+      released = true
+    })
+    if (released) {
+      setCaptureReleaseRevision((revision) => revision + 1)
+    }
+  }, [clearTokenStatusVisuals])
+
+  const finalizeMoveSessionForSentHome = useCallback(
+    (tokenId: string) => {
+      const session = activeMoveSessionsRef.current.get(tokenId)
+      if (!session) {
+        return
+      }
+      consumedMotionKeysRef.current.add(session.baseKey)
+      activeMoveSessionsRef.current.delete(tokenId)
+      activeMoveByTokenIdRef.current.delete(tokenId)
+      latchedMoveByTokenIdRef.current.delete(tokenId)
+      markerVisibility?.notifyMoveAnimationDone(tokenId)
+      setMoveOrchestrationRevision((revision) => revision + 1)
+    },
+    [markerVisibility],
+  )
+
+  const activateSentHome = useCallback(
+    (tokenId: string, payload: SentHomeAnimationPayload) => {
+      activeSentHomeByTokenIdRef.current.set(tokenId, payload)
+      clearTokenStatusVisuals(tokenId)
+      finalizeMoveSessionForSentHome(tokenId)
+      setSentHomeRevision((revision) => revision + 1)
+    },
+    [clearTokenStatusVisuals, finalizeMoveSessionForSentHome],
+  )
+
+  const releasePendingSentHomeAtStep = useCallback(
+    (moverTokenId: string, step: MockPathStep) => {
+      const pending = pendingSentHomeByTokenIdRef.current.get(moverTokenId)
+      if (!pending?.details.from || !stepsEqual(pending.details.from, step)) {
+        return
+      }
+      pendingSentHomeByTokenIdRef.current.delete(moverTokenId)
+      activateSentHome(moverTokenId, pending)
+      setSentHomeReleaseRevision((revision) => revision + 1)
+    },
+    [activateSentHome],
+  )
+
+  const releaseAllPendingSentHomeForMover = useCallback(
+    (moverTokenId: string) => {
+      const pending = pendingSentHomeByTokenIdRef.current.get(moverTokenId)
+      if (!pending) {
+        return
+      }
+      pendingSentHomeByTokenIdRef.current.delete(moverTokenId)
+      activateSentHome(moverTokenId, pending)
+      setSentHomeReleaseRevision((revision) => revision + 1)
+    },
+    [activateSentHome],
+  )
+
   const captureMoveByCapturedTokenId = useMemo(() => {
     const fromDelta = extractCaptureDetailsFromDelta(deltaEvents)
-    fromDelta.forEach((payload, tokenId) => {
-      latchedCaptureByTokenIdRef.current.set(tokenId, payload)
+    const moveMap = extractMoveDetailsFromDelta(deltaEvents)
+    fromDelta.forEach((payload, capturedTokenId) => {
+      if (
+        latchedCaptureByTokenIdRef.current.has(capturedTokenId) ||
+        pendingTeleportCaptureByTokenIdRef.current.has(capturedTokenId)
+      ) {
+        return
+      }
+      const movePayload =
+        moveMap.get(payload.tokenId) ?? latchedMoveByTokenIdRef.current.get(payload.tokenId)
+      if (shouldDeferCaptureUntilMoverLands(movePayload, payload)) {
+        pendingTeleportCaptureByTokenIdRef.current.set(capturedTokenId, payload)
+        return
+      }
+      latchedCaptureByTokenIdRef.current.set(capturedTokenId, payload)
     })
     return fromDelta
   }, [deltaEvents])
 
-  const sentHomeByTokenId = useMemo(
-    () => extractSentHomeDetailsFromDelta(deltaEvents),
-    [deltaEvents],
-  )
+  const sentHomeByTokenId = useMemo(() => {
+    const fromDelta = extractSentHomeDetailsFromDelta(deltaEvents)
+    const moveMap = extractMoveDetailsFromDelta(deltaEvents)
+    fromDelta.forEach((payload, tokenId) => {
+      if (
+        activeSentHomeByTokenIdRef.current.has(tokenId) ||
+        pendingSentHomeByTokenIdRef.current.has(tokenId) ||
+        consumedSentHomeKeysRef.current.has(payload.key)
+      ) {
+        return
+      }
+      const movePayload =
+        moveMap.get(tokenId) ?? latchedMoveByTokenIdRef.current.get(tokenId)
+      if (shouldDeferSentHomeUntilMoverLands(movePayload, payload.details)) {
+        pendingSentHomeByTokenIdRef.current.set(tokenId, payload)
+        return
+      }
+      activeSentHomeByTokenIdRef.current.set(tokenId, payload)
+    })
+    return fromDelta
+  }, [deltaEvents])
+
+  useEffect(() => {
+    let changed = false
+    sentHomeByTokenId.forEach((payload, tokenId) => {
+      if (pendingSentHomeByTokenIdRef.current.has(tokenId)) {
+        return
+      }
+      if (!activeSentHomeByTokenIdRef.current.has(tokenId)) {
+        return
+      }
+      if (consumedSentHomeKeysRef.current.has(payload.key)) {
+        return
+      }
+      if (immediateSentHomeHandledKeysRef.current.has(payload.key)) {
+        return
+      }
+      immediateSentHomeHandledKeysRef.current.add(payload.key)
+      clearTokenStatusVisuals(tokenId)
+      finalizeMoveSessionForSentHome(tokenId)
+      changed = true
+    })
+    if (changed) {
+      setSentHomeRevision((revision) => revision + 1)
+    }
+  }, [clearTokenStatusVisuals, finalizeMoveSessionForSentHome, sentHomeByTokenId])
 
   const swapDetails = useMemo(() => extractSwapDetailsFromDelta(deltaEvents), [deltaEvents])
   const shieldConsumedByTokenId = useMemo(
@@ -2770,6 +3036,46 @@ export default function BoardPieces({
   }, [deltaEvents])
 
   useEffect(() => {
+    if (freezeTokenAnimations) {
+      return
+    }
+
+    let healed = false
+    for (const token of gameState.tokens) {
+      const movePayload =
+        latchedMoveByTokenIdRef.current.get(token.id) ?? moveEventByTokenId.get(token.id)
+      if (!movePayload || movePayload.details.path.length === 0) {
+        continue
+      }
+      const rawKey = buildRawMotionPlanKey(token.id, movePayload)
+      if (consumedMotionKeysRef.current.has(rawKey)) {
+        continue
+      }
+      if (activeMoveSessionsRef.current.has(token.id)) {
+        continue
+      }
+      if (
+        activeSentHomeByTokenIdRef.current.has(token.id) &&
+        !consumedSentHomeKeysRef.current.has(
+          activeSentHomeByTokenIdRef.current.get(token.id)?.key ?? '',
+        )
+      ) {
+        continue
+      }
+      const session = buildMoveSession(movePayload, rawKey, undefined, undefined, undefined)
+      if (!session) {
+        continue
+      }
+      activeMoveSessionsRef.current.set(token.id, session)
+      healed = true
+    }
+
+    if (healed) {
+      setMoveOrchestrationRevision((revision) => revision + 1)
+    }
+  }, [freezeTokenAnimations, gameState.tokens, gameState.version, moveEventByTokenId, sentHomeByTokenId])
+
+  useEffect(() => {
     if (!swapDetails || swapEventTimestamp <= 0) {
       return
     }
@@ -2788,6 +3094,8 @@ export default function BoardPieces({
   const latchedSwap = latchedSwapRef.current
 
   const handleMoveAnimationDone = useCallback((tokenId: string, motionPlanKey: string) => {
+    releaseAllPendingCapturesForMover(tokenId)
+    releaseAllPendingSentHomeForMover(tokenId)
     const session = activeMoveSessionsRef.current.get(tokenId)
     if (session && isSegmentPausePending(session)) {
       return
@@ -2808,7 +3116,12 @@ export default function BoardPieces({
     markerVisibility?.notifyMoveAnimationDone(tokenId)
     setSwapDeferRevision((revision) => revision + 1)
     setMoveOrchestrationRevision((revision) => revision + 1)
-  }, [gameState.version, markerVisibility])
+  }, [
+    gameState.version,
+    markerVisibility,
+    releaseAllPendingCapturesForMover,
+    releaseAllPendingSentHomeForMover,
+  ])
 
   const advanceMoveSessionsAfterShieldBreak = useCallback((shieldKey: string) => {
     activeMoveSessionsRef.current.forEach((session, tokenId) => {
@@ -2950,9 +3263,43 @@ export default function BoardPieces({
     }, 880)
   }, [])
 
+  const handleMoveStepApproaching = useCallback(
+    (tokenId: string, playerSlot: number, step: MockPathStep, worldX: number, worldZ: number) => {
+      markerVisibility?.notifyMarkerApproachingCell(tokenId, playerSlot, step, worldX, worldZ)
+      triggerFlash?.notifyMarkerVisualTrigger(tokenId, playerSlot, step, worldX, worldZ)
+    },
+    [markerVisibility, triggerFlash],
+  )
+
+  const handleMoveTeleportArrived = useCallback(
+    (tokenId: string, playerSlot: number, step: MockPathStep, worldX: number, worldZ: number) => {
+      markerVisibility?.notifyMarkerApproachingCell(tokenId, playerSlot, step, worldX, worldZ)
+      triggerFlash?.notifyMarkerVisualTrigger(tokenId, playerSlot, step, worldX, worldZ)
+      releasePendingCapturesAtStep(tokenId, step)
+      releasePendingSentHomeAtStep(tokenId, step)
+    },
+    [markerVisibility, releasePendingCapturesAtStep, releasePendingSentHomeAtStep, triggerFlash],
+  )
+
+  const handleTeleportBurstStarted = useCallback(
+    (
+      tokenId: string,
+      playerSlot: number,
+      targetStep: MockPathStep,
+      remainingPathSteps: MockPathStep[],
+    ) => {
+      markerVisibility?.notifyTeleportBurstStarted(tokenId, playerSlot, targetStep, remainingPathSteps)
+      triggerFlash?.notifyTeleportBurstSkippedMarkers(tokenId, playerSlot, remainingPathSteps)
+    },
+    [markerVisibility, triggerFlash],
+  )
+
   const handleMoveStepLanded = useCallback(
     (tokenId: string, playerSlot: number, step: MockPathStep, worldX: number, worldZ: number) => {
       markerVisibility?.notifyTokenSteppedOnCell(tokenId, playerSlot, step, worldX, worldZ)
+      triggerFlash?.notifyMarkerVisualTrigger(tokenId, playerSlot, step, worldX, worldZ)
+      releasePendingCapturesAtStep(tokenId, step)
+      releasePendingSentHomeAtStep(tokenId, step)
 
       const movePayload = latchedMoveByTokenIdRef.current.get(tokenId)
       const session = activeMoveSessionsRef.current.get(tokenId)
@@ -2991,8 +3338,25 @@ export default function BoardPieces({
         }
       }
     },
-    [markerVisibility, scheduleFreezeApply, scheduleShieldGrant],
+    [
+      markerVisibility,
+      releasePendingCapturesAtStep,
+      releasePendingSentHomeAtStep,
+      scheduleFreezeApply,
+      scheduleShieldGrant,
+      triggerFlash,
+    ],
   )
+
+  const handleCaptureAnimationComplete = useCallback((tokenId: string, motionKey: string) => {
+    const activeSentHome = activeSentHomeByTokenIdRef.current.get(tokenId)
+    if (!activeSentHome || activeSentHome.key !== motionKey) {
+      return
+    }
+    consumedSentHomeKeysRef.current.add(activeSentHome.key)
+    activeSentHomeByTokenIdRef.current.delete(tokenId)
+    setSentHomeRevision((revision) => revision + 1)
+  }, [])
 
   const handleMoveSegmentComplete = useCallback(
     (tokenId: string) => {
@@ -3054,10 +3418,17 @@ export default function BoardPieces({
       activeMoveByTokenIdRef.current.delete(tokenId)
       latchedMoveByTokenIdRef.current.delete(tokenId)
       markerVisibility?.notifyMoveAnimationDone(tokenId)
+      releaseAllPendingSentHomeForMover(tokenId)
       setSwapDeferRevision((revision) => revision + 1)
       setMoveOrchestrationRevision((revision) => revision + 1)
     },
-    [markerVisibility, scheduleFreezeApply, scheduleShieldBreak, scheduleShieldGrant],
+    [
+      markerVisibility,
+      releaseAllPendingSentHomeForMover,
+      scheduleFreezeApply,
+      scheduleShieldBreak,
+      scheduleShieldGrant,
+    ],
   )
 
   const tokensWithTargets = useMemo(() => {
@@ -3103,20 +3474,24 @@ export default function BoardPieces({
         activeMoveByTokenIdRef.current.delete(token.id)
       }
 
-      const statePosition = tokenStateToWorldPosition(token, playerIndex)
-      const sentHomePayload = sentHomeByTokenId.get(token.id)
-      const capturePayload =
-        latchedCaptureByTokenIdRef.current.get(token.id) ??
-        captureMoveByCapturedTokenId.get(token.id)
-      if (sentHomePayload && !consumedSentHomeKeysRef.current.has(sentHomePayload.key)) {
-        activeSentHomeByTokenIdRef.current.set(token.id, sentHomePayload)
-        clearTokenStatusVisuals(token.id)
-        if (rawMotionPlanKey) {
-          consumedMotionKeysRef.current.add(rawMotionPlanKey)
-          activeMoveSessionsRef.current.delete(token.id)
-          activeMoveByTokenIdRef.current.delete(token.id)
-        }
-      } else if (capturePayload) {
+      const pendingSentHome = pendingSentHomeByTokenIdRef.current.get(token.id)
+      const deferSentHomeMoveVisual = Boolean(
+        pendingSentHome &&
+          rawMotionPlanKey &&
+          movePayload &&
+          !consumedMotionKeysRef.current.has(rawMotionPlanKey),
+      )
+      let statePosition = tokenStateToWorldPosition(token, playerIndex)
+      if (deferSentHomeMoveVisual && movePayload?.details.from) {
+        statePosition = worldPositionForTokenStep(
+          token.id,
+          playerIndex,
+          movePayload.details.from as MockPathStep,
+        )
+      }
+      const pendingTeleportCapture = pendingTeleportCaptureByTokenIdRef.current.get(token.id)
+      const capturePayload = latchedCaptureByTokenIdRef.current.get(token.id)
+      if (capturePayload || pendingTeleportCapture) {
         clearTokenStatusVisuals(token.id)
       }
 
@@ -3286,7 +3661,7 @@ export default function BoardPieces({
           )
         }
       }
-      const visualPosition = resolveSwapVisualPosition(
+      let visualPosition = resolveSwapVisualPosition(
         token,
         playerIndex,
         statePosition,
@@ -3294,6 +3669,16 @@ export default function BoardPieces({
         consumedSwapKeysRef.current,
         swapMotion,
       )
+      if (pendingTeleportCapture?.from) {
+        const moverIndex = playerIndexById[pendingTeleportCapture.playerId] ?? -1
+        if (moverIndex >= 0) {
+          visualPosition = worldPositionFromStep(
+            moverIndex,
+            pendingTeleportCapture.tokenId,
+            pendingTeleportCapture.from,
+          )
+        }
+      }
       const isFrozen = token.state !== 'in_base' && (token.freezeTurnsRemaining ?? 0) > 0
       const isSelectable = selectableTokenSet.has(token.id) && !isFrozen
       const isSwapChoiceTarget = swapChoiceTargetSet.has(token.id)
@@ -3352,7 +3737,8 @@ export default function BoardPieces({
         }
       }
       const suppressFrozenStatusIcon = freezeApplyAnimationActive
-      const showFrozenStatusIcon =
+      let showFrozenStatusIcon =
+        tokenShowsRuneStatusEffects(token) &&
         (isFrozen || freezeExpireAnimationActive) &&
         !freezeApplyMotion &&
         !freezeExpireMotion &&
@@ -3381,6 +3767,14 @@ export default function BoardPieces({
           ? '#f0abfc'
           : '#22d3ee'
         : '#f8fafc'
+
+      if (!tokenShowsRuneStatusEffects(token)) {
+        shieldBreakMotion = null
+        shieldGrantMotion = null
+        freezeApplyMotion = null
+        freezeExpireMotion = null
+        showFrozenStatusIcon = false
+      }
 
       return {
         token,
@@ -3436,8 +3830,10 @@ export default function BoardPieces({
     freezeApplyRevision,
     freezeExpireRevision,
     sentHomeRevision,
+    sentHomeReleaseRevision,
     moveOrchestrationRevision,
     swapDeferRevision,
+    captureReleaseRevision,
     latchedSwap,
     tokenSelectionMode,
   ])
@@ -3483,24 +3879,6 @@ export default function BoardPieces({
       }
     })
   }, [moveOrchestrationRevision, scheduleShieldBreak])
-
-  useEffect(() => {
-    sentHomeByTokenId.forEach((payload) => {
-      if (consumedSentHomeKeysRef.current.has(payload.key)) {
-        return
-      }
-      if (scheduledSentHomeKeysRef.current.has(payload.key)) {
-        return
-      }
-      scheduledSentHomeKeysRef.current.add(payload.key)
-      window.setTimeout(() => {
-        consumedSentHomeKeysRef.current.add(payload.key)
-        activeSentHomeByTokenIdRef.current.delete(payload.details.tokenId)
-        scheduledSentHomeKeysRef.current.delete(payload.key)
-        setSentHomeRevision((revision) => revision + 1)
-      }, 900)
-    })
-  }, [sentHomeByTokenId])
 
   useEffect(() => {
     shieldGrantedByTokenId.forEach((payload, tokenId) => {
@@ -3683,6 +4061,18 @@ export default function BoardPieces({
             onMoveSegmentComplete={() => handleMoveSegmentComplete(token.id)}
             onMoveStepLanded={(step, worldX, worldZ) =>
               handleMoveStepLanded(token.id, playerIndex, step, worldX, worldZ)
+            }
+            onMoveStepApproaching={(step, worldX, worldZ) =>
+              handleMoveStepApproaching(token.id, playerIndex, step, worldX, worldZ)
+            }
+            onMoveTeleportArrived={(step, worldX, worldZ) =>
+              handleMoveTeleportArrived(token.id, playerIndex, step, worldX, worldZ)
+            }
+            onTeleportBurstStarted={(targetStep, remainingPathSteps) =>
+              handleTeleportBurstStarted(token.id, playerIndex, targetStep, remainingPathSteps)
+            }
+            onCaptureAnimationComplete={(motionKey) =>
+              handleCaptureAnimationComplete(token.id, motionKey)
             }
             onPointerDown={(event) => {
               if (!isPickable || !onSelectToken) {

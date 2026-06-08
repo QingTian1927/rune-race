@@ -157,6 +157,56 @@ export function extractCaptureDetailsFromDelta(
   return map
 }
 
+/** True when capture lands on a teleport burst waypoint in the mover's path. */
+export function isTeleportBurstCapture(
+  movePayload: MoveAnimationPayload | undefined,
+  capture: CaptureEventDetails,
+): boolean {
+  if (!movePayload?.details.path || !capture.from) {
+    return false
+  }
+  return movePayload.details.path.some(
+    (step) => step.motion === 'teleport' && stepsEqual(step, capture.from!),
+  )
+}
+
+/** True when a spawn-from-base move should kick the victim only after landing on start. */
+export function isSpawnStepCapture(
+  movePayload: MoveAnimationPayload | undefined,
+  capture: CaptureEventDetails,
+): boolean {
+  if (!movePayload?.details.path || !capture.from) {
+    return false
+  }
+  if (movePayload.details.from?.state !== 'in_base') {
+    return false
+  }
+  return movePayload.details.path.some(
+    (step) =>
+      step.state === 'on_track' &&
+      step.motion !== 'teleport' &&
+      stepsEqual(step, capture.from!),
+  )
+}
+
+export function shouldDeferCaptureUntilMoverLands(
+  movePayload: MoveAnimationPayload | undefined,
+  capture: CaptureEventDetails,
+): boolean {
+  return isTeleportBurstCapture(movePayload, capture) || isSpawnStepCapture(movePayload, capture)
+}
+
+/** True when sent-home should wait until the mover reaches the trap cell in its path. */
+export function shouldDeferSentHomeUntilMoverLands(
+  movePayload: MoveAnimationPayload | undefined,
+  sentHome: SentHomeEventDetails,
+): boolean {
+  if (!movePayload?.details.path || !sentHome.from) {
+    return false
+  }
+  return movePayload.details.path.some((step) => stepsEqual(step, sentHome.from!))
+}
+
 export type SentHomeAnimationPayload = {
   details: SentHomeEventDetails
   timestamp: number

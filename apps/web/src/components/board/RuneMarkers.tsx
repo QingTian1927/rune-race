@@ -42,7 +42,10 @@ export default function RuneMarkers({ gameState }: RuneMarkersProps) {
             <RuneMapPin3D
               color={color}
               avatarEmoji={avatarEmoji}
+              ghost={marker.isDeferred}
               triggerMode={triggerMode}
+              fadeOutStartedAt={marker.fadeOutStartedAt}
+              onFadeComplete={() => markerVisibility?.notifyMarkerFadeComplete(marker.markerId)}
             />
           </group>
         )

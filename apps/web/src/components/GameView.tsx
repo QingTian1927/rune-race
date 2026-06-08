@@ -8,11 +8,13 @@ import {
   RUNE_MAX_HAND_SIZE,
   type HeldCard,
 } from '@rune-race/shared'
-import { listValidPlacementCellIds } from '@rune-race/game-engine'
+import { canSpawnFromLeaveStable, listValidPlacementCellIds } from '@rune-race/game-engine'
 import { placementRejectMessage } from '../lib/runeMarkerDisplay'
 import { HandArrayPanel } from './hud/HandArrayPanel'
 import { RuneCardPreviewOverlay } from './hud/RuneCardPreviewOverlay'
 import { RuneDrawRevealOverlay } from './hud/RuneDrawRevealOverlay'
+import { RuneTriggerFlashOverlay } from './hud/RuneTriggerFlashOverlay'
+import { RuneTriggerFlashProvider } from '../contexts/RuneTriggerFlashContext'
 import { useBoardImpactFeedback } from '../hooks/useBoardImpactFeedback'
 import BoardScene from '../scenes/BoardScene'
 import type { CameraDebugInfo } from '../config/cameraConfig'
@@ -26,6 +28,8 @@ import { FinishOrderPanel } from './hud/FinishOrderPanel'
 import { GameEndOverlay } from './hud/GameEndOverlay'
 import { YourTurnBanner } from './hud/YourTurnBanner'
 import { RollDiceButton } from './hud/RollDiceButton'
+import { PhaseCountdownBar } from './hud/PhaseCountdownBar'
+import { usePhaseCountdown } from '../hooks/usePhaseCountdown'
 import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { GameSettingsOverlay } from './hud/GameSettingsOverlay'
@@ -34,6 +38,9 @@ import { useAudioSettings } from '../hooks/useAudioSettings'
 import { useGraphicsQuality } from '../hooks/useGraphicsQuality'
 import { useLandscapeHint } from '../hooks/useLandscapeHint'
 import { useFullscreen } from '../hooks/useFullscreen'
+
+const TURN_ROLL_TIMEOUT_MS = 10_000
+const TURN_MOVE_CHOICE_TIMEOUT_MS = 20_000
 
 function LoadingOverlay({ active, progress }: { active: boolean; progress: number }) {
   if (!active) return null
@@ -122,6 +129,8 @@ export default function GameView({
   const [editorSelectedPlayer, setEditorSelectedPlayer] = useState(0)
   const [editorMouseMode, setEditorMouseMode] = useState<'draw' | 'camera'>('draw')
   const resolveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const rollTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const moveChoiceTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const bannerHideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const rollShowTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const moveBannerTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
@@ -211,9 +220,18 @@ export default function GameView({
   const hasLeaveStableInHand = Boolean(
     myRune?.hand.some((card) => card.cardType === 'LEAVE_STABLE'),
   )
+  const leaveStableSpawnable = Boolean(
+    localPlayerId && canSpawnFromLeaveStable(gameState, localPlayerId),
+  )
   /** Spec §3.1 step 4 / §11.5: only during leave_stable_phase after placement closed. */
   const canUseLeaveStable =
-    isMyTurn && Boolean(onUseLeaveStable) && hasLeaveStableInHand && leaveStablePhaseActive
+    isMyTurn &&
+    Boolean(onUseLeaveStable) &&
+    hasLeaveStableInHand &&
+    leaveStablePhaseActive &&
+    leaveStableSpawnable
+  const leaveStableCardGreyedOut =
+    isMyTurn && hasLeaveStableInHand && leaveStablePhaseActive && !leaveStableSpawnable
   const isHandCardSelectable = useCallback(
     (card: HeldCard) => {
       if (card.cardType === 'LEAVE_STABLE') {
@@ -227,7 +245,18 @@ export default function GameView({
     [canUseLeaveStable, myHandCount, onPlaceMarker, placementPhaseActive],
   )
   const isHandCardPending = useCallback(() => false, [])
-  const canSelectHandCards = canPlaceRunes || canUseLeaveStable
+  const getHandCardDisabledTitle = useCallback(
+    (card: HeldCard) => {
+      if (card.cardType !== 'LEAVE_STABLE' || !leaveStableCardGreyedOut) return undefined
+      const inBase = gameState.tokens.some(
+        (token) => token.playerId === localPlayerId && token.state === 'in_base',
+      )
+      if (!inBase) return 'Không còn quân trong chuồng'
+      return 'Ô xuất phát đã có quân của bạn'
+    },
+    [gameState.tokens, leaveStableCardGreyedOut, localPlayerId],
+  )
+  const canSelectHandCards = canPlaceRunes || canUseLeaveStable || leaveStableCardGreyedOut
   const effectiveCanRoll = canRoll
   const placementReadyCount = placementState
     ? gameState.players.filter((player) => placementState.readyByPlayer[player.id]).length
@@ -497,6 +526,95 @@ export default function GameView({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  const isWaitingRollPhase =
+    gameState.turn.phase === 'waiting_roll' || gameState.turn.phase === 'leave_stable_phase'
+
+  const showRollCountdown =
+    isMyTurn &&
+    effectiveCanRoll &&
+    !isPresentingDice &&
+    gameState.status === 'playing' &&
+    isWaitingRollPhase
+
+  const rollCountdownPhaseKey = `${gameState.turn.id}:${gameState.turn.phase}:roll`
+  const rollCountdown = usePhaseCountdown(
+    showRollCountdown,
+    rollCountdownPhaseKey,
+    TURN_ROLL_TIMEOUT_MS,
+  )
+
+  const moveChoiceCountdownPhaseKey = `${gameState.turn.id}:choice`
+  const moveChoiceCountdown = usePhaseCountdown(
+    isWaitingChoice,
+    moveChoiceCountdownPhaseKey,
+    TURN_MOVE_CHOICE_TIMEOUT_MS,
+  )
+
+  useEffect(() => {
+    if (rollTimeoutRef.current) {
+      window.clearTimeout(rollTimeoutRef.current)
+      rollTimeoutRef.current = null
+    }
+    if (
+      !isMyTurn ||
+      !effectiveCanRoll ||
+      isPresentingDice ||
+      gameState.status !== 'playing' ||
+      !isWaitingRollPhase
+    ) {
+      return
+    }
+
+    rollTimeoutRef.current = window.setTimeout(() => {
+      rollTimeoutRef.current = null
+      onRoll()
+    }, TURN_ROLL_TIMEOUT_MS)
+
+    return () => {
+      if (rollTimeoutRef.current) {
+        window.clearTimeout(rollTimeoutRef.current)
+        rollTimeoutRef.current = null
+      }
+    }
+  }, [
+    effectiveCanRoll,
+    gameState.status,
+    gameState.turn.id,
+    gameState.turn.phase,
+    isMyTurn,
+    isPresentingDice,
+    isWaitingRollPhase,
+    onRoll,
+  ])
+
+  useEffect(() => {
+    if (moveChoiceTimeoutRef.current) {
+      window.clearTimeout(moveChoiceTimeoutRef.current)
+      moveChoiceTimeoutRef.current = null
+    }
+    if (!isWaitingChoice) return
+
+    const firstMove = gameState.turn.legalMoves[0]
+    if (!firstMove) return
+
+    moveChoiceTimeoutRef.current = window.setTimeout(() => {
+      moveChoiceTimeoutRef.current = null
+      onSelectMove(firstMove.id)
+    }, TURN_MOVE_CHOICE_TIMEOUT_MS)
+
+    return () => {
+      if (moveChoiceTimeoutRef.current) {
+        window.clearTimeout(moveChoiceTimeoutRef.current)
+        moveChoiceTimeoutRef.current = null
+      }
+    }
+  }, [
+    gameState.turn.id,
+    gameState.turn.legalMoves,
+    isWaitingChoice,
+    onSelectMove,
+  ])
 
   useEffect(() => {
     if (!autoResolveRolled || isPresentingDice) return
@@ -871,6 +989,11 @@ export default function GameView({
   const exitConfirmLabel = onLeave ? 'Rời game' : 'Thoát'
 
   return (
+    <RuneTriggerFlashProvider
+      gameState={gameState}
+      localPlayerId={localPlayerId}
+      freezeTokenAnimations={isPresentingDice}
+    >
     <div className="game-hud-shell relative h-screen w-full overflow-hidden">
       <BoardScene
         onDebugInfoChange={showDevMenu ? setCameraDebugInfo : undefined}
@@ -978,6 +1101,7 @@ export default function GameView({
                 onCardPreview={handleCardPreview}
                 canSelectCards={canSelectHandCards}
                 isCardSelectable={isHandCardSelectable}
+                getCardDisabledTitle={getHandCardDisabledTitle}
                 isCardPending={isHandCardPending}
                 canDraw={
                   canDrawDuringTurn &&
@@ -989,6 +1113,7 @@ export default function GameView({
                   (isMyTurn && runeWindowOpen) ||
                     canPlaceRunes ||
                     canUseLeaveStable ||
+                    leaveStableCardGreyedOut ||
                     (isMyTurn && hasLeaveStableInHand && placementPhaseActive),
                 )}
                 playerColor={localPlayer?.color ?? 'blue'}
@@ -1008,30 +1133,60 @@ export default function GameView({
             {roomChat}
             {placementPhaseActive && placementState ? (
               <div className="game-hud-slot game-hud-slot--placement-hint">
-                <p className="rune-placement-hint" role="status" aria-live="polite">
-                  {placementMinWaitMs > 0
-                    ? `Đặt thẻ: xác nhận sau ${Math.ceil(placementMinWaitMs / 1000)}s`
-                    : `Đặt thẻ: tự đóng sau ${Math.ceil(placementMaxWaitMs / 1000)}s`}
-                  {' · '}
-                  {placementReadyCount}/{gameState.players.length} đã xác nhận
-                </p>
-                {onConfirmPlacementReady ? (
-                  <button
-                    type="button"
-                    className="game-btn btn-outline rune-placement-confirm-btn"
-                    disabled={iConfirmedPlacement}
-                    onClick={onConfirmPlacementReady}
-                  >
-                    <span>{iConfirmedPlacement ? 'Đã xác nhận đặt xong' : 'Xác nhận đặt xong'}</span>
-                  </button>
-                ) : null}
+                <PhaseCountdownBar
+                  label={
+                    placementMinWaitMs > 0 ? 'Đặt thẻ: xác nhận sau' : 'Đặt thẻ: tự đóng sau'
+                  }
+                  remainingMs={placementMinWaitMs > 0 ? placementMinWaitMs : placementMaxWaitMs}
+                  totalMs={
+                    placementMinWaitMs > 0
+                      ? Math.max(1, placementState.minCloseAt - placementState.openedAt)
+                      : Math.max(1, placementState.maxCloseAt - placementState.minCloseAt)
+                  }
+                  suffix={`${placementReadyCount}/${gameState.players.length} đã xác nhận`}
+                >
+                  {onConfirmPlacementReady ? (
+                    <button
+                      type="button"
+                      className="game-btn btn-outline rune-placement-confirm-btn"
+                      disabled={iConfirmedPlacement}
+                      onClick={onConfirmPlacementReady}
+                    >
+                      <span>{iConfirmedPlacement ? 'Đã xác nhận đặt xong' : 'Xác nhận đặt xong'}</span>
+                    </button>
+                  ) : null}
+                </PhaseCountdownBar>
               </div>
             ) : null}
-            {leaveStablePhaseActive && canUseLeaveStable ? (
+            {leaveStablePhaseActive && isMyTurn && hasLeaveStableInHand ? (
               <div className="game-hud-slot game-hud-slot--placement-hint">
-                <p className="rune-placement-hint" role="status" aria-live="polite">
-                  Chạm Xuất chuồng hoặc tung xúc xắc để gieo
-                </p>
+                <PhaseCountdownBar
+                  label={
+                    canUseLeaveStable
+                      ? 'Chạm Xuất chuồng hoặc tự tung sau'
+                      : 'Tự tung sau (thẻ Xuất chuồng không dùng được)'
+                  }
+                  remainingMs={rollCountdown.remainingMs}
+                  totalMs={TURN_ROLL_TIMEOUT_MS}
+                />
+              </div>
+            ) : null}
+            {showRollCountdown && !leaveStablePhaseActive ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <PhaseCountdownBar
+                  label="Tự tung sau"
+                  remainingMs={rollCountdown.remainingMs}
+                  totalMs={TURN_ROLL_TIMEOUT_MS}
+                />
+              </div>
+            ) : null}
+            {isWaitingChoice ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <PhaseCountdownBar
+                  label="Tự chọn quân sau"
+                  remainingMs={moveChoiceCountdown.remainingMs}
+                  totalMs={TURN_MOVE_CHOICE_TIMEOUT_MS}
+                />
               </div>
             ) : null}
             {placementNotice ? (
@@ -1041,6 +1196,7 @@ export default function GameView({
                 </p>
               </div>
             ) : null}
+            <RuneTriggerFlashOverlay />
           </>
         ) : null}
       </div>
@@ -1129,5 +1285,6 @@ export default function GameView({
         onDismissForever={landscapeHint.dismissForever}
       />
     </div>
+    </RuneTriggerFlashProvider>
   )
 }

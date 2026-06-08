@@ -75,7 +75,7 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | `game:connected` | `{ playerId, gameId }` |
 | `game:state_snapshot` | `ClientGameSnapshot` — `{ version, state, events, runeView }` |
 | `game:error` | `{ message, code }` |
-| `game:turn_timeout_warning` | Not emitted in MVP |
+| `game:turn_timeout_warning` | Not emitted; server auto-resolves idle roll (10s) and move choice (20s) via `tickTurnTimeouts` |
 
 ## Client handling rules
 

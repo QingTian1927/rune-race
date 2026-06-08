@@ -2887,6 +2887,93 @@ a.game-btn {
   }
 }
 
+/* Activated rune reveal — right rail, stacked top → bottom */
+.game-hud-slot--rune-flash {
+  top: max(
+    calc(var(--hud-edge) + var(--hud-exit-h, 44px) + var(--hud-stack) + var(--hud-turn-h, 88px) + var(--hud-stack)),
+    calc(
+      env(safe-area-inset-top) + var(--hud-exit-h, 44px) + var(--hud-stack) + var(--hud-turn-h, 88px) +
+        var(--hud-stack)
+    )
+  );
+  right: max(var(--hud-edge), env(safe-area-inset-right));
+  left: auto;
+  bottom: max(calc(var(--hud-bottom-dock, 120px) + var(--hud-stack)), calc(env(safe-area-inset-bottom) + 120px));
+  width: min(30vw, 108px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  pointer-events: none;
+  z-index: 11;
+}
+
+.rune-trigger-flash-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+  width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.rune-trigger-flash-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  animation: rune-trigger-flash-stack-in 0.48s cubic-bezier(0.22, 1, 0.34, 1) both;
+}
+
+.rune-trigger-flash-item--exit {
+  animation: rune-trigger-flash-stack-out 0.48s ease-in both;
+}
+
+.rune-trigger-flash-card {
+  width: 100%;
+  max-width: 96px;
+  height: auto;
+  filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.28));
+  border-radius: 0.55rem;
+}
+
+.rune-trigger-flash-label {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.92);
+  text-shadow: 0 1px 8px rgba(15, 23, 42, 0.55);
+  line-height: 1.15;
+}
+
+@keyframes rune-trigger-flash-stack-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rune-trigger-flash-stack-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+}
+
 .rune-marker-html {
   pointer-events: none;
   /* Anchor 3D point at the pin tip (bottom of teardrop). */
@@ -4339,6 +4426,15 @@ a.game-btn {
     max-width: calc(100vw - 2 * var(--hud-edge));
   }
 
+  .game-hud-slot--rune-flash {
+    top: max(calc(var(--hud-edge) + 52px), calc(env(safe-area-inset-top) + 52px));
+    bottom: max(
+      calc(var(--hud-bottom-dock) + var(--hud-stack)),
+      calc(env(safe-area-inset-bottom) + 108px)
+    );
+    width: min(22vw, 88px);
+  }
+
   .game-hud-slot--hand,
   .game-hud-slot--self {
     display: flex;
@@ -4705,7 +4801,8 @@ a.game-btn {
   pointer-events: auto;
 }
 
-.rune-placement-hint {
+.rune-placement-hint,
+.rune-phase-countdown {
   margin: 0;
   padding: 10px 14px;
   border-radius: 14px;
@@ -4721,6 +4818,29 @@ a.game-btn {
   text-align: center;
 }
 
+.rune-phase-countdown__label {
+  margin: 0;
+}
+
+.rune-phase-countdown__seconds {
+  color: #1a5fd4;
+}
+
+.rune-phase-countdown__track {
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(42, 64, 128, 0.14);
+  overflow: hidden;
+}
+
+.rune-phase-countdown__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4f8cff, #1a5fd4);
+  transition: width 0.25s linear;
+}
+
 .rune-placement-hint--error {
   border-color: rgba(232, 70, 58, 0.45);
   background: rgba(255, 244, 242, 0.92);
@@ -4733,8 +4853,14 @@ a.game-btn {
     max-width: calc(100vw - 2 * var(--hud-edge) - 8px);
   }
 
-  .rune-placement-hint {
+  .rune-placement-hint,
+  .rune-phase-countdown {
     font-size: 11px;
     padding: 8px 12px;
+  }
+
+  .rune-phase-countdown__track {
+    margin-top: 6px;
+    height: 4px;
   }
 }

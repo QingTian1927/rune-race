@@ -102,6 +102,7 @@ Rune marker animations follow the same delta cursor as `tokenMotion.ts` (`token_
 | Rune draw | Active player only during `waiting_draw` |
 | Rune place | Any player with cards in hand during `placement_phase` |
 | Placement confirm | Any player during `placement_phase` via `game:confirm_placement_ready` |
+| Turn timeouts | Server `tickTurnTimeouts`: auto-roll **10s**, auto-first-move **20s**; client `PhaseCountdownBar` mirrors for active player |
 
 Opponents see board updates from snapshots but not selection arrows, roll button, or your marker card types.
 

@@ -29,6 +29,15 @@ export function resolveLandedCellIds(
   return [...cellIds]
 }
 
+export function cellIdsForPathSteps(playerSlot: number, steps: MockPathStep[]): Set<number> {
+  const ids = new Set<number>()
+  steps.forEach((step) => {
+    const cellId = cellIdForTrackStepBySlot(playerSlot, step)
+    if (cellId !== null) ids.add(cellId)
+  })
+  return ids
+}
+
 /** @deprecated Prefer cellIdForTrackStepBySlot — player slot must match board layout index. */
 export function cellIdsOnTrackPathBySlot(playerSlot: number, path: MockPathStep[]): number[] {
   const ids: number[] = []
