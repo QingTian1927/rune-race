@@ -1,5 +1,5 @@
 import type { GameEvent, GameState, LegalMove, Player, TokenState } from '@rune-race/shared'
-import { PLAYER_COLORS, TOKENS_PER_PLAYER } from '@rune-race/shared'
+import { PLAYER_COLORS, tokensPerPlayer } from '@rune-race/shared'
 import boardLayoutData from '../data/board-layout.json'
 import { createInitialRuneState } from './rune/state.js'
 import { setEngineApi } from './engine-api.js'
@@ -51,11 +51,12 @@ function clonePlayers(playerCount = MOCK_PLAYER_COUNT): Player[] {
   }))
 }
 
-function createBaseTokens(players: Player[]): MutableToken[] {
+function createBaseTokens(players: Player[], runesEnabled: boolean): MutableToken[] {
   const tokens: MutableToken[] = []
+  const count = tokensPerPlayer(runesEnabled)
 
   players.forEach((player) => {
-    for (let tokenIndex = 0; tokenIndex < TOKENS_PER_PLAYER; tokenIndex += 1) {
+    for (let tokenIndex = 0; tokenIndex < count; tokenIndex += 1) {
       tokens.push({
         id: `${player.id}:${tokenIndex}`,
         playerId: player.id,
@@ -101,7 +102,7 @@ export function createInitialGameState(params: {
     roomId: params.gameId,
     version: 1,
     players,
-    tokens: createBaseTokens(players),
+    tokens: createBaseTokens(players, runesEnabled),
     turn: {
       id: `${params.gameId}:turn:1`,
       currentPlayerId,

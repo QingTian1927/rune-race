@@ -21,12 +21,22 @@ export interface Player {
 /** Token position state within the game board */
 export type TokenState = 'in_base' | 'on_track' | 'in_home_lane' | 'finished'
 
-/** Tokens per player (Rule Lock v1.1). */
-export const TOKENS_PER_PLAYER = 2
+/** Classic mode (runes off): four horses per player. */
+export const CLASSIC_TOKENS_PER_PLAYER = 4
+
+/** Rune mode: two horses per player. */
+export const RUNE_TOKENS_PER_PLAYER = 2
+
+/** @deprecated Use {@link tokensPerPlayer} or mode-specific constants. */
+export const TOKENS_PER_PLAYER = RUNE_TOKENS_PER_PLAYER
+
+export function tokensPerPlayer(runesEnabled: boolean): number {
+  return runesEnabled ? RUNE_TOKENS_PER_PLAYER : CLASSIC_TOKENS_PER_PLAYER
+}
 
 /**
  * Individual token (game piece)
- * Each player has {@link TOKENS_PER_PLAYER} tokens.
+ * Count per player depends on {@link tokensPerPlayer} (classic 4, rune 2).
  */
 export interface Token {
   id: string // Format: "${playerId}:${tokenIndex}"
