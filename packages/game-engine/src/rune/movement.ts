@@ -100,27 +100,11 @@ export function applySpawnFromBaseWithMarkers(
   )
   if (ownAtStart) return state
 
+  const spawnFrom: MockPathStep = { state: 'in_base', position: spawnTarget.position }
   const spawnTargetOnTrack = { ...spawnTarget, state: 'on_track' as const, position: 0 }
   const tokens = state.tokens.map((t) => (t.id === spawnTarget.id ? spawnTargetOnTrack : t))
-  let working: GameState = {
-    ...state,
-    tokens,
-    events: [
-      ...state.events,
-      {
-        type: 'token_moved',
-        timestamp,
-        playerId,
-        details: {
-          tokenId: spawnTarget.id,
-          moveType: 'spawn',
-          from: { state: 'in_base', position: spawnTarget.position },
-          to: { state: 'on_track', position: 0 },
-          path: [{ state: 'on_track', position: 0 }],
-        },
-      },
-    ],
-  }
+  let working: GameState = { ...state, tokens }
+  let path: MockPathStep[] = [{ state: 'on_track', position: 0 }]
 
   working = applyTraditionalCapture(working, spawnTargetOnTrack, { state: 'on_track', position: 0 }, timestamp)
 
@@ -143,10 +127,29 @@ export function applySpawnFromBaseWithMarkers(
         session = runStepLoop(session, timestamp)
       }
       working = session.state
+      path = session.path
     }
   }
 
-  return working
+  const finalToken = working.tokens.find((t) => t.id === spawnTarget.id)!
+  return {
+    ...working,
+    events: [
+      ...working.events,
+      {
+        type: 'token_moved',
+        timestamp,
+        playerId,
+        details: {
+          tokenId: spawnTarget.id,
+          moveType: 'spawn',
+          from: spawnFrom,
+          to: { state: finalToken.state, position: finalToken.position },
+          path,
+        } as MockMoveEventDetails,
+      },
+    ],
+  }
 }
 
 function sendTokenHome(state: GameState, tokenId: string, timestamp: number): GameState {
@@ -193,6 +196,23 @@ type MoveSession = {
   path: MockPathStep[]
   /** Steps from rune ADVANCE/BACK markers that should teleport on the client. */
   runeStepsRemaining: number
+}
+
+/** Cancel all remaining movement in the current direction and start a rune burst of exactly N steps. */
+function replaceMovementBurst(
+  session: MoveSession,
+  state: GameState,
+  direction: StepDirection,
+  n: number,
+): MoveSession {
+  return {
+    ...session,
+    state,
+    direction,
+    remainingSteps: n,
+    stopped: false,
+    runeStepsRemaining: n,
+  }
 }
 
 function resolvePassThrough(
@@ -269,14 +289,8 @@ function resolvePassThrough(
   if (marker.cardType.startsWith('ADVANCE_') && def.stepValue) {
     const n = def.stepValue
     if (direction === 'backward') {
-      return {
-        ...session,
-        state,
-        direction: 'forward',
-        remainingSteps: n,
-        stopped: false,
-        runeStepsRemaining: session.runeStepsRemaining + n,
-      }
+      // Spec §8.2 / §9.1: cancel remaining backward steps, then forward exactly N.
+      return replaceMovementBurst(session, state, 'forward', n)
     }
     return {
       ...session,
@@ -290,14 +304,8 @@ function resolvePassThrough(
   if (marker.cardType.startsWith('BACK_') && def.stepValue) {
     const n = def.stepValue
     if (direction === 'forward') {
-      return {
-        ...session,
-        state,
-        direction: 'backward',
-        remainingSteps: n,
-        stopped: false,
-        runeStepsRemaining: session.runeStepsRemaining + n,
-      }
+      // Spec §8.2 / §9.2: cancel all remaining forward steps (dice + rune), then back exactly N.
+      return replaceMovementBurst(session, state, 'backward', n)
     }
     return {
       ...session,
@@ -787,8 +795,15 @@ export function resolveMoveWithRunes(state: GameState, chosenMove: LegalMove): G
       position: 0,
     })
     let working: GameState = { ...state, tokens }
+    const spawnTargetOnTrack = { ...moveToken, state: 'on_track' as const, position: 0 }
+    working = applyTraditionalCapture(
+      working,
+      spawnTargetOnTrack,
+      { state: 'on_track', position: 0 },
+      timestamp,
+    )
 
-    const cellId = cellIdForTokenOnTrack(working, { ...moveToken, state: 'on_track', position: 0 })
+    const cellId = cellIdForTokenOnTrack(working, spawnTargetOnTrack)
     if (cellId !== null && working.rune) {
       const marker = markerAtCell(working.rune.markers, cellId)
       if (marker) {

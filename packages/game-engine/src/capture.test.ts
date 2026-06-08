@@ -121,6 +121,51 @@ describe('traditional capture symmetry', () => {
     expect(resolved.tokens.find((t) => t.id === blueToken.id)!.state).toBe('in_base')
   })
 
+  it('rune mode: dice spawn captures enemy on shared start before marker chain', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-red',
+      runesEnabled: true,
+    })
+
+    const redToken = state.tokens.find((t) => t.playerId === 'p-red')!
+    const blueToken = state.tokens.find((t) => t.playerId === 'p-blue')!
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) => {
+        if (t.id === blueToken.id) return { ...t, state: 'on_track' as const, position: 33 }
+        return t
+      }),
+      turn: {
+        ...state.turn,
+        currentPlayerId: 'p-red',
+        phase: 'waiting_choice',
+        diceResult: 6,
+        legalMoves: [
+          {
+            id: 'spawn-capture',
+            tokenId: redToken.id,
+            moveType: 'capture',
+            destination: 0,
+            capturedTokenId: blueToken.id,
+          },
+        ],
+      },
+      phase: 'waiting_choice',
+    }
+
+    const after = resolveMoveWithRunes(state, state.turn.legalMoves[0]!)
+    expect(after.tokens.find((t) => t.id === redToken.id)!.state).toBe('on_track')
+    expect(after.tokens.find((t) => t.id === blueToken.id)!.state).toBe('in_base')
+    expect(after.events.some((e) => e.type === 'token_moved' && e.details?.tokenId === redToken.id)).toBe(
+      true,
+    )
+    expect(after.events.some((e) => e.type === 'token_captured' && e.details?.capturedTokenId === blueToken.id)).toBe(
+      true,
+    )
+  })
+
   it('rune mode: rolling 6 auto-resolves capture spawn onto occupied start cell', () => {
     let state = createInitialGameState({
       gameId: 'g1',

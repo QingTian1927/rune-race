@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialGameState } from '../engine.js'
-import { closePlacementPhase } from './placement.js'
-import { handleUseLeaveStable } from '../rune-commands.js'
+import { boardSlotForPlayer, absoluteTrackIndexFor, createInitialGameState } from '../engine.js'
+import { closePlacementPhase, placeMarker } from './placement.js'
+import { canSpawnFromLeaveStable, handleUseLeaveStable } from '../rune-commands.js'
 import { handleRoll } from '../commands.js'
 import { RUNE_PLACEMENT_MIN_MS } from '@rune-race/shared'
 
@@ -45,6 +45,68 @@ function withLeaveStablePhase(
 }
 
 describe('LEAVE_STABLE direct use', () => {
+  it('includes full teleport path when spawn triggers ADVANCE on start cell', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-red',
+      runesEnabled: true,
+    })
+    const startCell = absoluteTrackIndexFor(boardSlotForPlayer(state, 'p-red'), 0)
+    const placement = {
+      phaseId: 'test-placement',
+      openedAt: Date.now(),
+      minCloseAt: Date.now(),
+      maxCloseAt: Date.now() + 60_000,
+      honestyByPlayer: {},
+    }
+    const placer = state.rune!.players['p-blue']
+    state = {
+      ...state,
+      turn: { ...state.turn, phase: 'placement_phase' as const, currentPlayerId: 'p-blue' },
+      phase: 'placement_phase' as const,
+      rune: {
+        ...state.rune!,
+        placement,
+        players: {
+          ...state.rune!.players,
+          'p-blue': {
+            ...placer,
+            hand: [
+              ...placer.hand,
+              {
+                heldCardId: 'adv-start',
+                ownerPlayerId: 'p-blue',
+                cardType: 'ADVANCE_2' as const,
+                remainingHandRounds: 2,
+                source: 'DRAW' as const,
+              },
+            ],
+          },
+        },
+      },
+    }
+    const { state: withMarker } = placeMarker(
+      state,
+      'p-blue',
+      'adv-start',
+      startCell,
+      'p-blue',
+      Date.now(),
+    )
+    state = withLeaveStablePhase(withMarker, 'p-red')
+    const heldCardId = state.rune!.players['p-red'].hand[0]!.heldCardId
+
+    const result = handleUseLeaveStable(state, 'p-red', heldCardId)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+
+    const moveEvent = result.events.find((e) => e.type === 'token_moved')
+    const path = moveEvent?.details?.path ?? []
+    expect(path.some((step) => step.motion === 'teleport')).toBe(true)
+    expect(moveEvent?.details?.to).toEqual({ state: 'on_track', position: 2 })
+  })
+
   it('TC-14: spawns a token from base when start cell is empty', () => {
     let state = createInitialGameState({
       gameId: 'g1',
@@ -267,5 +329,61 @@ describe('LEAVE_STABLE direct use', () => {
     if (!rolled.success) return
     expect(rolled.state.turn.phase).not.toBe('leave_stable_phase')
     expect(rolled.state.rune!.players['p-red'].hand).toHaveLength(1)
+  })
+})
+
+describe('canSpawnFromLeaveStable', () => {
+  it('returns false when all tokens left base', () => {
+    let state = withLeaveStablePhase(
+      createInitialGameState({
+        gameId: 'g1',
+        players,
+        firstPlayerId: 'p-red',
+        runesEnabled: true,
+      }),
+      'p-red',
+    )
+    state = {
+      ...state,
+      tokens: state.tokens.map((token) =>
+        token.playerId === 'p-red' ? { ...token, state: 'on_track' as const, position: 5 } : token,
+      ),
+    }
+    expect(canSpawnFromLeaveStable(state, 'p-red')).toBe(false)
+  })
+
+  it('returns false when own horse already occupies start cell', () => {
+    let state = withLeaveStablePhase(
+      createInitialGameState({
+        gameId: 'g1',
+        players,
+        firstPlayerId: 'p-red',
+        runesEnabled: true,
+      }),
+      'p-red',
+    )
+    const onStart = state.tokens.find((t) => t.playerId === 'p-red' && t.state === 'in_base')!
+    state = {
+      ...state,
+      tokens: state.tokens.map((token) =>
+        token.id === onStart.id
+          ? { ...token, state: 'on_track' as const, position: 0 }
+          : token,
+      ),
+    }
+    expect(canSpawnFromLeaveStable(state, 'p-red')).toBe(false)
+  })
+
+  it('returns true when a token remains in base and start is clear', () => {
+    const state = withLeaveStablePhase(
+      createInitialGameState({
+        gameId: 'g1',
+        players,
+        firstPlayerId: 'p-red',
+        runesEnabled: true,
+      }),
+      'p-red',
+    )
+    expect(canSpawnFromLeaveStable(state, 'p-red')).toBe(true)
   })
 })

@@ -16,7 +16,7 @@ import {
   tickPlacementPhase,
   closeLeaveStablePhase,
 } from './rune/placement.js'
-import { useLeaveStableCard } from './rune/leave-stable.js'
+import { canSpawnFromLeaveStable, useLeaveStableCard } from './rune/leave-stable.js'
 import { resolveMoveWithRunes, resolveSwapChoice } from './rune/movement.js'
 
 function fail(code: string, message: string): GameCommandResult {
@@ -261,3 +261,5 @@ export function chooseMoveWithRunes(
 
   return { success: true, state: next, events: sliceNewEvents(before, next) }
 }
+
+export { canSpawnFromLeaveStable }
