@@ -239,6 +239,20 @@ export function placeMarker(
     return { state, events: [{ type: 'marker_place_rejected', timestamp, playerId, details: { reason: 'not_in_game' } }] }
   }
 
+  if (state.rune.placement?.readyByPlayer?.[playerId]) {
+    return {
+      state,
+      events: [
+        {
+          type: 'marker_place_rejected',
+          timestamp,
+          playerId,
+          details: { reason: 'placement_confirmed' },
+        },
+      ],
+    }
+  }
+
   const card = player.hand.find((c) => c.heldCardId === heldCardId)
   if (!card) {
     return { state, events: [{ type: 'marker_place_rejected', timestamp, playerId, details: { reason: 'card_not_found' } }] }

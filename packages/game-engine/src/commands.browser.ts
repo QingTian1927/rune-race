@@ -1,5 +1,12 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
-import { removePlayerFromGame, rollTurn, resolveTurn, type RollDiceFn } from './engine.browser.js'
+import {
+  pickAutoSpawnMove,
+  removePlayerFromGame,
+  resolveTurn,
+  rollTurn,
+  shouldAutoExitStable,
+  type RollDiceFn,
+} from './engine.browser.js'
 import { chooseMoveWithRunes, rollTurnWithRunes } from './rune-commands.js'
 
 export type GameCommandError = {
@@ -41,8 +48,19 @@ export function handleRoll(
 
   const before = state
   let next = rollTurn(state, rollFn)
+  const diceResult = next.turn.diceResult ?? 0
+  const autoSpawnMove =
+    shouldAutoExitStable(next, diceResult, next.turn.legalMoves)
+      ? pickAutoSpawnMove(next, next.turn.legalMoves)
+      : null
 
-  if (next.turn.phase === 'waiting_choice' && next.turn.legalMoves.length === 1) {
+  if (autoSpawnMove) {
+    const beforeResolve = next
+    next = resolveTurn(next, autoSpawnMove.id)
+    if (next === beforeResolve) {
+      next = resolveTurn(beforeResolve)
+    }
+  } else if (next.turn.phase === 'waiting_choice' && next.turn.legalMoves.length === 1) {
     next = resolveTurn(next, next.turn.legalMoves[0].id)
   } else if (next.turn.phase === 'rolled') {
     next = resolveTurn(next)

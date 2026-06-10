@@ -1,4 +1,5 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
+import { pickAutoSpawnMove, shouldAutoExitStable } from './engine.js'
 import { sliceNewEvents, type GameCommandResult } from './commands.js'
 import { rollTurn, resolveTurn } from './engine.js'
 import {
@@ -42,6 +43,12 @@ export function handleDrawCards(state: GameState, playerId: string, count: numbe
   if (before.turn.phase !== 'placement_phase' && before.turn.phase !== 'waiting_draw') {
     return fail('INVALID_PHASE', 'Cannot draw in this phase')
   }
+  if (
+    before.turn.phase === 'placement_phase' &&
+    before.rune?.placement?.readyByPlayer?.[playerId]
+  ) {
+    return fail('PLACEMENT_CONFIRMED', 'Placement already confirmed')
+  }
 
   const next = previewDrawCard(before, playerId)
   if (next === before) return fail('DRAW_FAILED', 'Cannot draw cards')
@@ -60,6 +67,12 @@ export function handleConfirmDraw(state: GameState, playerId: string): GameComma
 
   const timestamp = Date.now()
   const before = maybeAutoCloseExpiredPlacement(state, timestamp)
+  if (
+    before.turn.phase === 'placement_phase' &&
+    before.rune?.placement?.readyByPlayer?.[playerId]
+  ) {
+    return fail('PLACEMENT_CONFIRMED', 'Placement already confirmed')
+  }
   const next = confirmPendingDraw(before, playerId)
   if (next === before) return fail('CONFIRM_DRAW_FAILED', 'No pending draw to confirm')
   return { success: true, state: next, events: sliceNewEvents(before, next) }
@@ -201,8 +214,19 @@ export function rollTurnWithRunes(
   }
 
   let next = rollTurn(readyState, rollFn)
+  const diceResult = next.turn.diceResult ?? 0
+  const autoSpawnMove =
+    shouldAutoExitStable(next, diceResult, next.turn.legalMoves)
+      ? pickAutoSpawnMove(next, next.turn.legalMoves)
+      : null
 
-  if (next.turn.phase === 'waiting_choice' && next.turn.legalMoves.length === 1) {
+  if (autoSpawnMove) {
+    const beforeResolve = next
+    next = resolveTurnWithRunesIfEnabled(next, autoSpawnMove.id)
+    if (next === beforeResolve) {
+      next = resolveTurn(beforeResolve)
+    }
+  } else if (next.turn.phase === 'waiting_choice' && next.turn.legalMoves.length === 1) {
     next = resolveTurnWithRunesIfEnabled(next, next.turn.legalMoves[0]!.id)
   } else if (next.turn.phase === 'rolled') {
     next = resolveTurnWithRunesIfEnabled(next)
@@ -220,7 +244,11 @@ export function resolveTurnWithRunesIfEnabled(state: GameState, moveId?: string)
   if (diceResult === null) return state
 
   const legalMoves = state.turn.legalMoves.length > 0 ? state.turn.legalMoves : []
-  const chosenMove = moveId ? legalMoves.find((m) => m.id === moveId) ?? null : legalMoves[0] ?? null
+  const chosenMove = moveId
+    ? legalMoves.find((m) => m.id === moveId) ?? null
+    : shouldAutoExitStable(state, diceResult, legalMoves)
+      ? pickAutoSpawnMove(state, legalMoves)
+      : legalMoves[0] ?? null
 
   if (state.turn.phase === 'waiting_choice' && legalMoves.length > 1 && !chosenMove) {
     return state

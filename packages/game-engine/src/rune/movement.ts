@@ -1,7 +1,7 @@
 import type { BoardMarker, GameEvent, GameState, LegalMove } from '@rune-race/shared'
 import { RUNE_CARD_DEFINITIONS } from '@rune-race/shared'
 import type { MockMoveEventDetails, MockPathStep } from '../engine.js'
-import { isExitBaseLegalMove } from '../engine.js'
+import { isExitBaseLegalMove, tokenBlocksOwnTrackSquare } from '../engine.js'
 import { getEngineApi } from '../engine-api.js'
 import { cellIdForTokenOnTrack, markerAtCell } from './board-cells.js'
 import { applyFreezeToToken, beginNormalTurn, isTokenFrozen } from './turn-lifecycle.js'
@@ -784,17 +784,53 @@ export function resolveMoveWithRunes(state: GameState, chosenMove: LegalMove): G
   }
 
   if (moveToken.state === 'in_base' && isExitBaseLegalMove(chosenMove, state.tokens)) {
+    let spawnState = state
+    const frozenBlockers = spawnState.tokens.filter(
+      (token) =>
+        token.playerId === moveToken.playerId &&
+        token.state === 'on_track' &&
+        token.position === 0 &&
+        (token.freezeTurnsRemaining ?? 0) > 0,
+    )
+    if (frozenBlockers.length > 0) {
+      spawnState = {
+        ...spawnState,
+        tokens: spawnState.tokens.map((token) => {
+          if (!frozenBlockers.some((blocker) => blocker.id === token.id)) {
+            return token
+          }
+          return {
+            ...token,
+            state: 'in_base' as const,
+            position: baseSlotForToken(token.id),
+            freezeTurnsRemaining: 0,
+          }
+        }),
+      }
+    }
+
+    const ownAtStart = spawnState.tokens.some(
+      (token) =>
+        token.playerId === moveToken.playerId &&
+        token.state === 'on_track' &&
+        token.position === 0 &&
+        tokenBlocksOwnTrackSquare(token),
+    )
+    if (ownAtStart) {
+      return state
+    }
+
     pathInfo = {
       from: { state: 'in_base', position: moveToken.position },
       to: { state: 'on_track', position: 0 },
       path: [{ state: 'on_track', position: 0 }],
       moveType: chosenMove.moveType,
     }
-    let tokens = updateTokenInList(state.tokens, moveToken.id, {
+    let tokens = updateTokenInList(spawnState.tokens, moveToken.id, {
       state: 'on_track',
       position: 0,
     })
-    let working: GameState = { ...state, tokens }
+    let working: GameState = { ...spawnState, tokens }
     const spawnTargetOnTrack = { ...moveToken, state: 'on_track' as const, position: 0 }
     working = applyTraditionalCapture(
       working,
