@@ -32,10 +32,11 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | Event | When |
 |-------|------|
 | `game:join` | Enter match (`gameId` from `lobby:game_started`) |
-| `game:draw_cards` | Active player, phase `waiting_draw` |
+| `game:draw_cards` | Active player, phase `waiting_draw` or `placement_phase` (blocked after that player confirmed placement) |
+| `game:confirm_draw` | Active player — accept pending draw preview (blocked after confirm during placement) |
 | `game:finish_draw` | Active player, phase `waiting_draw` — open placement window |
-| `game:place_marker` | Phase `placement_phase` — place held card on shared track |
-| `game:confirm_placement_ready` | Phase `placement_phase` — confirm done placing markers |
+| `game:place_marker` | Phase `placement_phase` — place held card on shared track (blocked after that player confirmed) |
+| `game:confirm_placement_ready` | Phase `placement_phase` — confirm done placing markers; locks that player until window closes |
 | `game:use_leave_stable` | Active player, phase `leave_stable_phase` — direct-use Xuất Chuồng |
 | `game:roll` | Active player — phase `waiting_roll` or `leave_stable_phase` only (not during `placement_phase`) |
 | `game:choose_move` | Phase `waiting_choice`; `moveId` from snapshot |

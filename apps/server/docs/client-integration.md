@@ -51,7 +51,7 @@ How the **web app** (`apps/web`) connects to this server today.
 3. `lobby:set_color`, `lobby:ready` until countdown → `lobby:game_started`.
 4. `sessionStorage.setItem('rune-race-lobby-id', lobbyId)`; navigate to `/game/:gameId`.
 5. `game:join`; render from `game:state_snapshot` + `runeView`.
-6. **Rune turn:** draw → place markers (confirm when done) → optional leave-stable → roll (see [Rune system](./rune-system.md)). Roll blocked until placement closes.
+6. **Rune turn:** draw → place markers (confirm when done — locks that player's hand/deck until placement closes) → optional leave-stable → roll (see [Rune system](./rune-system.md)). Roll blocked until placement closes.
 7. On roll snapshot with `dice_roll` in delta: run dice animation (~3s), then apply full state (see web `lib/dicePresentation.ts`).
 8. If `waiting_choice` and multiple moves: show 3D selection arrows **only for `localPlayerId`**. Send `game:choose_move` with chosen `moveId`.
 9. If `waiting_swap_choice`: select swap target → `game:choose_swap`.

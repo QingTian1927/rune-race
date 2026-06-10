@@ -18,7 +18,7 @@ waiting_draw → placement_phase → leave_stable_phase? → waiting_roll → �
 | Phase | Client action |
 |-------|----------------|
 | `waiting_draw` | Active player may draw cards (`game:draw_cards`) or finish draw (`game:finish_draw`) |
-| `placement_phase` | All players with cards in hand may place markers (`game:place_marker`); confirm when done (`game:confirm_placement_ready`); **roll hidden** until phase ends |
+| `placement_phase` | All players with cards in hand may place markers (`game:place_marker`); confirm when done (`game:confirm_placement_ready`); after confirm, that player cannot place, draw, or interact with the deck until the phase closes; **roll hidden** until phase ends |
 | `leave_stable_phase` | Active player may tap `LEAVE_STABLE` (`game:use_leave_stable`) when spawn is legal, or roll to skip. Card is **greyed out** when no tokens remain in base or own horse blocks start cell (`canSpawnFromLeaveStable`) |
 | `waiting_roll` | Active player rolls dice (`game:roll`) |
 | `waiting_choice` | Pick pawn on board → `game:choose_move` |
@@ -34,11 +34,25 @@ Bonus turn (rolled 6): skips draw/placement/leave-stable → `waiting_roll` with
 4. Choose displayed identity (self or another player).
 5. Confirm in overlay → `placeMarker`.
 6. When finished placing (or with nothing left to place), press **Xác nhận đặt xong** → `confirmPlacementReady`.
-7. When placement closes, hand card selection clears automatically; roll button appears for active player.
+7. **After confirm (per player):** selection clears immediately; hand cards and deck are no longer interactive for that player until the placement window closes (`iConfirmedPlacement` from `placement.readyByPlayer[localPlayerId]`). Other players who have not confirmed may still place.
+8. When placement closes globally, hand card selection clears for everyone; roll button appears for active player.
 
 **Roll during placement:** Not allowed. `canRoll` is `false` in `placement_phase`. Server returns `PLACEMENT_NOT_CLOSED` if roll is attempted early.
 
 Any seated player with cards may place during simultaneous placement, not only the active player.
+
+### Placement confirm lock (client)
+
+`GameView` gates rune interaction with `iConfirmedPlacement`:
+
+| Action | Before confirm | After confirm |
+|--------|----------------|---------------|
+| Select / preview hand cards | Yes (`canPlaceRunes`) | No — cards not selectable; notice *"Bạn đã xác nhận đặt xong"* |
+| Pick placement cells / overlay | Yes | No — overlay closes |
+| Draw from deck | Active player only (`canDrawDuringTurn`) | No — deck disabled; tooltip *"Đã xác nhận đặt xong"* |
+| **Xác nhận đặt xong** button | Enabled | Disabled — label *"Đã xác nhận đặt xong"* |
+
+`useEffect` calls `clearPlacementSelection()` when `iConfirmedPlacement` becomes true. Server still rejects late `game:place_marker` / `game:draw_cards` with `PLACEMENT_CONFIRMED` or `marker_place_rejected` (`reason: placement_confirmed`).
 
 ## Snapshot shape
 
@@ -61,10 +75,11 @@ Any seated player with cards may place during simultaneous placement, not only t
 
 | Emit | When |
 |------|------|
-| `game:draw_cards` | `{ playerId, count }` — active player, `waiting_draw` |
+| `game:draw_cards` | `{ playerId, count }` — active player, `waiting_draw` or `placement_phase` (not after that player confirmed) |
+| `game:confirm_draw` | `{ playerId }` — active player, accept pending draw preview (not after that player confirmed during placement) |
 | `game:finish_draw` | `{ playerId }` — active player, `waiting_draw` → opens placement |
-| `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` — during `placement_phase` |
-| `game:confirm_placement_ready` | `{ playerId }` — during `placement_phase` |
+| `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` — during `placement_phase` (not after that player confirmed) |
+| `game:confirm_placement_ready` | `{ playerId }` — during `placement_phase`; idempotent per player |
 | `game:use_leave_stable` | `{ playerId, heldCardId }` — during `leave_stable_phase` only |
 | `game:roll` | Active player — `waiting_roll` or `leave_stable_phase` (not during placement) |
 

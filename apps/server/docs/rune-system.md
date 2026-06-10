@@ -12,7 +12,7 @@ Authoritative Rune layer implemented in `@rune-race/game-engine` and exposed via
 
 1. **Turn start housekeeping** — expire held cards, tick marker TTL, tick freeze, drain honesty rewards (`runTurnStartHousekeeping`).
 2. **`waiting_draw`** — active player may `game:draw_cards` or `game:finish_draw`.
-3. **`placement_phase`** — opened after draw; min 5s / max 30s window; all players with hand cards may `game:place_marker` and `game:confirm_placement_ready`.
+3. **`placement_phase`** — opened after draw; min 5s / max 30s window; all players with hand cards may `game:place_marker` and `game:confirm_placement_ready`. After a player confirms, that player is locked out of further placement and draw until the window closes.
 4. **Placement close** — server ticks every 1s (`GameStore.tickPlacementPhases`); closes when `now >= maxCloseAt` **or** (`now >= minCloseAt` and all players confirmed ready).
 5. **`leave_stable_phase`** — opened after placement if active player holds `LEAVE_STABLE`; optional `game:use_leave_stable` when spawn is legal (tokens in base, start cell clear). Card is greyed out client-side when unusable.
 6. **`waiting_roll`** — active player `game:roll`. Roll during placement returns `PLACEMENT_NOT_CLOSED`.
@@ -25,17 +25,30 @@ Authoritative Rune layer implemented in `@rune-race/game-engine` and exposed via
 
 | Command | Handler | Notes |
 |---------|---------|-------|
-| `game:confirm_placement_ready` | `handleConfirmPlacementReady` | Sets `placement.readyByPlayer[playerId] = true`; emits `placement_ready_confirmed` |
+| `game:confirm_placement_ready` | `handleConfirmPlacementReady` | Sets `placement.readyByPlayer[playerId] = true`; emits `placement_ready_confirmed`; idempotent for the same player |
 
 Early close when `canClosePlacementEarly(state, now)` — all seated players confirmed and `now >= minCloseAt`.
 
 `prepareRollWithRunes` rejects roll while `turn.phase === 'placement_phase'` with `PLACEMENT_NOT_CLOSED`.
+
+### Per-player lock after confirm
+
+Once `placement.readyByPlayer[playerId] === true`, the engine rejects further rune actions for that player until placement closes:
+
+| Command | Engine | Failure |
+|---------|--------|---------|
+| `game:place_marker` | `placeMarker` | `marker_place_rejected` event, `details.reason: placement_confirmed` |
+| `game:draw_cards` | `handleDrawCards` | `DRAW_FAILED` / `PLACEMENT_CONFIRMED` |
+| `game:confirm_draw` | `handleConfirmDraw` | `CONFIRM_DRAW_FAILED` / `PLACEMENT_CONFIRMED` |
+
+Other players who have not confirmed may still place. The client mirrors this lock (`iConfirmedPlacement` in `GameView`).
 
 ## Socket handlers (`game-store.ts` → engine)
 
 | Command | Engine entry |
 |---------|----------------|
 | `game:draw_cards` | `handleDrawCards` |
+| `game:confirm_draw` | `handleConfirmDraw` |
 | `game:finish_draw` | `handleFinishDraw` |
 | `game:place_marker` | `handlePlaceMarker` |
 | `game:confirm_placement_ready` | `handleConfirmPlacementReady` |
@@ -127,4 +140,6 @@ packages/game-engine/src/
 
 ## Error codes (game)
 
-`DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `SWAP_FAILED`, `PLACEMENT_NOT_CLOSED`, plus `RUNES_DISABLED`, `INVALID_PHASE`, `NOT_YOUR_TURN` from engine validation.
+`DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `SWAP_FAILED`, `PLACEMENT_NOT_CLOSED`, `PLACEMENT_CONFIRMED` (player already confirmed during placement window), plus `RUNES_DISABLED`, `INVALID_PHASE`, `NOT_YOUR_TURN` from engine validation.
+
+`marker_place_rejected` may include `details.reason: placement_confirmed` when placement was already confirmed for that player.

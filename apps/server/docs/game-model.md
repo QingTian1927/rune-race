@@ -42,7 +42,7 @@ See `packages/shared/src/types/game.ts` and `types/rune.ts`.
 
 1. Turn start housekeeping (expire hand cards, marker TTL, freeze ticks, honesty rewards).
 2. **`waiting_draw`** — active player may `game:draw_cards`.
-3. **`placement_phase`** — simultaneous marker placement (5–30s min / 30s max, server tick 1s); any player with hand cards may place; each player may `game:confirm_placement_ready`; closes early when all confirmed after min window.
+3. **`placement_phase`** — simultaneous marker placement (5–30s min / 30s max, server tick 1s); any player with hand cards may place until they confirm; each player may `game:confirm_placement_ready` once (`placement.readyByPlayer`); after confirm, that player cannot place or draw until the window closes; closes early when all confirmed after min window.
 4. **`leave_stable_phase`** — optional direct-use `LEAVE_STABLE` for active player (skipped if not in hand).
 5. **`waiting_roll`** — active player `game:roll`. Roll is **blocked** during `placement_phase` (`PLACEMENT_NOT_CLOSED`).
 6. Roll + **stepwise** resolve with marker triggers (`token_stepped`).
