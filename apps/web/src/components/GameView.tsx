@@ -8,7 +8,12 @@ import {
   RUNE_MAX_HAND_SIZE,
   type HeldCard,
 } from '@rune-race/shared'
-import { canSpawnFromLeaveStable, listValidPlacementCellIds } from '@rune-race/game-engine'
+import {
+  areOnlyStableExitMoves,
+  canSpawnFromLeaveStable,
+  listValidPlacementCellIds,
+  pickAutoSpawnMove,
+} from '@rune-race/game-engine'
 import { placementRejectMessage } from '../lib/runeMarkerDisplay'
 import { HandArrayPanel } from './hud/HandArrayPanel'
 import { RuneCardPreviewOverlay } from './hud/RuneCardPreviewOverlay'
@@ -267,12 +272,22 @@ export default function GameView({
   const canDrawDuringTurn =
     isMyTurn && runeWindowOpen && Boolean(onDrawCards) && !myPendingDraw
 
+  const isSpawnOnlyMoveChoice =
+    isLocalPlayersTurn &&
+    !isPresentingDice &&
+    gameState.status === 'playing' &&
+    gameState.turn.phase === 'waiting_choice' &&
+    gameState.turn.legalMoves.length > 1 &&
+    (gameState.turn.diceResult === 1 || gameState.turn.diceResult === 6) &&
+    areOnlyStableExitMoves(gameState, gameState.turn.legalMoves)
+
   const isWaitingChoice =
     isLocalPlayersTurn &&
     !isPresentingDice &&
     gameState.status === 'playing' &&
     gameState.turn.phase === 'waiting_choice' &&
-    gameState.turn.legalMoves.length > 1
+    gameState.turn.legalMoves.length > 1 &&
+    !isSpawnOnlyMoveChoice
 
   const isSwapChoicePhase =
     gameState.turn.phase === 'waiting_swap_choice' && Boolean(gameState.turn.pendingSwap)
@@ -587,6 +602,13 @@ export default function GameView({
     isWaitingRollPhase,
     onRoll,
   ])
+
+  useEffect(() => {
+    if (!isSpawnOnlyMoveChoice || isPresentingDice) return
+    const autoMove = pickAutoSpawnMove(gameState, gameState.turn.legalMoves)
+    if (!autoMove) return
+    onSelectMove(autoMove.id)
+  }, [gameState, isPresentingDice, isSpawnOnlyMoveChoice, onSelectMove])
 
   useEffect(() => {
     if (moveChoiceTimeoutRef.current) {

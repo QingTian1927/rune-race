@@ -2615,7 +2615,7 @@ function PawnInstance({
             onPointerOut={onPointerOut}
           >
             <sphereGeometry args={[0.24, pickSphereSegments, pickSphereSegments]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
           </mesh>
         ) : null}
         {isSelectable || isSwapChoiceTarget ? (

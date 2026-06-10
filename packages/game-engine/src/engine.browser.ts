@@ -235,6 +235,52 @@ export function isExitBaseLegalMove(move: LegalMove, tokens: GameState['tokens']
   return move.moveType === 'spawn' || move.moveType === 'capture'
 }
 
+/** Frozen friendly tokens do not block spawning from the stable. */
+export function tokenBlocksOwnTrackSquare(token: GameState['tokens'][number] | undefined): boolean {
+  if (!token || token.state !== 'on_track') {
+    return false
+  }
+  return (token.freezeTurnsRemaining ?? 0) <= 0
+}
+
+/** True when every active token for the player is still in the stable. */
+export function playerAllTokensInBase(state: GameState, playerId: string): boolean {
+  const tokens = state.tokens.filter((token) => token.playerId === playerId)
+  if (tokens.length === 0) return false
+  return tokens.every((token) => token.state === 'in_base')
+}
+
+/** True when the player has at least one token on the shared track or home lane. */
+export function playerHasTokenOnBoard(state: GameState, playerId: string): boolean {
+  return state.tokens.some(
+    (token) =>
+      token.playerId === playerId && (token.state === 'on_track' || token.state === 'in_home_lane'),
+  )
+}
+
+export function pickAutoSpawnMove(state: GameState, legalMoves: LegalMove[]): LegalMove | null {
+  const spawnMoves = legalMoves.filter((move) => isExitBaseLegalMove(move, state.tokens))
+  if (spawnMoves.length === 0) return null
+  return (
+    [...spawnMoves].sort(
+      (a, b) => baseSlotForToken(a.tokenId) - baseSlotForToken(b.tokenId),
+    )[0] ?? null
+  )
+}
+
+/** True when every legal move exits the stable (spawn/capture on 1 or 6). */
+export function areOnlyStableExitMoves(state: GameState, legalMoves: LegalMove[]): boolean {
+  if (legalMoves.length === 0) return false
+  return legalMoves.every((move) => isExitBaseLegalMove(move, state.tokens))
+}
+
+export function shouldAutoExitStable(state: GameState, diceResult: number, legalMoves: LegalMove[]): boolean {
+  if (!canSpawnFromBase(diceResult) || legalMoves.length === 0) {
+    return false
+  }
+  return areOnlyStableExitMoves(state, legalMoves)
+}
+
 function tokenPathFromMove(token: GameState['tokens'][number], diceResult: number) {
   const maxProgress = BOARD_TRACK_LENGTH + BOARD_HOME_LANE_LENGTH - 1
 
@@ -330,7 +376,7 @@ function computeLegalMoves(state: GameState, diceResult: number): LegalMove[] {
 
       if (path.to.state === 'on_track') {
         const targetToken = trackOccupancy.get(`${token.playerId}:${path.to.position}`)
-        if (targetToken) {
+        if (tokenBlocksOwnTrackSquare(targetToken)) {
           return
         }
 
@@ -407,37 +453,29 @@ export function getNextPlayerIndex(state: GameState, keepCurrentPlayer: boolean)
   }
 
   const completedPlayerIds = new Set(getFinishOrderFromEvents(state.events))
+  const activeIndex = state.players.findIndex((p) => p.id === state.turn.currentPlayerId)
+  const currentIndex = activeIndex >= 0 ? activeIndex : state.currentPlayerIndex
 
   if (keepCurrentPlayer) {
-    const currentPlayerId = state.players[state.currentPlayerIndex]?.id
+    const currentPlayerId = state.players[currentIndex]?.id
     if (currentPlayerId && !completedPlayerIds.has(currentPlayerId)) {
-      return state.currentPlayerIndex
+      return currentIndex
     }
   }
 
   for (let offset = 1; offset <= state.players.length; offset += 1) {
-    const candidateIndex = (state.currentPlayerIndex + offset) % state.players.length
+    const candidateIndex = (currentIndex + offset) % state.players.length
     const candidatePlayerId = state.players[candidateIndex]?.id
     if (candidatePlayerId && !completedPlayerIds.has(candidatePlayerId)) {
       return candidateIndex
     }
   }
 
-  return state.currentPlayerIndex
+  return currentIndex
 }
 
 function makeTurnId(state: GameState) {
   return `${state.roomId}:turn:${state.version + 1}`
-}
-
-function shouldAutoSpawnWithoutChoice(diceResult: number, legalMoves: LegalMove[], tokens: GameState['tokens']) {
-  if (!canSpawnFromBase(diceResult) || legalMoves.length === 0) {
-    return false
-  }
-
-  const hasSpawnMove = legalMoves.some((move) => isExitBaseLegalMove(move, tokens))
-  const hasTrackOrLaneMove = legalMoves.some((move) => !isExitBaseLegalMove(move, tokens))
-  return hasSpawnMove && !hasTrackOrLaneMove
 }
 
 /** Game ends when all but one player have finished (last place is implicit). */
@@ -735,7 +773,7 @@ export function rollTurn(state: GameState, rollFn: RollDiceFn = defaultRollDice)
   const diceResult = rollFn()
   const legalMoves = computeLegalMoves(state, diceResult)
   const timestamp = now()
-  const shouldAutoSpawn = shouldAutoSpawnWithoutChoice(diceResult, legalMoves, state.tokens)
+  const shouldAutoSpawn = shouldAutoExitStable(state, diceResult, legalMoves)
   const phase = legalMoves.length > 1 && !shouldAutoSpawn ? 'waiting_choice' : 'rolled'
 
   return syncCurrentPlayerIndex({
@@ -770,7 +808,11 @@ export function resolveTurn(state: GameState, moveId?: string) {
 
   const diceResult = state.turn.diceResult
   const legalMoves = state.turn.legalMoves.length > 0 ? state.turn.legalMoves : computeLegalMoves(state, diceResult)
-  const chosenMove = moveId ? legalMoves.find((move) => move.id === moveId) ?? null : legalMoves[0] ?? null
+  const chosenMove = moveId
+    ? legalMoves.find((move) => move.id === moveId) ?? null
+    : shouldAutoExitStable(state, diceResult, legalMoves)
+      ? pickAutoSpawnMove(state, legalMoves)
+      : legalMoves[0] ?? null
   const timestamp = now()
 
   if (state.turn.phase === 'waiting_choice' && legalMoves.length > 1 && !chosenMove) {
