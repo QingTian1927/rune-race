@@ -7,8 +7,10 @@ import {
   closePlacementPhase,
   confirmPlacementReady,
   openPlacementPhase,
+  placeMarker,
   tickPlacementPhase,
 } from './placement.js'
+import { listValidPlacementCellIds } from './board-cells.js'
 
 const players = [
   { id: 'p-red', name: 'Red', color: 'red' as const },
@@ -96,6 +98,60 @@ describe('placement phase closure', () => {
 
     const after = tickPlacementPhase(state, Date.now())
     expect(after.turn.phase).toBe('waiting_roll')
+  })
+
+  it('rejects marker placement after the player confirmed placement ready', () => {
+    let state = withPlacementWindow(
+      createInitialGameState({
+        gameId: 'g1',
+        players,
+        firstPlayerId: 'p-red',
+        runesEnabled: true,
+      }),
+    )
+
+    const player = state.rune!.players['p-red']
+    const heldCardId = 'held-test-p-red-freeze'
+    state = {
+      ...state,
+      rune: {
+        ...state.rune!,
+        players: {
+          ...state.rune!.players,
+          'p-red': {
+            ...player,
+            hand: [
+              ...player.hand,
+              {
+                heldCardId,
+                ownerPlayerId: 'p-red',
+                cardType: 'FREEZE',
+                remainingHandRounds: 2,
+                source: 'DRAW',
+              },
+            ],
+          },
+        },
+      },
+    }
+
+    const cellId = listValidPlacementCellIds(state)[0]
+    expect(cellId).toBeDefined()
+
+    state = confirmPlacementReady(state, 'p-red', Date.now())
+    expect(state.rune!.placement?.readyByPlayer['p-red']).toBe(true)
+
+    const { state: after, events } = placeMarker(
+      state,
+      'p-red',
+      heldCardId,
+      cellId!,
+      'p-red',
+      Date.now(),
+    )
+
+    expect(after).toBe(state)
+    expect(events.some((event) => event.details?.reason === 'placement_confirmed')).toBe(true)
   })
 
   it('handleConfirmPlacementReady is idempotent for the same player', () => {

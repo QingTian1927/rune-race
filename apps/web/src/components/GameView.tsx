@@ -195,20 +195,23 @@ export default function GameView({
 
   const runesOn = Boolean(gameState.config?.runesEnabled && gameState.rune)
   const myRune = localPlayerId ? gameState.rune?.players[localPlayerId] : null
+  const isPlacementPhase = runesOn && gameState.turn.phase === 'placement_phase'
   const runeWindowOpen =
     runesOn &&
-    (gameState.turn.phase === 'placement_phase' || gameState.turn.phase === 'waiting_draw')
-  const placementPhaseActive = runeWindowOpen
+    (isPlacementPhase || gameState.turn.phase === 'waiting_draw')
   const leaveStablePhaseActive = runesOn && gameState.turn.phase === 'leave_stable_phase'
   const placementState = gameState.rune?.placement ?? null
+  const iConfirmedPlacement = Boolean(
+    localPlayerId && placementState?.readyByPlayer[localPlayerId],
+  )
   const [placementClock, setPlacementClock] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!placementPhaseActive || !placementState) return
+    if (!isPlacementPhase || !placementState) return
     setPlacementClock(Date.now())
     const id = window.setInterval(() => setPlacementClock(Date.now()), 250)
     return () => window.clearInterval(id)
-  }, [placementPhaseActive, placementState?.phaseId])
+  }, [isPlacementPhase, placementState?.phaseId])
 
   const placementMinWaitMs = placementState
     ? Math.max(0, placementState.minCloseAt - placementClock)
@@ -221,7 +224,10 @@ export default function GameView({
   const drawRevealOpen = Boolean(isMyTurn && myPendingDraw && runeWindowOpen)
   /** Spec §3.1 step 3: any player holding cards may place during simultaneous placement. */
   const canPlaceRunes =
-    placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)
+    isPlacementPhase &&
+    myHandCount > 0 &&
+    Boolean(onPlaceMarker) &&
+    !iConfirmedPlacement
   const hasLeaveStableInHand = Boolean(
     myRune?.hand.some((card) => card.cardType === 'LEAVE_STABLE'),
   )
@@ -242,12 +248,12 @@ export default function GameView({
       if (card.cardType === 'LEAVE_STABLE') {
         return canUseLeaveStable
       }
-      if (placementPhaseActive && myHandCount > 0 && Boolean(onPlaceMarker)) {
+      if (isPlacementPhase && !iConfirmedPlacement && myHandCount > 0 && Boolean(onPlaceMarker)) {
         return isBoardMarkerCardType(card.cardType)
       }
       return false
     },
-    [canUseLeaveStable, myHandCount, onPlaceMarker, placementPhaseActive],
+    [canUseLeaveStable, iConfirmedPlacement, isPlacementPhase, myHandCount, onPlaceMarker],
   )
   const isHandCardPending = useCallback(() => false, [])
   const getHandCardDisabledTitle = useCallback(
@@ -266,11 +272,12 @@ export default function GameView({
   const placementReadyCount = placementState
     ? gameState.players.filter((player) => placementState.readyByPlayer[player.id]).length
     : 0
-  const iConfirmedPlacement = Boolean(
-    localPlayerId && placementState?.readyByPlayer[localPlayerId],
-  )
   const canDrawDuringTurn =
-    isMyTurn && runeWindowOpen && Boolean(onDrawCards) && !myPendingDraw
+    isMyTurn &&
+    runeWindowOpen &&
+    Boolean(onDrawCards) &&
+    !myPendingDraw &&
+    !(isPlacementPhase && iConfirmedPlacement)
 
   const isSpawnOnlyMoveChoice =
     isLocalPlayersTurn &&
@@ -817,8 +824,10 @@ export default function GameView({
       }
 
       if (!canPlaceRunes) {
-        if (!placementPhaseActive) {
+        if (!isPlacementPhase) {
           setPlacementNotice('Chỉ đặt rune trong pha đặt thẻ.')
+        } else if (iConfirmedPlacement) {
+          setPlacementNotice('Bạn đã xác nhận đặt xong.')
         } else if (myHandCount <= 0) {
           setPlacementNotice('Bạn không còn thẻ trong tay.')
         }
@@ -849,9 +858,10 @@ export default function GameView({
       isHandCardPending,
       myHandCount,
       myRune?.hand,
+      iConfirmedPlacement,
+      isPlacementPhase,
       onUseLeaveStable,
       placementConfirmCellId,
-      placementPhaseActive,
       selectedHeldCardId,
     ],
   )
@@ -886,13 +896,13 @@ export default function GameView({
   }, [placementConfirmCellId])
 
   const handlePlacementCell = (cellId: number) => {
-    if (!selectedHeldCardId) return
+    if (!canPlaceRunes || !selectedHeldCardId) return
     setPlacementCellId(cellId)
     setPlacementConfirmCellId(cellId)
   }
 
   const commitPlacement = (displayedIdentityId: string) => {
-    if (!selectedHeldCardId || placementConfirmCellId === null) return
+    if (!canPlaceRunes || !selectedHeldCardId || placementConfirmCellId === null) return
     pendingPlacementRef.current = {
       heldCardId: selectedHeldCardId,
       cellId: placementConfirmCellId,
@@ -922,6 +932,12 @@ export default function GameView({
       setPlacementNotice(null)
     }
   }, [clearPlacementSelection, gameState.turn.phase])
+
+  useEffect(() => {
+    if (!iConfirmedPlacement) return
+    clearPlacementSelection()
+    setPlacementNotice(null)
+  }, [clearPlacementSelection, iConfirmedPlacement])
 
   useEffect(() => {
     if (!localPlayerId) return
@@ -1132,28 +1148,30 @@ export default function GameView({
                 }
                 onDraw={() => onDrawCards?.(1)}
                 runeActionActive={Boolean(
-                  (isMyTurn && runeWindowOpen) ||
+                  (isMyTurn && runeWindowOpen && !(isPlacementPhase && iConfirmedPlacement)) ||
                     canPlaceRunes ||
                     canUseLeaveStable ||
                     leaveStableCardGreyedOut ||
-                    (isMyTurn && hasLeaveStableInHand && placementPhaseActive),
+                    (isMyTurn && hasLeaveStableInHand && isPlacementPhase && !iConfirmedPlacement),
                 )}
                 playerColor={localPlayer?.color ?? 'blue'}
                 drawDisabledTitle={
-                  isMyTurn && runeWindowOpen
-                    ? myPendingDraw
-                      ? 'Xác nhận thẻ đang bốc'
-                      : myRune.hand.length >= RUNE_MAX_HAND_SIZE
-                      ? 'Tay đầy'
-                      : myRune.drawCount >= RUNE_MAX_DRAW_PER_PLAYER
-                        ? 'Hết lượt bốc'
-                        : undefined
-                    : undefined
+                  isPlacementPhase && iConfirmedPlacement
+                    ? 'Đã xác nhận đặt xong'
+                    : isMyTurn && runeWindowOpen
+                      ? myPendingDraw
+                        ? 'Xác nhận thẻ đang bốc'
+                        : myRune.hand.length >= RUNE_MAX_HAND_SIZE
+                          ? 'Tay đầy'
+                          : myRune.drawCount >= RUNE_MAX_DRAW_PER_PLAYER
+                            ? 'Hết lượt bốc'
+                            : undefined
+                      : undefined
                 }
               />
             ) : null}
             {roomChat}
-            {placementPhaseActive && placementState ? (
+            {isPlacementPhase && placementState ? (
               <div className="game-hud-slot game-hud-slot--placement-hint">
                 <PhaseCountdownBar
                   label={
