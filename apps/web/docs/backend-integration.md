@@ -100,8 +100,8 @@ Rune marker animations follow the same delta cursor as `tokenMotion.ts` (`token_
 | `localPlayerId` | Move-selection arrows only for this client's pawns when `waiting_choice` with multiple moves |
 | `isPresentingDice` | From `useGameSocket` / `usePresentationGameState`; freezes tokens and delays HUD turn/finish panels |
 | Rune draw | Active player only during `waiting_draw` |
-| Rune place | Any player with cards in hand during `placement_phase` |
-| Placement confirm | Any player during `placement_phase` via `game:confirm_placement_ready` |
+| Rune place | Any player with cards in hand during `placement_phase`, until that player confirms |
+| Placement confirm | Any player during `placement_phase` via `game:confirm_placement_ready`; after confirm, client locks hand/deck and server rejects further place/draw for that player |
 | Turn timeouts | Server `tickTurnTimeouts`: auto-roll **10s**, auto-first-move **20s**; client `PhaseCountdownBar` mirrors for active player |
 
 Opponents see board updates from snapshots but not selection arrows, roll button, or your marker card types.

@@ -89,10 +89,11 @@ When the handshake contains a valid Supabase access token, the server checks tha
 | Event | Payload | Semantics |
 |-------|---------|-----------|
 | `game:join` | `{ playerId, gameId }` | Must be a player in that game |
-| `game:draw_cards` | `{ playerId, count }` | Active player; `waiting_draw` |
+| `game:draw_cards` | `{ playerId, count }` | Active player; `waiting_draw` or `placement_phase`; fails `PLACEMENT_CONFIRMED` if that player already confirmed |
+| `game:confirm_draw` | `{ playerId }` | Active player; accept pending draw; fails `PLACEMENT_CONFIRMED` if already confirmed during placement |
 | `game:finish_draw` | `{ playerId }` | Active player; `waiting_draw` → opens placement |
-| `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` | `placement_phase` |
-| `game:confirm_placement_ready` | `{ playerId }` | `placement_phase` — mark player ready; may close early when all ready after min window |
+| `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` | `placement_phase`; emits `marker_place_rejected` (`placement_confirmed`) if player already confirmed |
+| `game:confirm_placement_ready` | `{ playerId }` | `placement_phase` — mark player ready; locks further place/draw for that player; may close early when all ready after min window |
 | `game:use_leave_stable` | `{ playerId, heldCardId }` | Active player; `leave_stable_phase` only |
 | `game:roll` | `{ playerId }` | Active player; `waiting_roll` or `leave_stable_phase`. Fails with `PLACEMENT_NOT_CLOSED` during `placement_phase` |
 | `game:choose_move` | `{ playerId, moveId }` | Phase `waiting_choice`; `moveId` from `legalMoves` |

@@ -25,7 +25,7 @@
 3. **Rời game** → `lobby:leave` + navigate home (forfeit + leave lobby).
 4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect if removed while in match.
 5. `GameView` receives display state from presentation hook + `runeView` for marker tooltips.
-6. **Rune turn (when enabled):** active player draws → all players place during `placement_phase` (confirm when done) → optional leave-stable → active player rolls — see [Rune system](./rune-system.md). Roll is hidden until placement ends.
+6. **Rune turn (when enabled):** active player draws → all players place during `placement_phase` (confirm when done; confirmed players cannot place or draw until window closes) → optional leave-stable → active player rolls — see [Rune system](./rune-system.md). Roll is hidden until placement ends.
 7. **Roll:** if `canRoll` → `game:roll`. After **10s** idle in roll phases, client and server auto-roll; countdown bar shown for active player.
 8. Server snapshot with delta `dice_roll` (+ maybe `token_moved` / `token_stepped` if auto-resolved):
    - Increment `rollTrigger` → `DiceShaker` animates.
