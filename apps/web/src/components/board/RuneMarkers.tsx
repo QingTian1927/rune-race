@@ -36,15 +36,18 @@ export default function RuneMarkers({ gameState }: RuneMarkersProps) {
         const color = identity?.color ?? FALLBACK_COLOR
         const avatarEmoji = identity ? avatars[identity.id] : undefined
         const triggerMode = triggerModeForMarker(marker)
+        // Fallback markers (no visibility provider) are plain BoardMarker without ghost fields.
+        const ghost = 'isDeferred' in marker ? marker.isDeferred : undefined
+        const fadeOutStartedAt = 'fadeOutStartedAt' in marker ? marker.fadeOutStartedAt : undefined
 
         return (
           <group key={marker.markerId} position={[cell.x, cell.y + RUNE_MARKER_Y_OFFSET, cell.z]}>
             <RuneMapPin3D
               color={color}
               avatarEmoji={avatarEmoji}
-              ghost={marker.isDeferred}
+              ghost={ghost}
               triggerMode={triggerMode}
-              fadeOutStartedAt={marker.fadeOutStartedAt}
+              fadeOutStartedAt={fadeOutStartedAt}
               onFadeComplete={() => markerVisibility?.notifyMarkerFadeComplete(marker.markerId)}
             />
           </group>

@@ -21,7 +21,6 @@ import {
   type CaptureEventDetails,
   type MoveAnimationPayload,
   type SentHomeAnimationPayload,
-  type SentHomeEventDetails,
   type ShieldConsumedPayload,
   type ShieldGrantedPayload,
   type FreezeAppliedPayload,
@@ -41,7 +40,7 @@ import { applyMaterialOpacity, getBoardGradientMap } from '../lib/sceneMaterials
 import type { GraphicsQuality } from '../lib/graphicsQuality'
 import { getGraphicsQualityFlags } from '../lib/graphicsQuality'
 import { getPawnModelPath, normalizePawnModel } from '../utils/pawnLoader'
-import type { MockMoveEventDetails, MockPathStep } from '../mock/mockGameEngine'
+import type { MockPathStep } from '../mock/mockGameEngine'
 
 /** Downward-pointing triangle for selectable-token marker (billboard, tip toward pawn). */
 const MOVE_SELECT_TRIANGLE = (() => {
@@ -1417,7 +1416,7 @@ function motionPlanFromPathSteps(
     return {
       step,
       position,
-      motion: step.motion === 'teleport' ? 'teleport' : 'step',
+      motion: step.motion === 'teleport' ? ('teleport' as const) : ('step' as const),
     }
   })
 
@@ -1425,13 +1424,6 @@ function motionPlanFromPathSteps(
     return applyArcLiftsToWaypoints(waypoints, options.segmentStart, options.obstaclePositions)
   }
   return waypoints
-}
-
-function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, playerIndex: number): MotionWaypoint[] | null {
-  if (!eventDetails) {
-    return null
-  }
-  return motionPlanFromPathSteps(eventDetails.path, eventDetails.tokenId, playerIndex)
 }
 
 function isSegmentPausePending(session: ActiveMoveSession): boolean {
@@ -1451,7 +1443,8 @@ function statusEffectStepMatches(
 ): boolean {
   if (!at) return true
   if (stepsEqual(at, step)) return true
-  const lastStep = movePayload?.details.path.at(-1)
+  const path = movePayload?.details.path
+  const lastStep = path && path.length > 0 ? path[path.length - 1] : undefined
   if (lastStep && stepsEqual(step, lastStep)) return true
   return false
 }
@@ -1986,7 +1979,6 @@ function PawnInstance({
   freezeApplyMotion = null,
   freezeExpireMotion = null,
   showFrozenStatusIcon = false,
-  suppressFrozenStatusIcon = false,
   suppressShieldStatusIcon = false,
   moveAnimationHold = false,
   isFinalMoveSegment = true,
