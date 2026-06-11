@@ -3581,6 +3581,24 @@ a.game-btn {
   background: rgba(255, 255, 255, 0.95);
 }
 
+.game-hud-orb--bot {
+  background: rgba(241, 245, 249, 0.98);
+}
+
+.game-hud-orb-robot {
+  font-size: 22px;
+  line-height: 1;
+  color: #475569;
+}
+
+.game-hud-orb--xs .game-hud-orb-robot {
+  font-size: 10px;
+}
+
+.game-hud-orb--sm .game-hud-orb-robot {
+  font-size: 18px;
+}
+
 .game-hud-orb-emoji {
   font-size: 22px;
   line-height: 1;

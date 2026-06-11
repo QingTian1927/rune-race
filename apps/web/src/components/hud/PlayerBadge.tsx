@@ -1,4 +1,4 @@
-import type { PlayerColor } from '@rune-race/shared'
+import { isBotAvatarSentinel, type PlayerColor } from '@rune-race/shared'
 import { PLAYER_COLOR_MAP } from './playerColorStyles'
 
 type PlayerBadgeProps = {
@@ -15,7 +15,9 @@ export function PlayerBadge({
   size = 'md',
 }: PlayerBadgeProps) {
   const colorStyles = PLAYER_COLOR_MAP[color]
-  const hasAvatar = !!avatarEmoji?.trim()
+  const isBotAvatar = isBotAvatarSentinel(avatarEmoji)
+  const hasEmojiAvatar = !!avatarEmoji?.trim() && !isBotAvatar
+  const hasAvatar = isBotAvatar || hasEmojiAvatar
 
   return (
     <div
@@ -24,6 +26,7 @@ export function PlayerBadge({
         size === 'xs' ? 'game-hud-orb--xs' : '',
         size === 'sm' ? 'game-hud-orb--sm' : '',
         hasAvatar ? 'game-hud-orb--avatar' : '',
+        isBotAvatar ? 'game-hud-orb--bot' : '',
         isActive ? 'game-hud-orb--active' : '',
       ]
         .filter(Boolean)
@@ -31,7 +34,9 @@ export function PlayerBadge({
       style={hasAvatar ? undefined : { background: colorStyles.gradient }}
       title={hasAvatar ? undefined : color}
     >
-      {hasAvatar ? (
+      {isBotAvatar ? (
+        <i className="bi bi-robot game-hud-orb-robot" aria-hidden />
+      ) : hasEmojiAvatar ? (
         <span className="game-hud-orb-emoji">{avatarEmoji}</span>
       ) : null}
     </div>
