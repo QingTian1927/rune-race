@@ -1,4 +1,4 @@
-import type { GameState } from '@rune-race/shared'
+import type { GameState, RuneCardType } from '@rune-race/shared'
 import {
   createInitialGameState,
   handleChooseMove,
@@ -10,6 +10,7 @@ import {
   handlePlaceMarker,
   handlePlayerLeft,
   handleRoll,
+  handleSelectHonestyReward,
   handleUseLeaveStable,
   tickPlacementPhase,
 } from '@rune-race/game-engine'
@@ -241,6 +242,14 @@ export class GameStore {
     const session = this.games.get(gameId)
     if (!session) throw new Error('Game not found')
     const result = handleConfirmPlacementReady(session.state, playerId)
+    if (!result.success) throw new Error(result.error.message)
+    this.commitState(gameId, session, result.state, result.events)
+  }
+
+  selectHonestyReward(gameId: string, playerId: string, cardType: RuneCardType): void {
+    const session = this.games.get(gameId)
+    if (!session) throw new Error('Game not found')
+    const result = handleSelectHonestyReward(session.state, playerId, cardType)
     if (!result.success) throw new Error(result.error.message)
     this.commitState(gameId, session, result.state, result.events)
   }

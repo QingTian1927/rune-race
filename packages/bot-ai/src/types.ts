@@ -1,4 +1,4 @@
-import type { BotProfile, GameState } from '@rune-race/shared'
+import type { BotProfile, GameState, RuneCardType } from '@rune-race/shared'
 
 export type Rng = () => number
 
@@ -13,6 +13,7 @@ export type BotAction =
   | { type: 'place_marker'; heldCardId: string; cellId: number; displayedIdentityId: string }
   | { type: 'confirm_placement_ready' }
   | { type: 'use_leave_stable'; heldCardId: string }
+  | { type: 'select_honesty_reward'; cardType: RuneCardType }
 
 export interface BotDecisionContext {
   state: GameState

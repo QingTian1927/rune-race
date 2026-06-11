@@ -2,8 +2,9 @@ import type { BotProfile, GameState, HeldCard, RuneCardType } from '@rune-race/s
 import {
   isBoardMarkerCardType,
   RUNE_CARD_DEFINITIONS,
+  RUNE_DRAW_HAND_THRESHOLD,
+  RUNE_HONESTY_REWARD_TYPES,
   RUNE_MAX_DRAW_PER_PLAYER,
-  RUNE_MAX_HAND_SIZE,
 } from '@rune-race/shared'
 import {
   boardSlotForPlayer,
@@ -33,6 +34,37 @@ function isTrap(cardType: RuneCardType): boolean {
   return category === 'TRAP' || category === 'SPECIAL'
 }
 
+/**
+ * Pick a support card for a claimable honesty-streak reward (spec §4.4).
+ * Simple bots pick at random; complex bots pick based on board context.
+ */
+export function chooseHonestyReward(
+  state: GameState,
+  playerId: string,
+  profile: BotProfile,
+  rng: Rng = Math.random,
+): RuneCardType {
+  if (profile === 'simple') {
+    return RUNE_HONESTY_REWARD_TYPES[Math.floor(rng() * RUNE_HONESTY_REWARD_TYPES.length)]!
+  }
+
+  const myTokens = state.tokens.filter((t) => t.playerId === playerId)
+  const inBase = myTokens.filter((t) => t.state === 'in_base').length
+  const onBoard = myTokens.filter(
+    (t) => t.state === 'on_track' || t.state === 'in_home_lane',
+  )
+
+  // Stuck in base: getting a horse out beats everything else.
+  if (inBase > 0 && onBoard.length === 0) return 'LEAVE_STABLE'
+  if (inBase > 0 && rng() < 0.5) return 'LEAVE_STABLE'
+
+  // An unshielded horse on the shared track is trap bait — shield it sometimes.
+  const unshieldedOnTrack = onBoard.some((t) => t.state === 'on_track' && !t.hasShield)
+  if (unshieldedOnTrack && rng() < 0.4) return 'SHIELD'
+
+  return 'ADVANCE_4'
+}
+
 /** Should the bot draw another rune card during placement phase (active player only)? */
 export function shouldDrawCard(
   state: GameState,
@@ -43,7 +75,7 @@ export function shouldDrawCard(
   const player = runePlayer(state, playerId)
   if (!player) return false
   if (player.pendingDraw) return false
-  if (player.hand.length >= RUNE_MAX_HAND_SIZE) return false
+  if (player.hand.length >= RUNE_DRAW_HAND_THRESHOLD) return false
   if (player.drawCount >= RUNE_MAX_DRAW_PER_PLAYER) return false
 
   if (profile === 'simple') {
