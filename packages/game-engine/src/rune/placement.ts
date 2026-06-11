@@ -289,7 +289,8 @@ export function placeMarker(
     }
   }
 
-  const markerId = `marker-${state.roomId}-${cellId}-${timestamp}`
+  // version đảm bảo id duy nhất kể cả khi cùng ô được đặt lại trong cùng một mili-giây
+  const markerId = `marker-${state.roomId}-${cellId}-${timestamp}-v${state.version}`
   const marker: BoardMarker = {
     markerId,
     cellId,
