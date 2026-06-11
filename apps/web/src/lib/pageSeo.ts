@@ -1,4 +1,11 @@
-import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from './siteConfig'
+import {
+  DEFAULT_OG_IMAGE,
+  DEFAULT_OG_IMAGE_HEIGHT,
+  DEFAULT_OG_IMAGE_TYPE,
+  DEFAULT_OG_IMAGE_WIDTH,
+  SITE_NAME,
+  SITE_URL,
+} from './siteConfig'
 
 export type PageSeo = {
   title: string
@@ -54,6 +61,10 @@ export function buildOgHeadElements(seo: PageSeo): Set<HeadElement> {
     { type: 'meta', props: { property: 'og:description', content: seo.description } },
     { type: 'meta', props: { property: 'og:url', content: canonical } },
     { type: 'meta', props: { property: 'og:image', content: DEFAULT_OG_IMAGE } },
+    { type: 'meta', props: { property: 'og:image:secure_url', content: DEFAULT_OG_IMAGE } },
+    { type: 'meta', props: { property: 'og:image:type', content: DEFAULT_OG_IMAGE_TYPE } },
+    { type: 'meta', props: { property: 'og:image:width', content: String(DEFAULT_OG_IMAGE_WIDTH) } },
+    { type: 'meta', props: { property: 'og:image:height', content: String(DEFAULT_OG_IMAGE_HEIGHT) } },
     {
       type: 'meta',
       props: { property: 'og:image:alt', content: `${SITE_NAME} — Cá ngựa online có Rune` },
