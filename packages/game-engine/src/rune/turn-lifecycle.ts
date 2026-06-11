@@ -1,9 +1,9 @@
 import type { GameEvent, GameState } from '@rune-race/shared'
-import { RUNE_FREEZE_TURNS, RUNE_HELD_CARD_ROUNDS, RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
+import { RUNE_DRAW_HAND_THRESHOLD, RUNE_FREEZE_TURNS, RUNE_HELD_CARD_ROUNDS, RUNE_MAX_DRAW_PER_PLAYER } from '@rune-race/shared'
 import { drawRuneCardType } from './deck.js'
 import { purgeLegacyLeaveStableMarkers } from './leave-stable.js'
 import { updateMarkerTtlModes } from './player-eligibility.js'
-import { canDrawMore, createEmptyRunePlayerState, drainPendingRewards, getRunePlayer } from './state.js'
+import { activateClaimableHonestyReward, canDrawMore, createEmptyRunePlayerState, getRunePlayer } from './state.js'
 import { openPlacementPhase } from './placement.js'
 
 function now() {
@@ -33,7 +33,7 @@ export function runTurnStartHousekeeping(state: GameState, timestamp: number): G
   next = expireHeldCardsForPlayer(next, playerId, timestamp)
   next = tickMarkerTTL(next, playerId, timestamp)
   next = tickFreezeForPlayer(next, playerId, timestamp)
-  next = drainPendingRewards(next, playerId, timestamp)
+  next = activateClaimableHonestyReward(next, playerId, timestamp)
   return next
 }
 
@@ -266,7 +266,7 @@ export function confirmPendingDraw(
 
   const player = getRunePlayer(state, playerId)
   if (!player?.pendingDraw) return state
-  if (player.hand.length >= RUNE_MAX_HAND_SIZE) return state
+  if (player.hand.length >= RUNE_DRAW_HAND_THRESHOLD) return state
   if (player.drawCount >= RUNE_MAX_DRAW_PER_PLAYER) return state
 
   const pending = player.pendingDraw
