@@ -1,4 +1,5 @@
 import { renderToString } from 'react-dom/server'
+import { HelmetProvider } from 'react-helmet-async'
 import { StaticRouter } from 'react-router-dom/server'
 import { AppProviders, AppRoutes } from './App'
 import { buildOgHeadElements, formatDocumentTitle, PRERENDER_PATHS, resolvePageSeo } from './lib/pageSeo'
@@ -9,11 +10,13 @@ export async function prerender(data: { url: string }) {
   const path = data.url.split('?')[0] || '/'
 
   const html = renderToString(
-    <AppProviders>
-      <StaticRouter location={path}>
-        <AppRoutes />
-      </StaticRouter>
-    </AppProviders>,
+    <HelmetProvider>
+      <AppProviders>
+        <StaticRouter location={path}>
+          <AppRoutes />
+        </StaticRouter>
+      </AppProviders>
+    </HelmetProvider>,
   )
 
   const seo = resolvePageSeo(path)
