@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
 import * as THREE from 'three'
-import type { PlayerColor, RuneTriggerMode } from '@rune-race/shared'
+import { isBotAvatarSentinel, type PlayerColor, type RuneTriggerMode } from '@rune-race/shared'
 import { MARKER_FADE_DURATION_MS } from '../../contexts/RuneMarkerVisibilityContext'
 
 /** Tip of pin sits slightly above board mesh to avoid z-fighting. */
@@ -69,22 +69,16 @@ const RUNE_PIN_HEAD_FILL = (() => {
 })()
 
 const avatarTextureCache = new Map<string, THREE.CanvasTexture>()
+const BOT_TEXTURE_CACHE_KEY = '__bot_marker_texture__'
 
-function getAvatarTexture(emoji: string): THREE.CanvasTexture {
-  const key = emoji.trim()
-  const cached = avatarTextureCache.get(key)
-  if (cached) return cached
-
+function createCanvasTexture(draw: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 64
   canvas.height = 64
   const ctx = canvas.getContext('2d')
   if (ctx) {
     ctx.clearRect(0, 0, 64, 64)
-    ctx.font = '48px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(key, 32, 34)
+    draw(ctx)
   }
 
   const texture = new THREE.CanvasTexture(canvas)
@@ -92,6 +86,53 @@ function getAvatarTexture(emoji: string): THREE.CanvasTexture {
   texture.minFilter = THREE.LinearFilter
   texture.magFilter = THREE.LinearFilter
   texture.needsUpdate = true
+  return texture
+}
+
+/** Robot head for bot markers — matches HUD bi-robot styling. */
+function getBotAvatarTexture(): THREE.CanvasTexture {
+  const cached = avatarTextureCache.get(BOT_TEXTURE_CACHE_KEY)
+  if (cached) return cached
+
+  const texture = createCanvasTexture((ctx) => {
+    const color = '#475569'
+    ctx.fillStyle = color
+
+    // Antenna
+    ctx.fillRect(29, 11, 6, 9)
+    ctx.beginPath()
+    ctx.arc(32, 9, 4.5, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Head
+    ctx.fillRect(19, 22, 26, 28)
+
+    // Eyes
+    ctx.fillStyle = '#f8fafc'
+    ctx.fillRect(25, 30, 7, 7)
+    ctx.fillRect(36, 30, 7, 7)
+
+    // Mouth slot
+    ctx.fillStyle = color
+    ctx.fillRect(27, 43, 10, 3)
+  })
+
+  avatarTextureCache.set(BOT_TEXTURE_CACHE_KEY, texture)
+  return texture
+}
+
+function getAvatarTexture(emoji: string): THREE.CanvasTexture {
+  const key = emoji.trim()
+  const cached = avatarTextureCache.get(key)
+  if (cached) return cached
+
+  const texture = createCanvasTexture((ctx) => {
+    ctx.font = '48px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(key, 32, 34)
+  })
+
   avatarTextureCache.set(key, texture)
   return texture
 }
@@ -192,10 +233,12 @@ export function RuneMapPin3D({
   const pinColor = PLAYER_PIN_HEX[color]
   const emoji = avatarEmoji?.trim() ?? ''
 
-  const avatarTexture = useMemo(
-    () => (emoji ? getAvatarTexture(emoji) : null),
-    [emoji],
-  )
+  const avatarTexture = useMemo(() => {
+    if (isBotAvatarSentinel(avatarEmoji)) {
+      return getBotAvatarTexture()
+    }
+    return emoji ? getAvatarTexture(emoji) : null
+  }, [avatarEmoji, emoji])
 
   useEffect(() => {
     fadeCompleteFiredRef.current = false
