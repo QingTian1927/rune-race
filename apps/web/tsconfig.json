@@ -24,5 +24,7 @@
     "allowSyntheticDefaultImports": true
   },
   "include": ["src", "vite-env.d.ts"],
+  // No test runner is wired up for the web app yet; keep *.test.ts out of type-check.
+  "exclude": ["src/**/*.test.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

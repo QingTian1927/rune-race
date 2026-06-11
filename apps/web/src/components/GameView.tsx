@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
-import type { Player, GameState, RuneClientView } from '@rune-race/shared'
+import type { Player, GameState, RuneCardType, RuneClientView } from '@rune-race/shared'
 import {
   isBoardMarkerCardType,
+  RUNE_DRAW_HAND_THRESHOLD,
   RUNE_MAX_DRAW_PER_PLAYER,
-  RUNE_MAX_HAND_SIZE,
   type HeldCard,
 } from '@rune-race/shared'
 import {
@@ -15,7 +15,9 @@ import {
   pickAutoSpawnMove,
 } from '@rune-race/game-engine'
 import { placementRejectMessage } from '../lib/runeMarkerDisplay'
+import { RUNE_CARD_LABELS } from '../lib/runeAssets'
 import { HandArrayPanel } from './hud/HandArrayPanel'
+import { HonestyRewardOverlay } from './hud/HonestyRewardOverlay'
 import { RuneCardPreviewOverlay } from './hud/RuneCardPreviewOverlay'
 import { RuneDrawRevealOverlay } from './hud/RuneDrawRevealOverlay'
 import { RuneTriggerFlashOverlay } from './hud/RuneTriggerFlashOverlay'
@@ -87,6 +89,8 @@ export type GameViewProps = {
   onPlaceMarker?: (heldCardId: string, cellId: number, displayedIdentityId: string) => void
   onConfirmPlacementReady?: () => void
   onUseLeaveStable?: (heldCardId: string) => void
+  /** Claim the honesty-streak reward with the chosen support card. */
+  onSelectHonestyReward?: (cardType: RuneCardType) => void
   onChooseSwap?: (targetTokenId: string) => void
   /** Socket / server action errors (online). */
   gameActionError?: string | null
@@ -109,10 +113,10 @@ export default function GameView({
   runeView = null,
   onDrawCards,
   onConfirmDraw,
-  onFinishDraw,
   onPlaceMarker,
   onConfirmPlacementReady,
   onUseLeaveStable,
+  onSelectHonestyReward,
   onChooseSwap,
   gameActionError = null,
 }: GameViewProps) {
@@ -164,6 +168,10 @@ export default function GameView({
   const [placementNotice, setPlacementNotice] = useState<string | null>(null)
   const pendingPlacementRef = useRef<{ heldCardId: string; cellId: number } | null>(null)
   const placementEventsCursorRef = useRef({ version: -1, eventCount: 0 })
+  const [rewardOverlayDismissed, setRewardOverlayDismissed] = useState(false)
+  const [rewardNotice, setRewardNotice] = useState<string | null>(null)
+  const rewardNoticeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const rewardEventsCursorRef = useRef({ version: -1, eventCount: 0 })
 
   const finishOrder = useMemo(() => {
     const seen = new Set<string>()
@@ -278,6 +286,12 @@ export default function GameView({
     Boolean(onDrawCards) &&
     !myPendingDraw &&
     !(isPlacementPhase && iConfirmedPlacement)
+  /** Honesty reward is claimable during the local player's own draw & placement window (spec §4.4). */
+  const rewardSelectionOpen =
+    isMyTurn &&
+    runeWindowOpen &&
+    Boolean(myRune?.hasClaimableHonestyReward) &&
+    Boolean(onSelectHonestyReward)
 
   const isSpawnOnlyMoveChoice =
     isLocalPlayersTurn &&
@@ -985,6 +999,51 @@ export default function GameView({
   }, [gameActionError])
 
   useEffect(() => {
+    if (!rewardSelectionOpen) setRewardOverlayDismissed(false)
+  }, [rewardSelectionOpen])
+
+  const showRewardNotice = useCallback((message: string) => {
+    setRewardNotice(message)
+    if (rewardNoticeTimerRef.current) window.clearTimeout(rewardNoticeTimerRef.current)
+    rewardNoticeTimerRef.current = window.setTimeout(() => setRewardNotice(null), 5000)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (rewardNoticeTimerRef.current) window.clearTimeout(rewardNoticeTimerRef.current)
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const cursor = rewardEventsCursorRef.current
+    const deltaEvents =
+      gameState.version !== cursor.version ? gameState.events.slice(cursor.eventCount) : []
+    rewardEventsCursorRef.current = {
+      version: gameState.version,
+      eventCount: gameState.events.length,
+    }
+
+    for (const event of deltaEvents) {
+      if (event.type !== 'honesty_reward_granted') continue
+      const isMine = Boolean(localPlayerId) && event.playerId === localPlayerId
+      if (isMine) {
+        const cardType = event.details?.cardType as RuneCardType | undefined
+        const label = cardType ? RUNE_CARD_LABELS[cardType] : 'hỗ trợ'
+        showRewardNotice(
+          event.details?.autoSelected === true
+            ? `Hết giờ chọn — bạn nhận ngẫu nhiên thẻ ${label}`
+            : `Bạn đã nhận thẻ ${label} từ chuỗi trung thực`,
+        )
+      } else {
+        const playerName =
+          gameState.players.find((p) => p.id === event.playerId)?.name ?? 'Người chơi'
+        showRewardNotice(`${playerName} nhận 1 thẻ hỗ trợ nhờ chuỗi trung thực`)
+      }
+    }
+  }, [gameState.events, gameState.players, gameState.version, localPlayerId, showRewardNotice])
+
+  useEffect(() => {
     if (!runePlacementActive) return
     if (validPlacementCells.length === 0) {
       setPlacementNotice('Không còn ô trống để đặt rune.')
@@ -1132,7 +1191,8 @@ export default function GameView({
             {runesOn && myRune ? (
               <HandArrayPanel
                 hand={myRune.hand}
-                pendingRewardCount={myRune.pendingRewards.length}
+                honestyStreak={myRune.honestPlacementStreak}
+                hasClaimableReward={myRune.hasClaimableHonestyReward}
                 drawCount={myRune.drawCount}
                 selectedCardId={selectedHeldCardId}
                 onCardSelect={handleCardSelect}
@@ -1143,7 +1203,7 @@ export default function GameView({
                 isCardPending={isHandCardPending}
                 canDraw={
                   canDrawDuringTurn &&
-                  myRune.hand.length < RUNE_MAX_HAND_SIZE &&
+                  myRune.hand.length < RUNE_DRAW_HAND_THRESHOLD &&
                   myRune.drawCount < RUNE_MAX_DRAW_PER_PLAYER
                 }
                 onDraw={() => onDrawCards?.(1)}
@@ -1161,8 +1221,8 @@ export default function GameView({
                     : isMyTurn && runeWindowOpen
                       ? myPendingDraw
                         ? 'Xác nhận thẻ đang bốc'
-                        : myRune.hand.length >= RUNE_MAX_HAND_SIZE
-                          ? 'Tay đầy'
+                        : myRune.hand.length >= RUNE_DRAW_HAND_THRESHOLD
+                          ? 'Đang giữ đủ 5 thẻ — không thể bốc thường'
                           : myRune.drawCount >= RUNE_MAX_DRAW_PER_PLAYER
                             ? 'Hết lượt bốc'
                             : undefined
@@ -1185,6 +1245,18 @@ export default function GameView({
                   }
                   suffix={`${placementReadyCount}/${gameState.players.length} đã xác nhận`}
                 >
+                  {rewardSelectionOpen && rewardOverlayDismissed ? (
+                    <button
+                      type="button"
+                      className="rune-reward-reopen-btn rune-placement-confirm-btn"
+                      onClick={() => setRewardOverlayDismissed(false)}
+                    >
+                      ★ Chọn thẻ thưởng
+                      {placementMaxWaitMs > 0
+                        ? ` (${Math.max(1, Math.ceil(placementMaxWaitMs / 1000))}s)`
+                        : ''}
+                    </button>
+                  ) : null}
                   {onConfirmPlacementReady ? (
                     <button
                       type="button"
@@ -1196,6 +1268,18 @@ export default function GameView({
                     </button>
                   ) : null}
                 </PhaseCountdownBar>
+              </div>
+            ) : null}
+            {rewardSelectionOpen && rewardOverlayDismissed && !isPlacementPhase ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <button
+                  type="button"
+                  className="rune-reward-reopen-btn"
+                  style={{ pointerEvents: 'auto' }}
+                  onClick={() => setRewardOverlayDismissed(false)}
+                >
+                  ★ Chọn thẻ thưởng
+                </button>
               </div>
             ) : null}
             {leaveStablePhaseActive && isMyTurn && hasLeaveStableInHand ? (
@@ -1235,6 +1319,12 @@ export default function GameView({
                   {placementNotice}
                 </p>
               </div>
+            ) : rewardNotice ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <p className="rune-placement-hint rune-placement-hint--info" role="status" aria-live="polite">
+                  {rewardNotice}
+                </p>
+              </div>
             ) : null}
             <RuneTriggerFlashOverlay />
           </>
@@ -1245,6 +1335,16 @@ export default function GameView({
         open={drawRevealOpen}
         card={myPendingDraw}
         onConfirm={() => onConfirmDraw?.()}
+      />
+
+      <HonestyRewardOverlay
+        open={rewardSelectionOpen && !rewardOverlayDismissed && !drawRevealOpen}
+        autoPickInMs={isPlacementPhase && placementState ? placementMaxWaitMs : null}
+        onSelect={(cardType) => {
+          setRewardOverlayDismissed(true)
+          onSelectHonestyReward?.(cardType)
+        }}
+        onDismiss={() => setRewardOverlayDismissed(true)}
       />
 
       <RuneCardPreviewOverlay

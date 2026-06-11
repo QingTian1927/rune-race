@@ -663,6 +663,22 @@ export function setupSocketHandlers(
       }
     })
 
+    socket.on('game:select_honesty_reward', (payload) => {
+      try {
+        const cmd = validateCommand('game:select_honesty_reward', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const gameId = gameStore.getGameIdForPlayer(playerId)
+        if (!gameId) throw new Error('Not in a game')
+        gameStore.selectHonestyReward(gameId, playerId, cmd.cardType)
+      } catch (error) {
+        gameError(
+          socket,
+          error instanceof Error ? error.message : 'Reward selection failed',
+          'REWARD_SELECT_FAILED',
+        )
+      }
+    })
+
     socket.on('game:choose_swap', (payload) => {
       try {
         const cmd = validateCommand('game:choose_swap', payload)

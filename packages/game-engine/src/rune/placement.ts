@@ -13,7 +13,7 @@ import {
   playerHasLeaveStableCard,
 } from './leave-stable.js'
 import { isDisplayIdentityEligible } from './player-eligibility.js'
-import { getRunePlayer } from './state.js'
+import { getRunePlayer, grantHonestyReward } from './state.js'
 import { listValidPlacementCellIds, markerAtCell } from './board-cells.js'
 
 export function openPlacementPhase(state: GameState, timestamp: number): GameState {
@@ -73,10 +73,21 @@ export function closePlacementPhase(state: GameState, timestamp: number): GameSt
   if (!state.rune?.placement) return state
 
   let next = state
+
+  // Unclaimed reward timed out with the placement window — server picks one of
+  // the 5 support cards at random (spec §4.4). Runs before the streak update so
+  // an honest placement in this same turn starts the new streak at 1 (TC-32).
+  const activePlayerId = state.turn.currentPlayerId
+  if (next.rune!.players[activePlayerId]?.hasClaimableHonestyReward) {
+    next = grantHonestyReward(next, activePlayerId, drawHonestyRewardType(), timestamp, {
+      autoSelected: true,
+    })
+  }
+
   const honestyByPlayer = state.rune.placement.honestyByPlayer
 
   for (const [playerId, flags] of Object.entries(honestyByPlayer)) {
-    const player = state.rune.players[playerId]
+    const player = next.rune!.players[playerId]
     if (!player) continue
 
     if (flags.usedImpersonation) {
@@ -94,40 +105,21 @@ export function closePlacementPhase(state: GameState, timestamp: number): GameSt
     }
 
     if (flags.placedCount > 0) {
-      const newStreak = player.honestPlacementStreak + 1
-      if (newStreak >= RUNE_HONESTY_STREAK_FOR_REWARD) {
-        const rewardType = drawHonestyRewardType()
-        const pending = [...player.pendingRewards, rewardType]
-        next = {
-          ...next,
-          events: [
-            ...next.events,
-            {
-              type: 'honesty_reward_granted',
-              timestamp,
-              playerId,
-              details: { playerId, cardType: rewardType, queued: true },
-            },
-          ],
-          rune: {
-            ...next.rune!,
-            players: {
-              ...next.rune!.players,
-              [playerId]: { ...player, honestPlacementStreak: 0, pendingRewards: pending },
-            },
+      // Streak caps at the reward threshold; it stays there until the reward
+      // is claimed in the player's next normal turn (spec §4.4).
+      const newStreak = Math.min(
+        player.honestPlacementStreak + 1,
+        RUNE_HONESTY_STREAK_FOR_REWARD,
+      )
+      next = {
+        ...next,
+        rune: {
+          ...next.rune!,
+          players: {
+            ...next.rune!.players,
+            [playerId]: { ...player, honestPlacementStreak: newStreak },
           },
-        }
-      } else {
-        next = {
-          ...next,
-          rune: {
-            ...next.rune!,
-            players: {
-              ...next.rune!.players,
-              [playerId]: { ...player, honestPlacementStreak: newStreak },
-            },
-          },
-        }
+        },
       }
     }
   }
@@ -141,10 +133,20 @@ export function allPlayersPlacementReady(state: GameState): boolean {
   return state.players.every((player) => placement.readyByPlayer[player.id] === true)
 }
 
+function activePlayerHasUnclaimedHonestyReward(state: GameState): boolean {
+  const activePlayerId = state.turn.currentPlayerId
+  return Boolean(state.rune?.players[activePlayerId]?.hasClaimableHonestyReward)
+}
+
 export function canClosePlacementEarly(state: GameState, now: number): boolean {
   const placement = state.rune?.placement
   if (!placement) return false
-  return now >= placement.minCloseAt && allPlayersPlacementReady(state)
+  if (now < placement.minCloseAt) return false
+  if (!allPlayersPlacementReady(state)) return false
+  // Keep the window open until the active player claims the honesty reward or
+  // maxCloseAt forces close — early confirm must not cut off "Chọn sau".
+  if (activePlayerHasUnclaimedHonestyReward(state)) return false
+  return true
 }
 
 export function placementExpired(state: GameState, now: number): boolean {

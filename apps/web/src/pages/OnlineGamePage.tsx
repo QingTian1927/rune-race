@@ -39,6 +39,7 @@ export default function OnlineGamePage() {
     placeMarker,
     confirmPlacementReady,
     useLeaveStable,
+    selectHonestyReward,
     chooseSwap,
     isPresentingDice,
   } = useGameSocket(
@@ -58,7 +59,7 @@ export default function OnlineGamePage() {
   const handleLeaveGame = useCallback(() => {
     emitLeaveLobby(accessToken, playerId)
     sessionStorage.removeItem('rune-race-lobby-id')
-    navigate('/')
+    navigate('/play')
   }, [accessToken, navigate, playerId])
 
   useEffect(() => {
@@ -67,7 +68,7 @@ export default function OnlineGamePage() {
 
     const redirectHome = () => {
       sessionStorage.removeItem('rune-race-lobby-id')
-      navigate('/')
+      navigate('/play')
     }
 
     const onClosed = (payload: { lobbyId: string }) => {
@@ -131,6 +132,7 @@ export default function OnlineGamePage() {
       onPlaceMarker={placeMarker}
       onConfirmPlacementReady={confirmPlacementReady}
       onUseLeaveStable={useLeaveStable}
+      onSelectHonestyReward={selectHonestyReward}
       onChooseSwap={chooseSwap}
       gameActionError={error}
       roomChat={

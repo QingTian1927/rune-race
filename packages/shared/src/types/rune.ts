@@ -67,10 +67,13 @@ export interface PublicBoardMarker {
 
 export interface RunePlayerState {
   drawCount: number
+  /** Held cards. Normal draws require length < RUNE_DRAW_HAND_THRESHOLD; honesty rewards may exceed it. */
   hand: HeldCard[]
   /** Revealed draw awaiting player confirmation before joining hand. */
   pendingDraw: HeldCard | null
-  pendingRewards: RuneCardType[]
+  /** True while an honesty reward is claimable in this player's current draw & placement phase. */
+  hasClaimableHonestyReward: boolean
+  /** 0–RUNE_HONESTY_STREAK_FOR_REWARD; stays at max until the reward is claimed next normal turn. */
   honestPlacementStreak: number
 }
 
@@ -104,7 +107,11 @@ export interface RuneClientView {
 }
 
 export const RUNE_MAX_DRAW_PER_PLAYER = 25
-export const RUNE_MAX_HAND_SIZE = 5
+/**
+ * Normal draws are allowed only while holding fewer than this many valid cards.
+ * The hand itself has no hard cap: honesty rewards append past this threshold (spec §4.2).
+ */
+export const RUNE_DRAW_HAND_THRESHOLD = 5
 export const RUNE_HELD_CARD_ROUNDS = 2
 export const RUNE_HONESTY_STREAK_FOR_REWARD = 5
 export const RUNE_PLACEMENT_MIN_MS = 5_000

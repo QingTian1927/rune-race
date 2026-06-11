@@ -17,7 +17,8 @@ export function PlayerBadge({
   const colorStyles = PLAYER_COLOR_MAP[color]
   const isBotAvatar = isBotAvatarSentinel(avatarEmoji)
   const hasEmojiAvatar = !!avatarEmoji?.trim() && !isBotAvatar
-  const hasAvatar = isBotAvatar || hasEmojiAvatar
+  const hasEmojiOnlyAvatar = hasEmojiAvatar
+  const usesPlayerColorFill = isBotAvatar || !hasEmojiOnlyAvatar
 
   return (
     <div
@@ -25,14 +26,14 @@ export function PlayerBadge({
         'game-hud-orb',
         size === 'xs' ? 'game-hud-orb--xs' : '',
         size === 'sm' ? 'game-hud-orb--sm' : '',
-        hasAvatar ? 'game-hud-orb--avatar' : '',
+        hasEmojiOnlyAvatar ? 'game-hud-orb--avatar' : '',
         isBotAvatar ? 'game-hud-orb--bot' : '',
         isActive ? 'game-hud-orb--active' : '',
       ]
         .filter(Boolean)
         .join(' ')}
-      style={hasAvatar ? undefined : { background: colorStyles.gradient }}
-      title={hasAvatar ? undefined : color}
+      style={usesPlayerColorFill ? { background: colorStyles.gradient } : undefined}
+      title={hasEmojiOnlyAvatar ? undefined : color}
     >
       {isBotAvatar ? (
         <i className="bi bi-robot game-hud-orb-robot" aria-hidden />

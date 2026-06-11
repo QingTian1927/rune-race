@@ -91,6 +91,8 @@ export interface ClientToServerEvents {
   }) => void
   'game:confirm_placement_ready': (payload: { playerId: string }) => void
   'game:use_leave_stable': (payload: { playerId: string; heldCardId: string }) => void
+  /** Claim the honesty-streak reward by picking one of the 5 support cards. */
+  'game:select_honesty_reward': (payload: { playerId: string; cardType: string }) => void
   'game:choose_swap': (payload: { playerId: string; targetTokenId: string }) => void
   'game:choose_move': (payload: { playerId: string; moveId: string }) => void
   'game:sync_request': (payload: { playerId: string }) => void

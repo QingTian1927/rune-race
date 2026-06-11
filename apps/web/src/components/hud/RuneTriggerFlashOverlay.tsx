@@ -1,4 +1,4 @@
-import { RUNE_CARD_IMAGES, RUNE_CARD_LABELS } from '../../lib/runeAssets'
+import { RUNE_CARD_IMAGES, RUNE_CARD_LABELS, runeCardOrientationModifier } from '../../lib/runeAssets'
 import { useRuneTriggerFlash } from '../../contexts/RuneTriggerFlashContext'
 
 export function RuneTriggerFlashOverlay() {
@@ -25,7 +25,12 @@ export function RuneTriggerFlashOverlay() {
               <img
                 src={RUNE_CARD_IMAGES[item.cardType]}
                 alt=""
-                className="rune-trigger-flash-card"
+                className={[
+                  'rune-trigger-flash-card',
+                  runeCardOrientationModifier(item.cardType, 'rune-trigger-flash-card'),
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               />
               <span className="rune-trigger-flash-label">{label}</span>
             </div>

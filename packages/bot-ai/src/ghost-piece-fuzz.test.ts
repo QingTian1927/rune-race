@@ -12,6 +12,7 @@ import {
   handleFinishDraw,
   handlePlaceMarker,
   handleRoll,
+  handleSelectHonestyReward,
   handleUseLeaveStable,
   tickPlacementPhase,
   type GameCommandResult,
@@ -178,6 +179,8 @@ function executeAction(
       return handleConfirmPlacementReady(state, playerId)
     case 'use_leave_stable':
       return handleUseLeaveStable(state, playerId, action.heldCardId)
+    case 'select_honesty_reward':
+      return handleSelectHonestyReward(state, playerId, action.cardType)
   }
 }
 

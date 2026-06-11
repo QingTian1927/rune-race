@@ -32,7 +32,7 @@ type MatchSearchSession = {
   accessToken: string | null
 }
 
-export default function HomePage() {
+export default function PlayPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { playerName } = usePlayerIdentity()
@@ -357,20 +357,11 @@ export default function HomePage() {
     setWaitedSeconds(0)
   }
 
-  const footer = (
-    <div className="sky-dev-footer">
-      <Link to="/play/local" className="sky-dev-link">
-        Chế độ test local (không server)
-      </Link>
-    </div>
-  )
-
   return (
     <SkyPageLayout
       playerName={name}
       onPlayerNameChange={setName}
       onPlayerNameBlur={() => void saveAnonDisplayName()}
-      footer={footer}
     >
       <AccountNudgeModal open={nudgeOpen} onClose={closeNudge} />
       <div

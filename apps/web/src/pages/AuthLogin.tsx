@@ -26,7 +26,7 @@ export default function AuthLoginPage() {
       if (session?.access_token && session.user) {
         await linkAnonSessionIfNeeded(session.access_token, session.user.id)
       }
-      navigate('/')
+      navigate('/play')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
@@ -68,7 +68,7 @@ export default function AuthLoginPage() {
               </div>
             </div>
             <div className="panel-body sky-form-stack">
-              <button type="button" onClick={() => navigate('/')} className="game-btn btn-blue">
+              <button type="button" onClick={() => navigate('/play')} className="game-btn btn-blue">
                 <span className="btn-icon">
                   <i className="bi bi-house-door-fill" aria-hidden="true" />
                 </span>

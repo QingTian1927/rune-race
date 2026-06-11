@@ -49,7 +49,7 @@ export function AccountNudgeModal({ open, onClose }: AccountNudgeModalProps) {
         await linkAnonSessionIfNeeded(session.access_token, session.user.id)
       }
       onClose()
-      navigate('/')
+      navigate('/play')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Đăng nhập thất bại')
     } finally {

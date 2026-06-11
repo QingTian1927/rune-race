@@ -18,6 +18,8 @@ describe('shouldDeferSentHomeUntilMoverLands', () => {
       timestamp: 1,
       details: {
         tokenId: 't1',
+        playerId: 'p1',
+        moveType: 'move',
         path: [
           { state: 'on_track', position: 4, motion: 'step' },
           { state: 'on_track', position: 6, motion: 'teleport' },
@@ -34,6 +36,8 @@ describe('shouldDeferSentHomeUntilMoverLands', () => {
       timestamp: 1,
       details: {
         tokenId: 't1',
+        playerId: 'p1',
+        moveType: 'move',
         path: [{ state: 'on_track', position: 6, motion: 'step' }],
         from: { state: 'on_track', position: 5 },
         to: { state: 'in_base', position: 0 },
@@ -47,6 +51,8 @@ describe('shouldDeferSentHomeUntilMoverLands', () => {
       timestamp: 1,
       details: {
         tokenId: 't1',
+        playerId: 'p1',
+        moveType: 'move',
         path: [{ state: 'on_track', position: 4, motion: 'step' }],
         from: { state: 'on_track', position: 3 },
         to: { state: 'in_base', position: 0 },

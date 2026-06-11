@@ -1,7 +1,7 @@
 import type { GameEvent } from '@rune-race/shared'
 import { chooseBotMove } from './core/choose-move.js'
 import { chooseSwapTarget } from './core/choose-swap.js'
-import { decideLeaveStableCard, decidePlacement, shouldDrawCard } from './rune/policies.js'
+import { chooseHonestyReward, decideLeaveStableCard, decidePlacement, shouldDrawCard } from './rune/policies.js'
 import type { BotAction, BotDecisionContext, Rng } from './types.js'
 
 /**
@@ -20,6 +20,12 @@ export function decideNextAction(ctx: BotDecisionContext, rng: Rng = Math.random
     if (state.rune.placement?.readyByPlayer?.[botPlayerId]) return null
 
     const runePlayer = state.rune.players[botPlayerId]
+    if (isActive && runePlayer?.hasClaimableHonestyReward) {
+      return {
+        type: 'select_honesty_reward',
+        cardType: chooseHonestyReward(state, botPlayerId, profile, rng),
+      }
+    }
     if (isActive && runePlayer?.pendingDraw) {
       return { type: 'confirm_draw' }
     }
@@ -79,6 +85,7 @@ const SIMPLE_DELAYS: Record<BotAction['type'], DelayRange> = {
   place_marker: { min: 900, max: 2000 },
   confirm_placement_ready: { min: 1200, max: 2600 },
   use_leave_stable: { min: 800, max: 1600 },
+  select_honesty_reward: { min: 900, max: 2000 },
 }
 
 const COMPLEX_DELAYS: Record<BotAction['type'], DelayRange> = {
@@ -91,6 +98,7 @@ const COMPLEX_DELAYS: Record<BotAction['type'], DelayRange> = {
   place_marker: { min: 1500, max: 3500 },
   confirm_placement_ready: { min: 1800, max: 3500 },
   use_leave_stable: { min: 1000, max: 2200 },
+  select_honesty_reward: { min: 1200, max: 2600 },
 }
 
 /** Human-like delay before executing an action. */

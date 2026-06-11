@@ -4,6 +4,7 @@ import {
   RUNE_CARD_DESCRIPTIONS,
   RUNE_CARD_IMAGES,
   RUNE_CARD_LABELS,
+  runeCardOrientationModifier,
 } from '../../lib/runeAssets'
 
 type RuneDrawRevealOverlayProps = {
@@ -47,7 +48,15 @@ export function RuneDrawRevealOverlay({ open, card, onConfirm }: RuneDrawRevealO
       >
         <p className="rune-card-preview-kicker">Bốc được thẻ mới</p>
 
-        <div className="rune-card-preview-art-wrap rune-card-preview-art-wrap--reveal">
+        <div
+          className={[
+            'rune-card-preview-art-wrap',
+            'rune-card-preview-art-wrap--reveal',
+            runeCardOrientationModifier(card.cardType, 'rune-card-preview-art-wrap'),
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
           <img
             src={RUNE_CARD_IMAGES[card.cardType]}
             alt=""

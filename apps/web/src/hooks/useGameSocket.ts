@@ -122,6 +122,13 @@ export function useGameSocket(
     [authToken, playerId],
   )
 
+  const selectHonestyReward = useCallback(
+    (cardType: string) => {
+      getSocket(authToken).emit('game:select_honesty_reward', { playerId, cardType })
+    },
+    [authToken, playerId],
+  )
+
   const chooseSwap = useCallback(
     (targetTokenId: string) => {
       getSocket(authToken).emit('game:choose_swap', { playerId, targetTokenId })
@@ -144,6 +151,7 @@ export function useGameSocket(
     placeMarker,
     confirmPlacementReady,
     useLeaveStable,
+    selectHonestyReward,
     chooseSwap,
   }
 }

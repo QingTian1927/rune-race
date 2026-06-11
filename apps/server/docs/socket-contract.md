@@ -95,6 +95,7 @@ When the handshake contains a valid Supabase access token, the server checks tha
 | `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` | `placement_phase`; emits `marker_place_rejected` (`placement_confirmed`) if player already confirmed |
 | `game:confirm_placement_ready` | `{ playerId }` | `placement_phase` — mark player ready; locks further place/draw for that player; may close early when all ready after min window |
 | `game:use_leave_stable` | `{ playerId, heldCardId }` | Active player; `leave_stable_phase` only |
+| `game:select_honesty_reward` | `{ playerId, cardType }` | Active player with a claimable honesty reward; `waiting_draw` or `placement_phase`; `cardType` must be one of the 5 support cards. Appends to hand even at/over 5 cards. If the player never selects, the server picks at random when placement closes |
 | `game:roll` | `{ playerId }` | Active player; `waiting_roll` or `leave_stable_phase`. Fails with `PLACEMENT_NOT_CLOSED` during `placement_phase` |
 | `game:choose_move` | `{ playerId, moveId }` | Phase `waiting_choice`; `moveId` from `legalMoves` |
 | `game:choose_swap` | `{ playerId, targetTokenId }` | Phase `waiting_swap_choice` |
@@ -175,6 +176,7 @@ For authenticated users, `playerId` must match the Supabase user id attached to 
 - **`events` on gameplay updates:** delta only (new events since last version). Use for animations (`dice_roll`, `token_stepped`, `marker_triggered`, etc.).
 - **`events` on `game:join` / `game:sync_request`:** full `state.events` array.
 - **`runeView`:** computed per recipient; never broadcast opponent marker card types in `state`.
+- **Per-viewer redaction** (`buildClientGameSnapshot`): opponent `rune.players[*]` hands/streaks/pending draws are stripped; `placement.honestyByPlayer` keeps only the viewer's entry; events are redacted (`cards_drawn` loses `cardTypes`, `marker_placed` is re-attributed to the displayed identity, `honesty_reward_granted` hides `cardType`, and `card_draw_preview` / `held_card_expired` / `marker_place_rejected` / `honesty_reward_available` / `honesty_reward_selected` go to their owner only).
 - After `handleRoll` with one legal move, a single snapshot may contain both roll and resolve events.
 - Do not apply client-side move resolution as source of truth.
 
@@ -184,7 +186,7 @@ For authenticated users, `playerId` must match the Supabase user id attached to 
 
 **Chat:** rate limit / validation errors via `chat:error`
 
-**Game:** `JOIN_FAILED`, `ROLL_FAILED`, `MOVE_FAILED`, `DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `PLACEMENT_NOT_CLOSED`, `SWAP_FAILED`, `SYNC_FAILED`
+**Game:** `JOIN_FAILED`, `ROLL_FAILED`, `MOVE_FAILED`, `DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `PLACEMENT_NOT_CLOSED`, `SWAP_FAILED`, `SYNC_FAILED`, `REWARD_SELECT_FAILED` (wraps `NO_CLAIMABLE_REWARD`, `INVALID_REWARD_TYPE`)
 
 ## Deprecated (do not use)
 

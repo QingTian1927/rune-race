@@ -234,6 +234,9 @@ export class BotManager {
       case 'use_leave_stable':
         this.gameStore.useLeaveStable(gameId, botId, action.heldCardId)
         break
+      case 'select_honesty_reward':
+        this.gameStore.selectHonestyReward(gameId, botId, action.cardType)
+        break
     }
   }
 

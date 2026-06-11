@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { GameState, PublicBoardMarker, RuneCardType } from '@rune-race/shared'
+import type { BoardMarker, GameState, PublicBoardMarker, RuneCardType } from '@rune-race/shared'
 import { RUNE_CARD_DEFINITIONS } from '@rune-race/shared'
 import { getDeltaEventsSinceVersion, updateVersionCursor } from '../lib/tokenMotion'
 import { cellIdForTrackStepBySlot, resolveLandedCellIds } from '../lib/trackCellId'
@@ -91,6 +91,21 @@ function markerFromTriggerEvent(
   }
 }
 
+/**
+ * Online snapshots already carry PublicBoardMarker; local mode passes full
+ * BoardMarker (no triggerMode) — derive it from the card definition.
+ */
+function toDisplayableMarker(marker: BoardMarker | PublicBoardMarker): PublicBoardMarker {
+  if ('triggerMode' in marker) return marker
+  const def = RUNE_CARD_DEFINITIONS[marker.cardType]
+  return {
+    markerId: marker.markerId,
+    cellId: marker.cellId,
+    displayedIdentityId: marker.displayedIdentityId,
+    triggerMode: def.triggerMode ?? 'PASS_THROUGH',
+  }
+}
+
 function cellIdsForPathSteps(playerSlot: number, steps: MockPathStep[]): Set<number> {
   const ids = new Set<number>()
   steps.forEach((step) => {
@@ -169,13 +184,18 @@ export function RuneMarkerVisibilityProvider({
       skipHistoryRef.current = false
       updateVersionCursor(gameState, versionCursorRef.current)
       prevMarkersRef.current = new Map(
-        (gameState.rune?.markers ?? []).map((marker) => [marker.markerId, marker]),
+        (gameState.rune?.markers ?? []).map((marker) => [
+          marker.markerId,
+          toDisplayableMarker(marker),
+        ]),
       )
       return
     }
 
     const currentMarkers = gameState.rune?.markers ?? []
-    const currentMap = new Map(currentMarkers.map((marker) => [marker.markerId, marker]))
+    const currentMap = new Map(
+      currentMarkers.map((marker) => [marker.markerId, toDisplayableMarker(marker)]),
+    )
     const deltaEvents = freezeTokenAnimations
       ? []
       : getDeltaEventsSinceVersion(gameState, versionCursorRef.current)
@@ -294,7 +314,7 @@ export function RuneMarkerVisibilityProvider({
 
   const visibleMarkers = useMemo((): DisplayMarker[] => {
     void revision
-    const live = gameState.rune?.markers ?? []
+    const live = (gameState.rune?.markers ?? []).map(toDisplayableMarker)
     const liveIds = new Set(live.map((marker) => marker.markerId))
     const deferred: DisplayMarker[] = [...pendingRef.current.values()]
       .filter((pending) => !liveIds.has(pending.marker.markerId))

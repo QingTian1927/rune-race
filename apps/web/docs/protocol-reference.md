@@ -38,6 +38,7 @@ Server details: [Socket contract](../../server/docs/socket-contract.md).
 | `game:place_marker` | Phase `placement_phase` — place held card on shared track (blocked after that player confirmed) |
 | `game:confirm_placement_ready` | Phase `placement_phase` — confirm done placing markers; locks that player until window closes |
 | `game:use_leave_stable` | Active player, phase `leave_stable_phase` — direct-use Xuất Chuồng |
+| `game:select_honesty_reward` | Active player with claimable honesty reward, draw & placement window — pick 1 of 5 support cards; appended to hand even at/over 5 cards |
 | `game:roll` | Active player — phase `waiting_roll` or `leave_stable_phase` only (not during `placement_phase`) |
 | `game:choose_move` | Phase `waiting_choice`; `moveId` from snapshot |
 | `game:choose_swap` | Phase `waiting_swap_choice`; target token for SWAP marker |

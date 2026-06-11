@@ -63,6 +63,11 @@ services:
         sync: false
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
+      - key: VITE_SITE_URL
+        fromService:
+          type: web
+          name: rune-race
+          envVarKey: RENDER_EXTERNAL_URL
 
   # Internal admin dashboard (analytics, feature flags)
   - type: web

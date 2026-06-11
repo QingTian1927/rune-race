@@ -87,7 +87,7 @@ export default function LobbyPage() {
 
   const handleLobbyRemoved = useCallback(
     (_reason: 'closed' | 'kicked' | 'disconnect_timeout') => {
-      navigate('/')
+      navigate('/play')
     },
     [navigate],
   )
@@ -191,7 +191,7 @@ export default function LobbyPage() {
     if (playerId) {
       void leaveMatchmaking(playerId, accessToken)
     }
-    navigate('/')
+    navigate('/play')
   }
 
   const homeNavButton = (

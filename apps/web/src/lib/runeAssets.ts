@@ -12,6 +12,37 @@ import runeSendHome from '../../assets/runes/rune-send-home.png'
 import runeShield from '../../assets/runes/rune-shield.png'
 import runeSwap from '../../assets/runes/rune-swap.png'
 
+export type RuneCardOrientation = 'portrait' | 'landscape'
+
+/**
+ * Portrait art ≈ 3:4; landscape art (Hoán vị) ≈ 4:3.
+ * Compact UI uses a uniform portrait frame + object-fit: cover for landscape types.
+ */
+export const RUNE_CARD_ORIENTATION: Record<RuneCardType, RuneCardOrientation> = {
+  ADVANCE_2: 'portrait',
+  ADVANCE_3: 'portrait',
+  ADVANCE_4: 'portrait',
+  BACK_3: 'portrait',
+  BACK_4: 'portrait',
+  BACK_5: 'portrait',
+  FREEZE: 'portrait',
+  LEAVE_STABLE: 'portrait',
+  SEND_HOME: 'portrait',
+  SHIELD: 'portrait',
+  SWAP: 'landscape',
+}
+
+export function isLandscapeRuneCard(type: RuneCardType): boolean {
+  return RUNE_CARD_ORIENTATION[type] === 'landscape'
+}
+
+export function runeCardOrientationModifier(
+  type: RuneCardType,
+  prefix: string,
+): string | undefined {
+  return isLandscapeRuneCard(type) ? `${prefix}--landscape` : undefined
+}
+
 export const RUNE_CARD_IMAGES: Record<RuneCardType, string> = {
   ADVANCE_2: runeAdvance2,
   ADVANCE_3: runeAdvance3,

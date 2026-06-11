@@ -1,4 +1,5 @@
-import type { GameEvent, GameState } from '@rune-race/shared'
+import type { GameEvent, GameState, RuneCardType } from '@rune-race/shared'
+import { RUNE_HONESTY_REWARD_TYPES } from '@rune-race/shared'
 import { pickAutoSpawnMove, shouldAutoExitStable } from './engine.js'
 import { sliceNewEvents, type GameCommandResult } from './commands.js'
 import { rollTurn, resolveTurn } from './engine.js'
@@ -19,6 +20,7 @@ import {
 } from './rune/placement.js'
 import { canSpawnFromLeaveStable, useLeaveStableCard } from './rune/leave-stable.js'
 import { resolveMoveWithRunes, resolveSwapChoice } from './rune/movement.js'
+import { getRunePlayer, grantHonestyReward } from './rune/state.js'
 
 function fail(code: string, message: string): GameCommandResult {
   return { success: false, error: { code, message }, events: [] }
@@ -132,6 +134,42 @@ export function handleConfirmPlacementReady(state: GameState, playerId: string):
 }
 
 export { tickPlacementPhase }
+
+/** Claim the honesty-streak reward by picking one of the 5 support cards (spec §4.4). */
+export function handleSelectHonestyReward(
+  state: GameState,
+  playerId: string,
+  cardType: RuneCardType,
+): GameCommandResult {
+  if (!state.config.runesEnabled || !state.rune) {
+    return fail('RUNES_DISABLED', 'Rune system is not enabled')
+  }
+  if (state.status !== 'playing') return fail('GAME_NOT_PLAYING', 'Game is not active')
+  if (state.turn.currentPlayerId !== playerId) return fail('NOT_YOUR_TURN', 'Not your turn')
+  if (!RUNE_HONESTY_REWARD_TYPES.includes(cardType)) {
+    return fail('INVALID_REWARD_TYPE', 'Not a support card')
+  }
+  if (!isRuneDrawAndPlacePhase(state.turn.phase)) {
+    return fail('INVALID_PHASE', 'Reward can only be claimed during draw & placement')
+  }
+
+  const timestamp = Date.now()
+  const before = maybeAutoCloseExpiredPlacement(state, timestamp)
+  if (!isRuneDrawAndPlacePhase(before.turn.phase)) {
+    return fail('INVALID_PHASE', 'Draw & placement phase has closed')
+  }
+  if (!getRunePlayer(before, playerId)?.hasClaimableHonestyReward) {
+    return fail('NO_CLAIMABLE_REWARD', 'No honesty reward to claim')
+  }
+
+  const granted = grantHonestyReward(before, playerId, cardType, timestamp, {
+    autoSelected: false,
+  })
+  if (granted === before) return fail('REWARD_SELECT_FAILED', 'Could not grant reward')
+
+  const next = { ...granted, version: granted.version + 1, updatedAt: timestamp }
+  return { success: true, state: next, events: sliceNewEvents(before, next) }
+}
 
 export function handleUseLeaveStable(
   state: GameState,
