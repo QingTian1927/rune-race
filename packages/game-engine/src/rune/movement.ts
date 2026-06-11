@@ -128,6 +128,12 @@ export function applySpawnFromBaseWithMarkers(
       }
       working = session.state
       path = session.path
+
+      // Chuỗi marker có thể đẩy quân rời ô start — phải đá quân đang đứng ở ô đáp cuối,
+      // giống finalizeTurnAfterMove của nước đi thường (nếu không sẽ có 2 quân chồng 1 ô).
+      const landed = working.tokens.find((t) => t.id === spawnTarget.id)!
+      working = applyTraditionalCapture(working, landed, toPathStep(landed), timestamp)
+      working = enforceNoTrackOverlap(working, spawnTarget.id, timestamp)
     }
   }
 

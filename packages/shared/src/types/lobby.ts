@@ -22,6 +22,8 @@ export interface LobbyPlayer {
   ready: boolean
   connected: boolean
   isHost: boolean
+  /** True for server-controlled bot players. */
+  isBot?: boolean
 }
 
 /** Public lobby list entry (HTTP). */

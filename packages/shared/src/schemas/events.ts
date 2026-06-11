@@ -131,6 +131,7 @@ const schemas: Record<string, z.ZodSchema> = {
   'lobby:unready': LobbyPlayerIdSchema,
   'lobby:leave': LobbyPlayerIdSchema,
   'lobby:kick': LobbyKickSchema,
+  'lobby:add_bot': LobbyPlayerIdSchema,
   'lobby:cancel_countdown': LobbyPlayerIdSchema,
   'lobby:update_settings': LobbyUpdateSettingsSchema,
   'lobby:transfer_host': LobbyTransferHostSchema,

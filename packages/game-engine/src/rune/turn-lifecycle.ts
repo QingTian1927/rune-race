@@ -222,7 +222,8 @@ export function previewDrawCard(
   if (!player || !canDrawMore(player, 1) || player.pendingDraw) return state
 
   const cardType = drawRuneCardType()
-  const heldCardId = `held-${state.roomId}-${playerId}-${timestamp}-preview`
+  // version đảm bảo id duy nhất kể cả khi rút nhiều lá trong cùng một mili-giây
+  const heldCardId = `held-${state.roomId}-${playerId}-${timestamp}-v${state.version}-preview`
   const pendingDraw = {
     heldCardId,
     ownerPlayerId: playerId,

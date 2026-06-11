@@ -1,0 +1,27 @@
+{
+  "name": "@rune-race/bot-ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsc -w",
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rune-race/game-engine": "workspace:*",
+    "@rune-race/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vitest": "^1.6.1"
+  }
+}

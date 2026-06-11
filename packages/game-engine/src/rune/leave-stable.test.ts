@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { boardSlotForPlayer, absoluteTrackIndexFor, createInitialGameState } from '../engine.js'
+import {
+  boardSlotForPlayer,
+  absoluteTrackIndexFor,
+  trackProgressForAbsoluteIndex,
+  createInitialGameState,
+} from '../engine.js'
 import { closePlacementPhase, placeMarker } from './placement.js'
 import { canSpawnFromLeaveStable, handleUseLeaveStable } from '../rune-commands.js'
 import { handleRoll } from '../commands.js'
@@ -105,6 +110,83 @@ describe('LEAVE_STABLE direct use', () => {
     const path = moveEvent?.details?.path ?? []
     expect(path.some((step) => step.motion === 'teleport')).toBe(true)
     expect(moveEvent?.details?.to).toEqual({ state: 'on_track', position: 2 })
+  })
+
+  it('kicks the occupant when an ADVANCE chain lands the spawn on an occupied cell', () => {
+    let state = createInitialGameState({
+      gameId: 'g1',
+      players,
+      firstPlayerId: 'p-red',
+      runesEnabled: true,
+    })
+    const redSlot = boardSlotForPlayer(state, 'p-red')
+    const blueSlot = boardSlotForPlayer(state, 'p-blue')
+    const startCell = absoluteTrackIndexFor(redSlot, 0)
+    const landingCell = absoluteTrackIndexFor(redSlot, 2)
+    const blueProgress = trackProgressForAbsoluteIndex(blueSlot, landingCell)!
+
+    // Quân xanh đứng sẵn ở ô mà chuỗi ADVANCE_2 sẽ đưa quân đỏ vừa xuất chuồng tới
+    const blueToken = state.tokens.find((t) => t.playerId === 'p-blue')!
+    state = {
+      ...state,
+      tokens: state.tokens.map((t) =>
+        t.id === blueToken.id ? { ...t, state: 'on_track' as const, position: blueProgress } : t,
+      ),
+    }
+
+    const placement = {
+      phaseId: 'test-placement',
+      openedAt: Date.now(),
+      minCloseAt: Date.now(),
+      maxCloseAt: Date.now() + 60_000,
+      honestyByPlayer: {},
+    }
+    const placer = state.rune!.players['p-blue']
+    state = {
+      ...state,
+      turn: { ...state.turn, phase: 'placement_phase' as const, currentPlayerId: 'p-blue' },
+      phase: 'placement_phase' as const,
+      rune: {
+        ...state.rune!,
+        placement,
+        players: {
+          ...state.rune!.players,
+          'p-blue': {
+            ...placer,
+            hand: [
+              ...placer.hand,
+              {
+                heldCardId: 'adv-start',
+                ownerPlayerId: 'p-blue',
+                cardType: 'ADVANCE_2' as const,
+                remainingHandRounds: 2,
+                source: 'DRAW' as const,
+              },
+            ],
+          },
+        },
+      },
+    }
+    const { state: withMarker } = placeMarker(state, 'p-blue', 'adv-start', startCell, 'p-blue', Date.now())
+    state = withLeaveStablePhase(withMarker, 'p-red')
+    const heldCardId = state.rune!.players['p-red'].hand[0]!.heldCardId
+
+    const result = handleUseLeaveStable(state, 'p-red', heldCardId)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+
+    const blueAfter = result.state.tokens.find((t) => t.id === blueToken.id)!
+    expect(blueAfter.state).toBe('in_base')
+    expect(result.events.some((e) => e.type === 'token_captured')).toBe(true)
+
+    // Không còn 2 quân on_track chung một ô tuyệt đối
+    const byAbs = new Map<number, number>()
+    for (const t of result.state.tokens) {
+      if (t.state !== 'on_track') continue
+      const abs = absoluteTrackIndexFor(boardSlotForPlayer(result.state, t.playerId), t.position)
+      byAbs.set(abs, (byAbs.get(abs) ?? 0) + 1)
+    }
+    expect(Math.max(...byAbs.values())).toBe(1)
   })
 
   it('TC-14: spawns a token from base when start cell is empty', () => {

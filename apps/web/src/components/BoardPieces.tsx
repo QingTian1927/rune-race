@@ -1429,10 +1429,12 @@ function motionPlanFromEvent(eventDetails: MockMoveEventDetails | undefined, pla
 }
 
 function isSegmentPausePending(session: ActiveMoveSession): boolean {
+  // Chỉ coi là đang chờ khi session thực sự giữ key hiệu ứng — thiếu key thì
+  // không có gì giải phóng được pause, sẽ kẹt animation vĩnh viễn.
   const pauseKind = session.pauseAfterSegment[session.segmentIndex]
-  if (pauseKind === 'shield_grant' && !session.shieldGrantComplete) return true
-  if (pauseKind === 'shield_break' && !session.shieldBreakComplete) return true
-  if (pauseKind === 'freeze_apply' && !session.freezeApplyComplete) return true
+  if (pauseKind === 'shield_grant' && session.shieldGrantKey && !session.shieldGrantComplete) return true
+  if (pauseKind === 'shield_break' && session.shieldBreakKey && !session.shieldBreakComplete) return true
+  if (pauseKind === 'freeze_apply' && session.freezeApplyKey && !session.freezeApplyComplete) return true
   return false
 }
 
@@ -1556,8 +1558,10 @@ function buildMoveSession(
         pauseBeforeMove: false,
         shieldBreakKey: null,
         shieldGrantKey: null,
-        freezeApplyKey: freezeApplied.key,
         ...emptySessionFlags,
+        // Phải đặt SAU spread: emptySessionFlags chứa freezeApplyKey: null sẽ ghi đè mất key,
+        // khiến session chờ freeze_apply không bao giờ được giải phóng (token kẹt vĩnh viễn).
+        freezeApplyKey: freezeApplied.key,
       }
     }
 
@@ -1568,8 +1572,8 @@ function buildMoveSession(
       pauseBeforeMove: false,
       shieldBreakKey: null,
       shieldGrantKey: null,
-      freezeApplyKey: freezeApplied.key,
       ...emptySessionFlags,
+      freezeApplyKey: freezeApplied.key,
     }
   }
 
@@ -3075,6 +3079,63 @@ export default function BoardPieces({
     }
   }, [freezeTokenAnimations, gameState.tokens, gameState.version, moveEventByTokenId, sentHomeByTokenId])
 
+  // Lưới an toàn chống "quân ma": capture/sent-home bị treo (mover không còn animation
+  // nào sắp chạy, hoặc đã treo qua >= 2 version) thì giải phóng ngay để quân bay về chuồng.
+  const pendingCaptureSeenVersionRef = useRef(new Map<string, number>())
+  const pendingSentHomeSeenVersionRef = useRef(new Map<string, number>())
+  useEffect(() => {
+    if (freezeTokenAnimations) {
+      return
+    }
+    const version = gameState.version
+
+    const moverHasPendingAnimation = (moverId: string) => {
+      const movePayload =
+        latchedMoveByTokenIdRef.current.get(moverId) ?? moveEventByTokenId.get(moverId)
+      return isTokenMoveAnimationPending(
+        moverId,
+        movePayload,
+        activeMoveSessionsRef.current,
+        consumedMotionKeysRef.current,
+      )
+    }
+
+    pendingCaptureSeenVersionRef.current.forEach((_seen, capturedTokenId) => {
+      if (!pendingTeleportCaptureByTokenIdRef.current.has(capturedTokenId)) {
+        pendingCaptureSeenVersionRef.current.delete(capturedTokenId)
+      }
+    })
+    pendingSentHomeSeenVersionRef.current.forEach((_seen, tokenId) => {
+      if (!pendingSentHomeByTokenIdRef.current.has(tokenId)) {
+        pendingSentHomeSeenVersionRef.current.delete(tokenId)
+      }
+    })
+
+    pendingTeleportCaptureByTokenIdRef.current.forEach((capture, capturedTokenId) => {
+      const seen = pendingCaptureSeenVersionRef.current.get(capturedTokenId) ?? version
+      pendingCaptureSeenVersionRef.current.set(capturedTokenId, seen)
+      if (version - seen >= 2 || !moverHasPendingAnimation(capture.tokenId)) {
+        pendingCaptureSeenVersionRef.current.delete(capturedTokenId)
+        releaseAllPendingCapturesForMover(capture.tokenId)
+      }
+    })
+
+    pendingSentHomeByTokenIdRef.current.forEach((_payload, tokenId) => {
+      const seen = pendingSentHomeSeenVersionRef.current.get(tokenId) ?? version
+      pendingSentHomeSeenVersionRef.current.set(tokenId, seen)
+      if (version - seen >= 2 || !moverHasPendingAnimation(tokenId)) {
+        pendingSentHomeSeenVersionRef.current.delete(tokenId)
+        releaseAllPendingSentHomeForMover(tokenId)
+      }
+    })
+  }, [
+    freezeTokenAnimations,
+    gameState.version,
+    moveEventByTokenId,
+    releaseAllPendingCapturesForMover,
+    releaseAllPendingSentHomeForMover,
+  ])
+
   useEffect(() => {
     if (!swapDetails || swapEventTimestamp <= 0) {
       return
@@ -3141,9 +3202,11 @@ export default function BoardPieces({
       }
       consumedMotionKeysRef.current.add(session.baseKey)
       activeMoveSessionsRef.current.delete(tokenId)
+      releaseAllPendingCapturesForMover(tokenId)
+      releaseAllPendingSentHomeForMover(tokenId)
     })
     setMoveOrchestrationRevision((revision) => revision + 1)
-  }, [])
+  }, [releaseAllPendingCapturesForMover, releaseAllPendingSentHomeForMover])
 
   const advanceMoveSessionsAfterShieldGrant = useCallback((grantKey: string) => {
     activeMoveSessionsRef.current.forEach((session, tokenId) => {
@@ -3162,9 +3225,11 @@ export default function BoardPieces({
       activeMoveByTokenIdRef.current.delete(tokenId)
       latchedMoveByTokenIdRef.current.delete(tokenId)
       markerVisibility?.notifyMoveAnimationDone(tokenId)
+      releaseAllPendingCapturesForMover(tokenId)
+      releaseAllPendingSentHomeForMover(tokenId)
     })
     setMoveOrchestrationRevision((revision) => revision + 1)
-  }, [markerVisibility])
+  }, [markerVisibility, releaseAllPendingCapturesForMover, releaseAllPendingSentHomeForMover])
 
   const advanceMoveSessionsAfterFreezeApply = useCallback((freezeKey: string) => {
     activeMoveSessionsRef.current.forEach((session, tokenId) => {
@@ -3183,13 +3248,17 @@ export default function BoardPieces({
       activeMoveByTokenIdRef.current.delete(tokenId)
       latchedMoveByTokenIdRef.current.delete(tokenId)
       markerVisibility?.notifyMoveAnimationDone(tokenId)
+      releaseAllPendingCapturesForMover(tokenId)
+      releaseAllPendingSentHomeForMover(tokenId)
     })
     setMoveOrchestrationRevision((revision) => revision + 1)
-  }, [markerVisibility])
+  }, [markerVisibility, releaseAllPendingCapturesForMover, releaseAllPendingSentHomeForMover])
 
   const scheduleShieldBreak = useCallback(
     (payload: ShieldConsumedPayload) => {
       if (consumedShieldBreakKeysRef.current.has(payload.key)) {
+        // Hiệu ứng đã chạy xong trước đó — giải phóng session đang chờ để không kẹt vĩnh viễn.
+        advanceMoveSessionsAfterShieldBreak(payload.key)
         return
       }
       if (scheduledShieldBreakKeysRef.current.has(payload.key)) {
@@ -3210,6 +3279,8 @@ export default function BoardPieces({
   const scheduleShieldGrant = useCallback(
     (payload: ShieldGrantedPayload) => {
       if (consumedShieldGrantKeysRef.current.has(payload.key)) {
+        // Hiệu ứng đã chạy xong trước đó — giải phóng session đang chờ để không kẹt vĩnh viễn.
+        advanceMoveSessionsAfterShieldGrant(payload.key)
         return
       }
       if (scheduledShieldGrantKeysRef.current.has(payload.key)) {
@@ -3230,6 +3301,8 @@ export default function BoardPieces({
   const scheduleFreezeApply = useCallback(
     (payload: FreezeAppliedPayload) => {
       if (consumedFreezeApplyKeysRef.current.has(payload.key)) {
+        // Hiệu ứng đã chạy xong trước đó — giải phóng session đang chờ để không kẹt vĩnh viễn.
+        advanceMoveSessionsAfterFreezeApply(payload.key)
         return
       }
       if (scheduledFreezeApplyKeysRef.current.has(payload.key)) {
@@ -3370,13 +3443,15 @@ export default function BoardPieces({
         session.pauseAfterSegment[session.segmentIndex] === 'shield_grant' &&
         !session.shieldGrantComplete
       ) {
-        session.awaitingShieldGrant = true
         const grantPayload = activeShieldGrantByTokenIdRef.current.get(tokenId)
-        if (grantPayload) {
+        if (grantPayload && grantPayload.key === session.shieldGrantKey) {
+          session.awaitingShieldGrant = true
           scheduleShieldGrant(grantPayload)
+          setMoveOrchestrationRevision((revision) => revision + 1)
+          return
         }
-        setMoveOrchestrationRevision((revision) => revision + 1)
-        return
+        // Payload đã bị tiêu thụ/mất — bỏ qua pause để session không kẹt vĩnh viễn.
+        session.shieldGrantComplete = true
       }
 
       if (
@@ -3384,13 +3459,14 @@ export default function BoardPieces({
         session.pauseAfterSegment[session.segmentIndex] === 'shield_break' &&
         !session.shieldBreakComplete
       ) {
-        session.awaitingShieldBreak = true
         const payload = activeShieldBreakByTokenIdRef.current.get(tokenId)
-        if (payload) {
+        if (payload && payload.key === session.shieldBreakKey) {
+          session.awaitingShieldBreak = true
           scheduleShieldBreak(payload)
+          setMoveOrchestrationRevision((revision) => revision + 1)
+          return
         }
-        setMoveOrchestrationRevision((revision) => revision + 1)
-        return
+        session.shieldBreakComplete = true
       }
 
       if (
@@ -3398,13 +3474,14 @@ export default function BoardPieces({
         session.pauseAfterSegment[session.segmentIndex] === 'freeze_apply' &&
         !session.freezeApplyComplete
       ) {
-        session.awaitingFreezeApply = true
         const payload = activeFreezeApplyByTokenIdRef.current.get(tokenId)
-        if (payload) {
+        if (payload && payload.key === session.freezeApplyKey) {
+          session.awaitingFreezeApply = true
           scheduleFreezeApply(payload)
+          setMoveOrchestrationRevision((revision) => revision + 1)
+          return
         }
-        setMoveOrchestrationRevision((revision) => revision + 1)
-        return
+        session.freezeApplyComplete = true
       }
 
       if (session.segmentIndex < session.paths.length - 1) {

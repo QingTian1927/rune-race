@@ -5,6 +5,7 @@ import {
   LOBBY_MAX_PLAYERS,
   LOBBY_MIN_PLAYERS_TO_START,
   LOBBY_START_COUNTDOWN_SECONDS,
+  PLAYER_COLORS,
   type LobbyPlayer,
   type LobbySettings,
   type LobbySnapshot,
@@ -110,7 +111,7 @@ export class LobbyStore {
         continue
       }
 
-      const anyConnected = record.players.some((p) => p.connected)
+      const anyConnected = record.players.some((p) => p.connected && !p.isBot)
       if (!anyConnected && record.status === 'lobby') {
         this.destroyLobby(lobbyId)
         removed += 1
@@ -328,13 +329,53 @@ export class LobbyStore {
     if (!record.players.some((p) => p.id === playerId)) return false
 
     this.removePlayer(record, playerId, 'left')
-    if (record.players.length === 0) {
+    if (record.players.length === 0 || record.players.every((p) => p.isBot)) {
       this.destroyLobby(lobbyId)
       return true
     }
 
     this.emitChange(lobbyId, this.toSnapshot(record))
     return true
+  }
+
+  /** Host action — seat a server-controlled bot in a free slot (connected + ready). */
+  addBot(lobbyId: string, hostId: string, bot: { botId: string; botName: string }): LobbySnapshot {
+    const record = this.getLobbyOrThrow(lobbyId, hostId)
+    if (record.hostPlayerId !== hostId) {
+      throw new Error('Only host can add bots')
+    }
+    if (record.status !== 'lobby') {
+      throw new Error('Cannot add bots right now')
+    }
+    if (record.players.length >= LOBBY_MAX_PLAYERS) {
+      throw new Error('Lobby is full')
+    }
+
+    const takenColors = new Set(record.players.map((p) => p.color))
+    const freeColor = PLAYER_COLORS.find((color) => !takenColors.has(color))
+    if (!freeColor) {
+      throw new Error('No color available')
+    }
+
+    record.players.push({
+      id: bot.botId,
+      name: bot.botName,
+      color: freeColor,
+      ready: true,
+      connected: true,
+      isHost: false,
+      isBot: true,
+      disconnectTimer: null,
+    })
+    this.playerLobbyIndex.set(bot.botId, lobbyId)
+
+    if (this.canStartCountdown(record)) {
+      this.startCountdown(record)
+    }
+
+    const snapshot = this.toSnapshot(record)
+    this.emitChange(lobbyId, snapshot)
+    return snapshot
   }
 
   kickPlayer(lobbyId: string, hostId: string, targetId: string): LobbySnapshot | null {
@@ -441,7 +482,7 @@ export class LobbyStore {
     this.cancelCountdown(record, 'disconnect')
 
     if (record.hostPlayerId === playerId && record.players.length > 1) {
-      const nextHost = record.players.find((p) => p.connected && p.id !== playerId)
+      const nextHost = record.players.find((p) => p.connected && !p.isBot && p.id !== playerId)
       if (nextHost) {
         record.hostPlayerId = nextHost.id
         record.players.forEach((p) => {
@@ -514,7 +555,7 @@ export class LobbyStore {
     record.currentGameId = null
     record.countdownSeconds = null
     record.players.forEach((p) => {
-      p.ready = false
+      p.ready = Boolean(p.isBot)
     })
 
     const snapshot = this.toSnapshot(record)
@@ -603,7 +644,10 @@ export class LobbyStore {
     this.playerLobbyIndex.delete(playerId)
 
     if (record.hostPlayerId === playerId && record.players.length > 0) {
-      const nextHost = record.players.find((p) => p.connected) ?? record.players[0]
+      const nextHost =
+        record.players.find((p) => p.connected && !p.isBot) ??
+        record.players.find((p) => !p.isBot) ??
+        record.players[0]
       record.hostPlayerId = nextHost.id
       record.players.forEach((p) => {
         p.isHost = p.id === nextHost.id
