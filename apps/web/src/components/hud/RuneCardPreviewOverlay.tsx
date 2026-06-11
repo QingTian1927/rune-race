@@ -4,6 +4,7 @@ import {
   RUNE_CARD_DESCRIPTIONS,
   RUNE_CARD_IMAGES,
   RUNE_CARD_LABELS,
+  runeCardOrientationModifier,
 } from '../../lib/runeAssets'
 import { PlayerBadge } from './PlayerBadge'
 
@@ -70,7 +71,14 @@ export function RuneCardPreviewOverlay({
         aria-labelledby={titleId}
         className="rune-card-preview-sheet"
       >
-        <div className="rune-card-preview-art-wrap">
+        <div
+          className={[
+            'rune-card-preview-art-wrap',
+            runeCardOrientationModifier(card.cardType, 'rune-card-preview-art-wrap'),
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
           <img
             src={RUNE_CARD_IMAGES[card.cardType]}
             alt=""

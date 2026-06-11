@@ -452,7 +452,7 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
 .logo-board::after  { right: -14px; }
 
 .game-title {
-  font-family: 'Fredoka One', cursive;
+  font-family: 'Fredoka One', 'Fredoka', cursive, sans-serif;
   font-size: 44px;
   color: #6B3A00;
   letter-spacing: 2px;
@@ -1726,7 +1726,7 @@ a.nav-btn {
 }
 
 .mm-queue-count {
-  font-family: 'Fredoka One', cursive;
+  font-family: 'Fredoka One', 'Fredoka', cursive, sans-serif;
   font-size: 32px;
   line-height: 1;
   color: #1A5BA8;
@@ -2147,7 +2147,7 @@ a.game-btn {
 
 .profile-display-name {
   margin-top: 10px;
-  font-family: 'Fredoka One', cursive;
+  font-family: 'Fredoka One', 'Fredoka', cursive, sans-serif;
   font-size: 26px;
   color: #6b3a00;
   letter-spacing: 0.5px;
@@ -2666,7 +2666,12 @@ a.game-btn {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   display: block;
+}
+
+.rune-hand-card--landscape .rune-hand-card-img {
+  object-position: center 44%;
 }
 
 .rune-hand-card-ttl {
@@ -2759,13 +2764,19 @@ a.game-btn {
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 6px 18px rgba(40, 60, 100, 0.22);
+  background: linear-gradient(160deg, #fffef8 0%, #fff6dc 100%);
 }
 
 .rune-card-preview-art {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center center;
   display: block;
+}
+
+.rune-card-preview-art-wrap--landscape .rune-card-preview-art {
+  object-position: center 44%;
 }
 
 .rune-card-preview-ttl {
@@ -2975,9 +2986,11 @@ a.game-btn {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
+  object-position: center center;
   border-radius: 10px;
   display: block;
   box-shadow: 0 4px 12px rgba(40, 60, 100, 0.18);
+  background: linear-gradient(160deg, #fffef8 0%, #fff6dc 100%);
 }
 
 .rune-reward-choice-label {
@@ -3139,9 +3152,16 @@ a.game-btn {
 .rune-trigger-flash-card {
   width: 100%;
   max-width: 96px;
+  aspect-ratio: 3 / 4;
   height: auto;
+  object-fit: cover;
+  object-position: center center;
   filter: drop-shadow(0 6px 16px rgba(15, 23, 42, 0.28));
   border-radius: 0.55rem;
+}
+
+.rune-trigger-flash-card--landscape {
+  object-position: center 44%;
 }
 
 .rune-trigger-flash-label {

@@ -5,7 +5,12 @@ import {
   RUNE_HONESTY_STREAK_FOR_REWARD,
   RUNE_MAX_DRAW_PER_PLAYER,
 } from '@rune-race/shared'
-import { RUNE_CARD_DESCRIPTIONS, RUNE_CARD_IMAGES, RUNE_CARD_LABELS } from '../../lib/runeAssets'
+import {
+  RUNE_CARD_DESCRIPTIONS,
+  RUNE_CARD_IMAGES,
+  RUNE_CARD_LABELS,
+  runeCardOrientationModifier,
+} from '../../lib/runeAssets'
 import { HUD_PANEL_LABEL_CLASS, PLAYER_COLOR_MAP } from './playerColorStyles'
 import { PanelCollapseButton } from './PanelCollapseButton'
 import { useHandCardPress } from './useHandCardPress'
@@ -242,6 +247,7 @@ function HandCardButton({
       type="button"
       className={[
         'rune-hand-card',
+        runeCardOrientationModifier(card.cardType, 'rune-hand-card'),
         selected ? 'rune-hand-card--selected' : '',
         pending ? 'rune-hand-card--pending' : '',
         disabled ? 'rune-hand-card--disabled' : '',
