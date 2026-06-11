@@ -545,6 +545,12 @@ function setOpacity(object: THREE.Object3D, opacity: number) {
       return
     }
 
+    // Mesh phụ trợ (vd: pick sphere vô hình) — không được đụng vào material,
+    // nếu không applyMaterialOpacity sẽ bật depthWrite và nó hiện thành quả cầu trắng.
+    if (node.userData?.excludeFromOpacity) {
+      return
+    }
+
     const mesh = node as THREE.Mesh
     const applyMaterial = (material: THREE.Material) => {
       applyMaterialOpacity(material, opacity)
@@ -2617,6 +2623,7 @@ function PawnInstance({
             onPointerDown={onPointerDown}
             onPointerOver={onPointerOver}
             onPointerOut={onPointerOut}
+            userData={{ excludeFromOpacity: true }}
           >
             <sphereGeometry args={[0.24, pickSphereSegments, pickSphereSegments]} />
             <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
@@ -3422,6 +3429,12 @@ export default function BoardPieces({
   )
 
   const handleCaptureAnimationComplete = useCallback((tokenId: string, motionKey: string) => {
+    // Animation capture đã xong → nhả latch ngay. Giữ latch lại sẽ khiến useFrame
+    // ghim quân ở chuồng + gọi setOpacity mỗi frame vô hạn (nguồn gốc các bug
+    // "quân tàng hình" và quả cầu trắng của pick sphere).
+    if (latchedCaptureByTokenIdRef.current.delete(tokenId)) {
+      setCaptureReleaseRevision((revision) => revision + 1)
+    }
     const activeSentHome = activeSentHomeByTokenIdRef.current.get(tokenId)
     if (!activeSentHome || activeSentHome.key !== motionKey) {
       return
@@ -3514,6 +3527,11 @@ export default function BoardPieces({
       if (consumedMotionKeysRef.current.has(rawKey)) {
         return
       }
+      // Quân này vừa có nước đi mới (vd: xuất chuồng lại sau khi bị bắt) — phải xoá
+      // latch capture cũ, nếu không captureMotion sẽ ghim model ở chuồng vĩnh viễn
+      // trong khi state thật đang on_track ("quân tàng hình" di chuyển trên bản đồ).
+      latchedCaptureByTokenIdRef.current.delete(tokenId)
+      pendingTeleportCaptureByTokenIdRef.current.delete(tokenId)
       latchedMoveByTokenIdRef.current.set(tokenId, payload)
     })
 
@@ -3567,7 +3585,13 @@ export default function BoardPieces({
         )
       }
       const pendingTeleportCapture = pendingTeleportCaptureByTokenIdRef.current.get(token.id)
-      const capturePayload = latchedCaptureByTokenIdRef.current.get(token.id)
+      let capturePayload = latchedCaptureByTokenIdRef.current.get(token.id)
+      // Lưới an toàn: state thật đã rời chuồng mà latch capture vẫn còn (vd: lỡ mất
+      // event di chuyển khi reconnect) → latch đã cũ, bỏ ngay để không ghim quân ở chuồng.
+      if (capturePayload && token.state !== 'in_base') {
+        latchedCaptureByTokenIdRef.current.delete(token.id)
+        capturePayload = undefined
+      }
       if (capturePayload || pendingTeleportCapture) {
         clearTokenStatusVisuals(token.id)
       }
