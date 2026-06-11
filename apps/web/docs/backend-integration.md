@@ -63,7 +63,7 @@ Works in lobby and in-game (same `lobbyId`). `OnlineGamePage` passes `RoomChatPa
 
 ### Game (`useGameSocket`)
 
-Emit: `game:join`, `game:draw_cards`, `game:finish_draw`, `game:place_marker`, `game:confirm_placement_ready`, `game:use_leave_stable`, `game:roll`, `game:choose_move`, `game:choose_swap`, `game:sync_request`.
+Emit: `game:join`, `game:draw_cards`, `game:finish_draw`, `game:place_marker`, `game:confirm_placement_ready`, `game:use_leave_stable`, `game:select_honesty_reward`, `game:roll`, `game:choose_move`, `game:choose_swap`, `game:sync_request`.
 
 Listen: `game:connected`, `game:state_snapshot`, `game:error`.
 

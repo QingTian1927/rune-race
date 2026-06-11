@@ -69,6 +69,8 @@ Any seated player with cards may place during simultaneous placement, not only t
 
 `runeView.myMarkers` lists `{ markerId, cardType }` only for markers **you** placed. Use this for tooltips; opponents see pin + displayed identity only.
 
+`state.rune.players` is redacted per viewer: only **your** entry carries the real hand, `honestPlacementStreak` and `hasClaimableHonestyReward`; opponents appear with an empty hand and zeroed streak. Events are also redacted server-side (e.g. `honesty_reward_granted` of another player has no `cardType`).
+
 `state.rune.placement.readyByPlayer` drives the confirm counter in `GameView`.
 
 ## Socket commands
@@ -81,6 +83,7 @@ Any seated player with cards may place during simultaneous placement, not only t
 | `game:place_marker` | `{ playerId, heldCardId, cellId, displayedIdentityId }` — during `placement_phase` (not after that player confirmed) |
 | `game:confirm_placement_ready` | `{ playerId }` — during `placement_phase`; idempotent per player |
 | `game:use_leave_stable` | `{ playerId, heldCardId }` — during `leave_stable_phase` only |
+| `game:select_honesty_reward` | `{ playerId, cardType }` — active player with `hasClaimableHonestyReward`, during draw & placement; server picks randomly at placement close if not sent |
 | `game:roll` | Active player — `waiting_roll` or `leave_stable_phase` (not during placement) |
 
 Handled in `hooks/useGameSocket.ts`; wired through `GameView` props.
@@ -89,7 +92,8 @@ Handled in `hooks/useGameSocket.ts`; wired through `GameView` props.
 
 | Component | Role |
 |-----------|------|
-| `HandArrayPanel` | Bottom-left hand (max 5); draw button when active player's turn; disabled card tooltip via `getCardDisabledTitle` |
+| `HandArrayPanel` | Bottom-left hand. Normal draws allowed below 5 valid cards; honesty rewards can push the hand to 6+ (horizontal scroll). Shows card count (`x thẻ`), draw quota, and the honesty streak pill (`★x/5`, pulsing when a reward is claimable). Draw button stays visible but disabled with reason when at/over 5 |
+| `HonestyRewardOverlay` | Pick 1 of 5 support cards when an honesty reward is claimable (own turn, draw & placement window). Dismissible (*Chọn sau*) — a pulsing reopen button appears next to the placement confirm; on timeout the server picks randomly and a toast shows the result |
 | `PhaseCountdownBar` | Small HUD countdown bar (placement, roll timeout, move-choice timeout) |
 | `RuneCardPreviewOverlay` | Card preview + placement confirm |
 | `RuneMarkers` / `RuneMapPin3D` | 3D pins on shared track cells |
@@ -107,6 +111,7 @@ onFinishDraw?: () => void
 onPlaceMarker?: (heldCardId, cellId, displayedIdentityId) => void
 onConfirmPlacementReady?: () => void
 onUseLeaveStable?: (heldCardId: string) => void
+onSelectHonestyReward?: (cardType: RuneCardType) => void
 onChooseSwap?: (targetTokenId: string) => void
 ```
 
@@ -132,6 +137,7 @@ When a SWAP marker triggers, phase becomes `waiting_swap_choice`. Selectable tok
 Watch delta `events` for rune-related types (same version cursor as `tokenMotion.ts`):
 
 - `cards_drawn`, `held_card_expired`, `placement_phase_opened`, `placement_ready_confirmed`
+- `honesty_reward_available` (own only), `honesty_reward_selected` (own only), `honesty_reward_granted` (public; `cardType` only for the recipient — drives the reward toast)
 - `marker_placed`, `marker_place_rejected`, `marker_expired`, `marker_triggered`
 - `token_stepped` (per-cell movement with rune resolution; `details.motion` may be `step`, `rune_step`, or `teleport`)
 - `token_moved` — `details.path[]` with `motion: 'step' | 'teleport'` for client animation

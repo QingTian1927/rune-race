@@ -10,7 +10,7 @@ Authoritative Rune layer implemented in `@rune-race/game-engine` and exposed via
 
 ## Turn lifecycle (normal turn)
 
-1. **Turn start housekeeping** — expire held cards, tick marker TTL, tick freeze, drain honesty rewards (`runTurnStartHousekeeping`).
+1. **Turn start housekeeping** — expire held cards, tick marker TTL, tick freeze, flag claimable honesty reward when streak = 5 (`runTurnStartHousekeeping` → `honesty_reward_available`).
 2. **`waiting_draw`** — active player may `game:draw_cards` or `game:finish_draw`.
 3. **`placement_phase`** — opened after draw; min 5s / max 30s window; all players with hand cards may `game:place_marker` and `game:confirm_placement_ready`. After a player confirms, that player is locked out of further placement and draw until the window closes.
 4. **Placement close** — server ticks every 1s (`GameStore.tickPlacementPhases`); closes when `now >= maxCloseAt` **or** (`now >= minCloseAt` and all players confirmed ready).
@@ -53,6 +53,7 @@ Other players who have not confirmed may still place. The client mirrors this lo
 | `game:place_marker` | `handlePlaceMarker` |
 | `game:confirm_placement_ready` | `handleConfirmPlacementReady` |
 | `game:use_leave_stable` | `handleUseLeaveStable` — only `leave_stable_phase` |
+| `game:select_honesty_reward` | `handleSelectHonestyReward` — active player, draw & placement window |
 | `game:roll` | `rollTurnWithRunes` (via `prepareRollWithRunes`) |
 | `game:choose_move` | `chooseMoveWithRunes` |
 | `game:choose_swap` | `handleChooseSwap` |
@@ -76,6 +77,8 @@ Implemented in `packages/game-engine/src/rune/movement.ts`:
 Server stores full `BoardMarker` (includes `cardType`, `realPlacerId`). Broadcast uses `buildClientGameSnapshot`:
 
 - `state` — public markers only (`PublicBoardMarker`: id, cellId, displayedIdentityId)
+- `state.rune.players` — opponents are redacted (empty hand, no pending draw, streak 0, no claimable reward); only the viewer's own rune state is full
+- `state` / delta `events` — redacted per viewer (`redactEventsForViewer`): draw/expiry/reward card types hidden, `marker_placed` re-attributed to the displayed identity, owner-only events dropped for others
 - `runeView.myMarkers` — `{ markerId, cardType }[]` for markers the viewer placed
 
 Implemented in `packages/shared/src/snapshot.ts`; called from `apps/server/src/socket/handlers.ts`.
@@ -90,7 +93,16 @@ Implemented in `packages/shared/src/snapshot.ts`; called from `apps/server/src/s
 | SEND_HOME, SWAP | TRAP / SPECIAL | EXACT_STOP |
 | SHIELD, ADVANCE_2/3/4, BACK_3/4/5, FREEZE | SUPPORT / TRAP | PASS_THROUGH |
 
-Constants: `RUNE_MAX_HAND_SIZE = 5`, `RUNE_MAX_DRAW_PER_PLAYER = 25`, `RUNE_HELD_CARD_ROUNDS = 2`, `RUNE_FREEZE_TURNS = 3`, `RUNE_HONESTY_STREAK_FOR_REWARD = 5`, `RUNE_TOKENS_PER_PLAYER = 2`, `CLASSIC_TOKENS_PER_PLAYER = 4`.
+Constants: `RUNE_DRAW_HAND_THRESHOLD = 5` (normal draws only while holding fewer; honesty rewards append past it — the hand has no hard cap), `RUNE_MAX_DRAW_PER_PLAYER = 25`, `RUNE_HELD_CARD_ROUNDS = 2`, `RUNE_FREEZE_TURNS = 3`, `RUNE_HONESTY_STREAK_FOR_REWARD = 5`, `RUNE_TOKENS_PER_PLAYER = 2`, `CLASSIC_TOKENS_PER_PLAYER = 4`.
+
+## Honesty streak reward (spec §4.4)
+
+1. A placement phase where a player placed ≥1 marker, all as themselves, increments `honestPlacementStreak` (capped at 5). Any impersonated marker resets it to 0; placing nothing keeps it.
+2. At the start of that player's **next normal turn**, streak = 5 sets `hasClaimableHonestyReward = true` and emits `honesty_reward_available`.
+3. During that turn's draw & placement window the player picks 1 of the 5 support cards (`LEAVE_STABLE`, `SHIELD`, `ADVANCE_2/3/4`) via `game:select_honesty_reward`.
+4. The card is appended **directly to the hand even at/over 5 cards** (`source: HONESTY_REWARD`, 2-round TTL, no draw-quota cost); streak resets to 0. An honest placement in this same turn counts as the first turn of the new streak.
+5. If unclaimed when placement closes, the server picks one of the 5 at random (`autoSelected: true` in event details).
+6. `honesty_reward_granted` is public but `cardType` is redacted for other viewers.
 
 ## Turn timeouts (anti-AFK)
 
@@ -120,7 +132,9 @@ Appended to `GameState.events` (sent as delta on updates):
 | `token_captured` | Kick at landing (dice final or teleport burst) |
 | `token_swapped` | SWAP resolution |
 | `horse_status_changed` | Shield / freeze on token |
-| `honesty_reward_granted` | Streak reward queued |
+| `honesty_reward_available` | Reward claimable this turn (owner only) |
+| `honesty_reward_selected` | Player picked a support card (owner only) |
+| `honesty_reward_granted` | Card appended to hand; `cardType` hidden from other viewers |
 | `leave_stable_used` | Direct-use Xuất Chuồng |
 
 ## Engine modules
@@ -140,6 +154,6 @@ packages/game-engine/src/
 
 ## Error codes (game)
 
-`DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `SWAP_FAILED`, `PLACEMENT_NOT_CLOSED`, `PLACEMENT_CONFIRMED` (player already confirmed during placement window), plus `RUNES_DISABLED`, `INVALID_PHASE`, `NOT_YOUR_TURN` from engine validation.
+`DRAW_FAILED`, `FINISH_DRAW_FAILED`, `PLACE_FAILED`, `SWAP_FAILED`, `PLACEMENT_NOT_CLOSED`, `PLACEMENT_CONFIRMED` (player already confirmed during placement window), `NO_CLAIMABLE_REWARD`, `INVALID_REWARD_TYPE`, `REWARD_SELECT_FAILED`, plus `RUNES_DISABLED`, `INVALID_PHASE`, `NOT_YOUR_TURN` from engine validation.
 
 `marker_place_rejected` may include `details.reason: placement_confirmed` when placement was already confirmed for that player.

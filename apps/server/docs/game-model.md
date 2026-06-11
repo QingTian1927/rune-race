@@ -100,7 +100,7 @@ Appended to `GameState.events` (server sends **delta** on updates):
 | `marker_placed` / `marker_place_rejected` | Placement |
 | `marker_expired` / `marker_triggered` | Marker lifecycle |
 | `horse_status_changed` | Shield / freeze |
-| `honesty_reward_granted` | Honesty streak reward |
+| `honesty_reward_available` / `honesty_reward_selected` / `honesty_reward_granted` | Honesty streak reward (available → choose 1 of 5 support cards → appended to hand, even past 5 cards) |
 | `error` | Rare; validation failures usually go to `game:error` socket event |
 
 ## Server internals
