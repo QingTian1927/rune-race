@@ -10,6 +10,10 @@ const appRoot = path.resolve(repoRoot, 'apps/web')
 export default defineConfig({
   // Load VITE_* from repo-root `.env` (see `.env.example`)
   envDir: repoRoot,
+  ssr: {
+    // Bundle for prerender so pnpm workspace symlinks do not break source-map resolution.
+    noExternal: ['react-helmet-async'],
+  },
   plugins: [
     react(),
     vitePrerenderPlugin({

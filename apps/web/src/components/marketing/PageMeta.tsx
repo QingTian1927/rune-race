@@ -7,6 +7,11 @@ type PageMetaProps = {
 }
 
 export function PageMeta({ path }: PageMetaProps) {
+  // Marketing SEO head tags are injected during static prerender (see prerender.tsx).
+  if (typeof window === 'undefined') {
+    return null
+  }
+
   const seo = resolvePageSeo(path)
   const fullTitle = formatDocumentTitle(seo)
   const canonical = `${SITE_URL}${seo.path}`
