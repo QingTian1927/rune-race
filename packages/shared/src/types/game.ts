@@ -114,6 +114,8 @@ export type GameEventType =
   | 'marker_expired'
   | 'marker_triggered'
   | 'horse_status_changed'
+  | 'honesty_reward_available'
+  | 'honesty_reward_selected'
   | 'honesty_reward_granted'
   | 'leave_stable_used'
   | 'error'

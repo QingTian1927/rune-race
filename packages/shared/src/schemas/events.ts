@@ -113,6 +113,11 @@ export const UseLeaveStableSchema = z.object({
   heldCardId: z.string().min(1),
 })
 
+export const SelectHonestyRewardSchema = z.object({
+  playerId: z.string().min(1),
+  cardType: z.enum(['LEAVE_STABLE', 'SHIELD', 'ADVANCE_2', 'ADVANCE_3', 'ADVANCE_4']),
+})
+
 export const ChatSendSchema = z.object({
   playerId: z.string().min(1),
   lobbyId: z.string().min(1),
@@ -146,6 +151,7 @@ const schemas: Record<string, z.ZodSchema> = {
   'game:place_marker': PlaceMarkerSchema,
   'game:confirm_placement_ready': ConfirmPlacementReadySchema,
   'game:use_leave_stable': UseLeaveStableSchema,
+  'game:select_honesty_reward': SelectHonestyRewardSchema,
   'game:choose_swap': ChooseSwapSchema,
   'game:choose_move': ChooseMoveSchema,
   'game:sync_request': SyncRequestSchema,
