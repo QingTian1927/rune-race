@@ -16,9 +16,11 @@
     "@supabase/supabase-js": "^2.106.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-helmet-async": "^3.0.0",
     "react-router-dom": "^6.20.0",
     "socket.io-client": "^4.7.2",
     "three": "^0.184.0",
+    "vite-prerender-plugin": "^0.5.13",
     "zod": "^3.22.2",
     "zustand": "^4.4.0"
   },

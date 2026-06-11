@@ -39,7 +39,7 @@ export default function AuthSignupPage() {
       const newSession = result.data.session
       if (newSession?.user && newSession.access_token) {
         await linkAnonSessionIfNeeded(newSession.access_token, newSession.user.id)
-        navigate('/')
+        navigate('/play')
         return
       }
 

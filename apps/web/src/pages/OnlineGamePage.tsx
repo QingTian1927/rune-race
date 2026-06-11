@@ -59,7 +59,7 @@ export default function OnlineGamePage() {
   const handleLeaveGame = useCallback(() => {
     emitLeaveLobby(accessToken, playerId)
     sessionStorage.removeItem('rune-race-lobby-id')
-    navigate('/')
+    navigate('/play')
   }, [accessToken, navigate, playerId])
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export default function OnlineGamePage() {
 
     const redirectHome = () => {
       sessionStorage.removeItem('rune-race-lobby-id')
-      navigate('/')
+      navigate('/play')
     }
 
     const onClosed = (payload: { lobbyId: string }) => {
