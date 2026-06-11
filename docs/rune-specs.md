@@ -5,9 +5,9 @@ CƠ CHẾ GIẢ DANH VÀ HỆ THỐNG THẺ RUNE**
 
 *Gameplay Rule & Rune System Specification*
 
-| **Phiên bản**    | 1.2 - Rule Lock: placement confirm, đá quân, teleport chain |
+| **Phiên bản**    | 1.2 - Rule Lock: cập nhật hand array và thưởng trung thực     |
 |------------------|-----------------------------------------------------------|
-| **Trạng thái**   | Đã đồng bộ với engine + client MVP (tháng 6/2026)           |
+| **Trạng thái**   | Đã cập nhật theo các quyết định gameplay được xác nhận     |
 | **Phạm vi**      | MVP web multiplayer 2-4 người chơi                        |
 | **Mục đích**     | Dùng cho game design, UI/UX và triển khai gameplay server |
 | **Tài liệu nền** | Briefing Rune Race ban đầu và chuỗi xác nhận rule mới     |
@@ -53,18 +53,6 @@ CƠ CHẾ GIẢ DANH VÀ HỆ THỐNG THẺ RUNE**
 
 ## Thay đổi chính trong phiên bản 1.2
 
-- **Pha đặt thẻ:** Mỗi người có nút **Xác nhận đặt xong**; sau tối thiểu 5 giây, nếu mọi người đã xác nhận thì pha đặt đóng sớm. Tung xúc xắc chỉ được phép sau khi pha đặt kết thúc (không thể roll để cắt ngắn pha đặt của người khác).
-
-- **Đá quân — di chuyển xúc xắc:** Chỉ đá ở **ô đáp cuối** của lượt; chỉ đá **quân địch**; đáp vào ô có quân cùng màu là **illegal move**. Đi qua ô có quân không đá.
-
-- **Đá quân — teleport Tiến/Lùi:** Chỉ đá ở **điểm kết thúc mỗi link teleport** (mỗi burst); đá cả quân cùng màu lẫn địch. Ô nằm trên đường teleport (không phải điểm dừng) không bị ảnh hưởng.
-
-- **Chuỗi teleport:** Mỗi link chain (Tiến → Tiến → Lùi, v.v.) là một burst riêng, kết thúc bằng một lần teleport và điểm đáp riêng. Khi marker chain kích hoạt giữa burst đang chạy, burst hiện tại kết thúc tại ô đó trước khi stack hiệu ứng tiếp theo.
-
-- **Animation client:** Mỗi waypoint `motion: 'teleport'` trong path phát animation biến mất / xuất hiện riêng; không gộp cả chuỗi thành một nhảy duy nhất.
-
-## Thay đổi trong phiên bản 1.1 (kế thừa)
-
 - Mỗi người chơi có 2 quân ngựa; thắng khi đưa đủ 2 quân về đích.
 
 - Xuất Chuồng không còn là marker. Thẻ được bấm trực tiếp từ hand array sau placement phase và trước khi tung xúc xắc của lượt bình thường.
@@ -72,6 +60,10 @@ CƠ CHẾ GIẢ DANH VÀ HỆ THỐNG THẺ RUNE**
 - Xuất Chuồng luôn bị tiêu hao sau khi bấm, kể cả khi không xuất được quân.
 
 - Quân vừa được đưa ra ô xuất phát kích hoạt marker tại ô đó như khi đi vào một ô bình thường.
+
+- Hand array thông thường chỉ cho phép bốc thêm thẻ khi đang giữ dưới 5 thẻ còn hạn.
+
+- Sau 5 lượt đặt thẻ trung thực liên tiếp, người chơi được chọn 1 thẻ hỗ trợ tại pha bốc và đặt thẻ của lượt bình thường tiếp theo. Thẻ thưởng được append trực tiếp vào hand array kể cả khi đang có từ 5 thẻ trở lên.
 
 # 1. Mục tiêu và phạm vi tài liệu
 
@@ -112,7 +104,7 @@ Tài liệu này đặc tả phiên bản luật Rune Race mới dành cho MVP. 
 |----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | Lượt bình thường           | Lượt chơi bắt đầu từ bước bốc thẻ của người chơi đang đến lượt. Đây là đơn vị được dùng để đếm nhiều loại thời hạn.                        |
 | Lượt thưởng do tung được 6 | Lượt phụ chỉ lặp lại từ bước tung xúc xắc. Không mở lại bước bốc thẻ hoặc pha đặt thẻ đồng thời; không được tính là một vòng thời hạn mới. |
-| Hand array                 | Khu vực tối đa 5 thẻ còn hạn mà một người chơi đang giữ. Hiển thị ở góc dưới bên trái giao diện.                                          |
+| Hand array                 | Khu vực chứa các thẻ còn hạn mà người chơi đang giữ, hiển thị ở góc dưới bên trái giao diện. Ngưỡng bốc thẻ thường là dưới 5 thẻ; thẻ thưởng trung thực được phép append vượt ngưỡng này.                                          |
 | Marker                     | Dấu vị trí bí mật được tạo khi một thẻ đặt được rải lên đường đi chung. Marker không tiết lộ loại Rune. Xuất Chuồng không tạo marker.       |
 | Thẻ dùng trực tiếp          | Thẻ được kích hoạt từ hand array mà không rải xuống bàn cờ. Trong phiên bản này, Xuất Chuồng là thẻ dùng trực tiếp duy nhất.                 |
 | Thẻ đặt được                | Các Rune có thể rải xuống đường đi chung để tạo marker: Khiên, Tiến, Lùi, Đóng băng, Về chuồng và Hoán vị.                                   |
@@ -129,10 +121,10 @@ Tài liệu này đặc tả phiên bản luật Rune Race mới dành cho MVP. 
 | **Bước** | **Tên bước**          | **Mô tả**                                                                                                                                 |
 |----------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | 1        | Mở lượt bình thường   | Xử lý thẻ trong hand array đã hết hạn của người chơi đang đến lượt trước khi người này bốc, đặt hoặc dùng thẻ.                            |
-| 2        | Bốc thẻ               | Người chơi đang đến lượt có thể bốc 0 hoặc nhiều thẻ ngẫu nhiên, miễn tổng lượt bốc cá nhân chưa vượt 25 và hand array chưa vượt 10 thẻ.  |
-| 3        | Pha đặt thẻ đồng thời | Tất cả người chơi đang giữ thẻ đặt được có thể rải không giới hạn số thẻ còn hạn xuống các ô hợp lệ. Mỗi người có thể bấm **Xác nhận đặt xong**. Pha đóng sau tối thiểu 5 giây khi mọi người đã xác nhận, hoặc sau tối đa 30 giây. |
+| 2        | Bốc thẻ               | Người chơi đang đến lượt có thể bốc 0 hoặc nhiều thẻ ngẫu nhiên, miễn tổng lượt bốc cá nhân chưa vượt 25 và hand array đang có dưới 5 thẻ. Nếu người chơi có reward trung thực đến hạn nhận ở lượt này, hệ thống mở lựa chọn 1 thẻ hỗ trợ trong chính pha bốc và đặt thẻ rồi append thẻ đã chọn vào hand array, kể cả khi array đang có từ 5 thẻ trở lên.  |
+| 3        | Pha đặt thẻ đồng thời | Tất cả người chơi đang giữ thẻ đặt được có thể rải không giới hạn số thẻ còn hạn xuống các ô hợp lệ. Người chơi được phép giữ lại thẻ.  |
 | 4        | Cửa sổ dùng Xuất Chuồng | Sau pha đặt marker, người đang đến lượt có thể bấm một hoặc nhiều thẻ Xuất Chuồng đang giữ. Mỗi lần bấm đều tiêu hao thẻ ngay.            |
-| 5        | Tung xúc xắc          | Chỉ người đang đến lượt tung xúc xắc, **sau khi** pha đặt đã đóng. Không được tung trong `placement_phase`.                               |
+| 5        | Tung xúc xắc          | Chỉ người đang đến lượt tung xúc xắc.                                                                                                     |
 | 6        | Chọn quân ngựa        | Người đang đến lượt chọn một quân ngựa hợp lệ theo luật Cá Ngựa truyền thống và các trạng thái hiện tại.                                  |
 | 7        | Di chuyển từng bước   | Quân ngựa nhảy theo số xúc xắc. Server resolve từng ô và xử lý marker trên đường đi theo luật tại Mục 8.                                  |
 | 8        | Kết thúc lượt         | Cập nhật bộ đếm trạng thái, vòng đời marker và các hiệu ứng liên quan.                                                                    |
@@ -159,11 +151,17 @@ Nếu người chơi tung được 6 và được thêm lượt theo luật truy
 
 - Thẻ thưởng từ chuỗi trung thực không tính vào quota 25 thẻ bốc cá nhân.
 
-## 4.2. Hand array tối đa 5 thẻ
+## 4.2. Hand array và ngưỡng bốc thẻ thường
 
-- Mỗi người chơi có một array tối đa 5 thẻ còn hạn, hiển thị ở góc dưới bên trái màn hình.
+- Hand array hiển thị các thẻ còn hạn mà người chơi đang giữ ở góc dưới bên trái màn hình.
 
-- Khi array đủ 5 thẻ, người chơi không thể bốc thêm thẻ.
+- Người chơi chỉ được bốc thêm thẻ thường khi hand array đang có dưới 5 thẻ còn hạn.
+
+- Khi hand array đang có từ 5 thẻ trở lên, nút bốc thẻ thường bị vô hiệu hóa.
+
+- Thẻ thưởng trung thực là ngoại lệ: sau khi người chơi chọn thẻ hỗ trợ, hệ thống append thẻ thưởng trực tiếp vào hand array kể cả khi array đang có từ 5 thẻ trở lên.
+
+- Vì reward có thể được nhận nhiều lần, hand array có thể tạm thời tăng lên 6, 7, 8 hoặc nhiều thẻ hơn. Trong trạng thái này, người chơi vẫn không được bốc thẻ thường cho đến khi số thẻ còn hạn giảm xuống dưới 5.
 
 - Người chơi có thể giữ thẻ để đặt hoặc dùng ở lượt sau nếu thẻ vẫn còn hạn.
 
@@ -188,13 +186,25 @@ Một thẻ được bốc lên hand array sẽ hết hạn sau 2 vòng tính th
 
 - Chỉ cần có ít nhất một marker giả danh trong lượt, bộ đếm trung thực của người đặt thật trở về 0.
 
-- Sau 5 lượt trung thực liên tiếp, hệ thống thưởng ngẫu nhiên 1 thẻ hỗ trợ: Xuất chuồng, Khiên chắn, Tiến 2 bước, Tiến 3 bước hoặc Tiến 4 bước.
+- Khi người chơi hoàn thành 5 lượt trung thực liên tiếp, phần thưởng không được thêm ngay trong lượt thứ năm. Hệ thống đánh dấu 1 reward đến hạn nhận ở lượt bình thường tiếp theo của chính người chơi đó.
 
-- Sau khi tạo thưởng, bộ đếm trung thực trở về 0.
+- Tại pha bốc và đặt thẻ của lượt bình thường tiếp theo, người chơi được chọn 1 trong 5 thẻ hỗ trợ: Xuất Chuồng, Khiên Chắn, Tiến 2 bước, Tiến 3 bước hoặc Tiến 4 bước.
 
-- Hệ thống công bố người nhận thẻ thưởng, nhưng không tiết lộ lịch sử marker hoặc danh tính người đặt thật.
+- Cơ chế chọn reward được coi như một lần bốc thẻ đặc biệt: người chơi chủ động chọn loại thẻ thay vì nhận ngẫu nhiên.
 
-- Nếu hand array đã đầy, thẻ thưởng được đưa vào hàng chờ. Hàng chờ có thể tích lũy nhiều thẻ và tự chuyển thẻ vào array khi có chỗ trống.
+- Thẻ thưởng được append trực tiếp vào hand array ngay sau khi chọn, kể cả khi hand array đang có từ 5 thẻ trở lên. Không dùng hàng chờ pending reward do array đầy.
+
+- Nếu người chơi không chọn trước khi hết thời gian cho phép, hệ thống tự chọn ngẫu nhiên 1 trong 5 thẻ hỗ trợ và append vào hand array.
+
+- Thẻ thưởng có hạn 2 vòng của chính người nhận, tính từ thời điểm được append vào hand array. Lượt thưởng do tung được 6 không làm giảm thời hạn.
+
+- Thẻ thưởng không tính vào quota 25 thẻ bốc cá nhân.
+
+- Người chơi có thể sử dụng ngay thẻ thưởng trong chính lượt nhận thưởng như một thẻ vừa bốc được. Nếu chọn Xuất Chuồng, thẻ có thể được dùng trong cửa sổ Xuất Chuồng của cùng lượt; nếu chọn một thẻ tạo marker, thẻ có thể được đặt ngay trong placement phase hiện tại.
+
+- Sau khi người chơi nhận reward ở lượt bình thường tiếp theo, bộ đếm trung thực reset về 0. Nếu người chơi tiếp tục đặt marker hoàn toàn chính danh trong placement phase của lượt nhận reward, lượt đó được tính là lượt trung thực đầu tiên của chuỗi mới.
+
+- Hệ thống công bố cho tất cả người chơi rằng người chơi A đã nhận 1 thẻ hỗ trợ vì chuỗi trung thực. Không tiết lộ A đã chọn thẻ gì, số lượng thẻ A đang giữ hoặc thời hạn còn lại của thẻ thưởng.
 
 # 5. Danh mục thẻ Rune chính thức
 
@@ -241,20 +251,6 @@ Bộ Rune phiên bản mới gồm 11 loại thẻ. Thẻ Nhân đôi bước đ
 ## 6.3. Xử lý xung đột vị trí
 
 Nếu nhiều người chơi gửi yêu cầu đặt marker vào cùng một ô còn trống trong cùng pha, server chấp nhận yêu cầu đến sớm nhất. Các yêu cầu đến sau thất bại; thẻ tương ứng vẫn nằm trong array của người đặt thất bại và không bị tiêu hao.
-
-## 6.4. Xác nhận đặt xong và đóng pha sớm
-
-- Cửa sổ placement: tối thiểu **5 giây** (`minCloseAt`), tối đa **30 giây** (`maxCloseAt`). Server tick mỗi giây để đóng khi hết hạn hoặc khi đủ điều kiện đóng sớm.
-
-- Mỗi người chơi có thể bấm **Xác nhận đặt xong** (`game:confirm_placement_ready`) một lần trong pha. Trạng thái lưu trong `placement.readyByPlayer[playerId]`.
-
-- **Đóng sớm:** Khi `now >= minCloseAt` **và** mọi người trong ván đã xác nhận → server đóng placement phase ngay (chuyển sang `leave_stable_phase` hoặc `waiting_roll`).
-
-- **Đóng theo hạn:** Khi `now >= maxCloseAt` → đóng placement bất kể ai chưa xác nhận.
-
-- **Tung xúc xắc trong placement:** Không được phép. `game:roll` trả lỗi `PLACEMENT_NOT_CLOSED` cho đến khi placement đã đóng. Chỉ người đang đến lượt mới roll sau đó.
-
-- Khi placement kết thúc, client **bỏ chọn thẻ** đang chọn trong hand array để tránh che nút roll.
 
 # 7. Cơ chế giả danh
 
@@ -336,36 +332,6 @@ resolveTraditionalRuleIfApplicable(horse)</th>
 - Nếu đang lùi và gặp thêm Lùi, số bước lùi mới được cộng dồn với số bước lùi còn lại.
 
 - Marker dừng đúng ô được kiểm tra sau khi mọi bước chuyển động hiện tại kết thúc, bất kể điểm dừng sinh ra từ xúc xắc, Tiến hay Lùi.
-
-## 8.4. Quy tắc đá quân (capture / kick)
-
-### Di chuyển xúc xắc (bước thường)
-
-| Tình huống | Kết quả |
-|------------|---------|
-| Đi **qua** ô có quân (cùng màu hoặc khác màu) | Không đá |
-| **Đáp** ô có quân **khác màu** (ô cuối lượt) | Đá về chuồng |
-| **Đáp** ô có quân **cùng màu** | Illegal move — không cho chọn nước đi |
-
-Capture chỉ chạy **một lần** sau khi hết bước xúc xắc (và chain rune nếu có), tại ô đáp cuối cùng.
-
-### Di chuyển teleport (Tiến / Lùi — rune burst)
-
-| Tình huống | Kết quả |
-|------------|---------|
-| Quân nằm **trên đường** burst (ô trung gian, không phải điểm dừng) | Không bị ảnh hưởng |
-| Quân nằm ở **điểm kết thúc** mỗi link teleport | Bị đá ngay (cùng màu **hoặc** khác màu) |
-| Teleport đáp vào ô có marker Tiến/Lùi khác | Chain tiếp tục (effect stacking) |
-
-Mỗi link trong chuỗi chain là một **burst** riêng: engine ghi một waypoint `motion: 'teleport'` cho mỗi điểm dừng burst. Nếu marker chain (Tiến/Lùi) kích hoạt **giữa** burst đang chạy, burst hiện tại kết thúc tại ô đó (teleport + kick landing) rồi burst mới bắt đầu.
-
-## 8.5. Path animation cho client
-
-- Bước xúc xắc: `motion: 'step'` — animate từng ô.
-
-- Mỗi kết thúc burst Tiến/Lùi: `motion: 'teleport'` — animation biến mất tại điểm bắt đầu link, xuất hiện tại điểm đích link.
-
-- Chuỗi nhiều teleport liên tiếp (ví dụ Tiến rồi Lùi): client phát **từng segment** teleport; không gộp thành một nhảy từ điểm đầu tới điểm cuối chuỗi.
 
 # 9. Quy tắc chi tiết theo từng thẻ
 
@@ -530,33 +496,27 @@ Nếu quân của A bị Đóng băng trong lượt của B, hai lượt bình t
 
 ## 11.3. Hand array ở góc dưới bên trái
 
-- Hiển thị tối đa 5 thẻ đang còn hạn.
+- Hiển thị toàn bộ thẻ đang còn hạn trong hand array.
 
 - Mỗi thẻ hiển thị số vòng còn lại trước khi hết hạn.
 
-- Hiển thị trạng thái số lượng thẻ: ví dụ 3/5.
+- Hiển thị số lượng thẻ hiện tại. Ví dụ: 4 thẻ, 5 thẻ hoặc 7 thẻ.
 
-- Khi array đầy, nút bốc thẻ bị vô hiệu hóa và hiển thị lý do ngắn gọn.
+- Khi hand array đang có từ 5 thẻ trở lên, nút bốc thẻ thường bị vô hiệu hóa và hiển thị lý do ngắn gọn.
 
-- Khi có thưởng đang chờ, hiển thị trạng thái pending reward mà không tự vượt quá giới hạn 5 thẻ.
+- Thẻ reward trung thực vẫn được append vào hand array kể cả khi số lượng hiện tại đã đạt hoặc vượt 5.
+
+- Khi reward đến hạn nhận, hiển thị giao diện chọn 1 trong 5 thẻ hỗ trợ trong pha bốc và đặt thẻ. Nếu hết thời gian, client hiển thị kết quả loại thẻ được server tự chọn ngẫu nhiên.
 
 ## 11.4. Pha đặt thẻ đồng thời
 
 - Hiển thị trạng thái pha rõ ràng để mọi người biết đang được phép rải marker.
-
-- Hiển thị đồng hồ đếm ngược placement (5–30 giây) và số người đã **Xác nhận đặt xong** (ví dụ `2/4`).
-
-- Nút **Xác nhận đặt xong** gửi `game:confirm_placement_ready`. Sau khi bấm, nút disabled cho đến hết pha.
 
 - Khi chọn một thẻ đặt được trong array, highlight các ô đường đi chung hợp lệ và ẩn hoặc khóa các ô không hợp lệ. Xuất Chuồng không mở giao diện chọn ô.
 
 - Khi người chơi chọn ô, mở bước chọn danh tính hiển thị trước khi gửi yêu cầu đặt marker.
 
 - Nếu server từ chối do ô vừa bị người khác chiếm trước, giữ nguyên thẻ trong array và thông báo đặt thất bại.
-
-- **Nút tung xúc xắc ẩn** trong suốt `placement_phase`. Chỉ hiện lại sau khi placement đóng (`waiting_roll` hoặc `leave_stable_phase`).
-
-- Khi placement kết thúc, client tự bỏ chọn thẻ trong hand array.
 
 
 ## 11.5. Tương tác dùng thẻ Xuất Chuồng
@@ -573,13 +533,9 @@ Nếu quân của A bị Đóng băng trong lượt của B, hai lượt bình t
 
 ## 11.6. Animation khi kích hoạt
 
-- Quân ngựa di chuyển theo từng ô (bước xúc xắc) để người chơi nhìn thấy chuỗi Rune được resolve theo thứ tự.
-
-- **Teleport Tiến/Lùi:** Mỗi waypoint `motion: 'teleport'` trong `token_moved.details.path` phát animation riêng — quân chìm xuống / biến mất tại điểm bắt đầu link, xuất hiện tại điểm đích link. Chuỗi chain nhiều link (Tiến → Lùi, Tiến → Tiến → Lùi, …) phát **lần lượt từng link**, không gộp một nhảy tới ô cuối.
+- Quân ngựa di chuyển theo từng ô để người chơi nhìn thấy chuỗi Rune được resolve theo thứ tự.
 
 - Khi marker kích hoạt, marker biến mất và animation ngắn thể hiện hiệu ứng: mũi tên tiến, mũi tên lùi, lớp Khiên, đóng băng, về chuồng hoặc đổi chỗ.
-
-- Đá quân (`token_captured`) animate khi có capture tại điểm đáp teleport hoặc đáp cuối xúc xắc.
 
 - Animation được phép tiết lộ hiệu ứng vừa xảy ra nhưng không bao giờ tiết lộ người đặt thật.
 
@@ -636,28 +592,17 @@ Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất 
 | **Trường**            | **Kiểu dữ liệu** | **Ý nghĩa**                                                       |
 |-----------------------|------------------|-------------------------------------------------------------------|
 | drawCount             | number           | Số thẻ đã bốc ngẫu nhiên; tối đa 25.                              |
-| hand                  | HeldCard\[\]     | Tối đa 5 thẻ.                                                    |
-| pendingRewards        | CardType\[\]     | Hàng chờ thưởng trung thực; có thể tích lũy nhiều thẻ.            |
-| honestPlacementStreak | number           | 0-4 trước khi tạo thưởng; reset khi giả danh hoặc sau khi thưởng. |
+| hand                  | HeldCard\[\]     | Danh sách thẻ còn hạn. Ngưỡng cho phép bốc thẻ thường là dưới 5; reward được phép append vượt ngưỡng. |
+| hasClaimableHonestyReward | boolean          | `true` khi reward trung thực đến hạn nhận ở pha bốc và đặt thẻ của lượt bình thường hiện tại. Sau khi chọn hoặc timeout, trở về `false`. |
+| honestPlacementStreak | number           | 0-5; đạt 5 thì tạo reward đến hạn nhận ở lượt bình thường tiếp theo, sau khi nhận reward reset về 0. |
 
-## 12.6. PlacementPhaseState
-
-| **Trường**     | **Kiểu dữ liệu**      | **Ý nghĩa**                                                          |
-|----------------|-----------------------|----------------------------------------------------------------------|
-| phaseId        | string                | ID pha placement hiện tại.                                           |
-| openedAt       | number                | Timestamp mở pha.                                                    |
-| minCloseAt     | number                | Sớm nhất có thể đóng sớm (openedAt + 5s).                            |
-| maxCloseAt     | number                | Đóng bắt buộc (openedAt + 30s).                                      |
-| readyByPlayer  | Record\<string, bool\> | `playerId → true` khi người đó đã bấm Xác nhận đặt xong.           |
-
-## 12.7. Sự kiện server chính
+## 12.6. Sự kiện server chính
 
 | **Event**              | **Ý nghĩa**                                                                |
 |------------------------|----------------------------------------------------------------------------|
 | TURN_STARTED           | Bắt đầu lượt bình thường; xóa held card hết hạn và cập nhật TTL liên quan. |
 | CARDS_DRAWN            | Người đang đến lượt bốc một hoặc nhiều thẻ.                                |
 | PLACEMENT_PHASE_OPENED | Mở quyền đặt đồng thời cho tất cả người chơi với các thẻ tạo marker.       |
-| PLACEMENT_READY_CONFIRMED | Một người chơi bấm Xác nhận đặt xong; cập nhật `readyByPlayer`.          |
 | MARKER_PLACE_REQUESTED | Client gửi card instance, cellId và displayedIdentityId.                   |
 | MARKER_PLACED          | Server chấp nhận marker đầu tiên tại ô.                                    |
 | MARKER_PLACE_REJECTED  | Server từ chối vì ô không hợp lệ hoặc đã bị chiếm; held card không mất.    |
@@ -666,7 +611,9 @@ Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất 
 | HORSE_STEP_MOVED       | Quân nhảy một ô; dùng để animate và resolve marker.                        |
 | MARKER_TRIGGERED       | Marker kích hoạt và bị xóa.                                                |
 | HORSE_STATUS_CHANGED   | Áp dụng hoặc xóa Shield, Freeze, về chuồng hoặc swap.                      |
-| HONESTY_REWARD_GRANTED | Công bố người nhận thưởng; thêm vào hand hoặc pending queue.               |
+| HONESTY_REWARD_AVAILABLE | Reward trung thực đến hạn nhận ở pha bốc và đặt thẻ của lượt bình thường tiếp theo. |
+| HONESTY_REWARD_SELECTED  | Người nhận chọn 1 support card; nếu timeout server tự chọn ngẫu nhiên.          |
+| HONESTY_REWARD_GRANTED   | Append support card vào hand kể cả khi hand đã có từ 5 thẻ trở lên; công bố người nhận nhưng ẩn loại thẻ. |
 | MARKER_EXPIRED         | TTL marker hết; xóa khỏi bàn cờ.                                           |
 | HELD_CARD_EXPIRED      | Held card quá 2 vòng; xóa khỏi hand.                                       |
 
@@ -675,9 +622,9 @@ Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất 
 | **ID** | **Mục tiêu**                | **Thiết lập**                                                                 | **Kết quả mong đợi**                                                                     |
 |--------|-----------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
 | TC-01  | Giới hạn bốc cá nhân        | A đã bốc 24 thẻ và hand còn chỗ.                                              | A chỉ có thể bốc thêm tối đa 1 thẻ trong ván.                                            |
-| TC-02  | Array đầy                   | A đang giữ 05 thẻ.                                                            | Nút bốc bị khóa; thẻ thưởng mới đi vào pending queue.                                    |
-| TC-03  | Hết hạn held card           | A bốc thẻ ở lượt hiện tại và không đặt hoặc không dùng trong 2 lượt bình thường tiếp theo. | Thẻ bị xóa khi bắt đầu lượt bình thường thứ ba tiếp theo của A.                          |
-| TC-04  | Lượt thưởng do số 6         | A tung được 6.                                                                | Chỉ lặp lại tung xúc xắc, chọn quân và di chuyển; không bốc, không mở placement phase và không dùng Xuất Chuồng. |
+| TC-02  | Đạt ngưỡng bốc thường       | A đang giữ 5 thẻ còn hạn.                                                     | Nút bốc thẻ thường bị khóa. Reward trung thực vẫn có thể append vào hand.                  |
+| TC-03  | Hết hạn held card           | A bốc thẻ ở lượt hiện tại và không đặt trong 2 lượt bình thường tiếp theo.    | Thẻ bị xóa khi bắt đầu lượt bình thường thứ ba tiếp theo của A.                          |
+| TC-04  | Lượt thưởng do số 6         | A tung được 6.                                                                | Chỉ lặp lại tung xúc xắc, chọn quân và di chuyển; không bốc và không mở placement phase. |
 | TC-05  | Xung đột đặt marker         | A và B cùng đặt marker tại một ô trống.                                       | Request đến server trước thành công; request sau thất bại và người đó vẫn giữ thẻ.       |
 | TC-06  | Tiến cộng dồn               | Ngựa đi qua Tiến 3 rồi Tiến 2.                                                | Ngựa nhận tổng cộng 5 bước tiến bổ sung.                                                 |
 | TC-07  | Tiến gặp Lùi                | Ngựa đang tiến còn bước và đi qua Lùi 4.                                      | Bỏ bước tiến còn lại; ngựa bắt đầu lùi 4 bước.                                           |
@@ -697,16 +644,16 @@ Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất 
 | TC-21  | Swap tự giả danh            | Ngựa A dừng đúng Hoán vị có displayedIdentity là A.                           | Không swap; marker vẫn mất.                                                              |
 | TC-22  | Marker hết hạn 3 vòng       | Marker Tiến chưa bị kích hoạt.                                                | Xóa khi bắt đầu lượt bình thường thứ tư tiếp theo của displayedIdentity.                 |
 | TC-23  | Displayed identity rời trận | Marker còn TTL khi displayedIdentity rời trận.                                | Marker giữ remainingTTL và chuyển sang giảm theo vòng toàn bàn.                          |
-| TC-24  | Chuỗi trung thực            | A đặt marker chính danh trong 5 lượt đặt liên tiếp; lượt không đặt xen giữa.  | Lượt không đặt giữ streak; sau mốc 5 tạo một support reward và reset streak.             |
+| TC-24  | Chuỗi trung thực            | A đặt marker chính danh trong 5 lượt đặt liên tiếp; lượt không đặt xen giữa.  | Lượt không đặt giữ streak; reward đến hạn nhận trong pha bốc và đặt thẻ của lượt bình thường tiếp theo của A. |
 | TC-25  | Giả danh phá streak         | A có streak 4 nhưng đặt ít nhất một marker giả danh.                          | Streak trở về 0.                                                                         |
 | TC-26  | Điều kiện chiến thắng       | A đưa đủ 2 quân ngựa về đích.                                                 | A được xác định là người chiến thắng theo rule mới.                                      |
-| TC-27  | Placement confirm           | 4 người; sau 5s tất cả bấm Xác nhận đặt xong.                                 | Placement đóng sớm; phase chuyển sang roll/leave-stable; không còn `placement_phase`.     |
-| TC-28  | Roll trong placement        | Active player bấm roll khi vẫn `placement_phase`.                           | Server từ chối `PLACEMENT_NOT_CLOSED`; xúc xắc không được tung.                         |
-| TC-29  | Xúc xắc — đi qua            | Ngựa đi qua ô có quân địch/cùng màu nhưng đáp ô khác.                         | Không có `token_captured`.                                                               |
-| TC-30  | Xúc xắc — đáp cùng màu      | Legal move list không chứa ô có quân cùng màu.                                | Không thể chọn nước đi đáp lên quân đồng đội.                                            |
-| TC-31  | Teleport — đi qua           | BACK_4 đi qua ô có quân; đáp ô khác.                                          | Quân trên đường không bị đá; chỉ kick nếu đứng ở điểm dừng teleport.                     |
-| TC-32  | Teleport — đáp cùng màu     | ADVANCE đáp ô có quân cùng màu.                                               | Quân bị đá về chuồng (`token_captured`).                                                 |
-| TC-33  | Chain Tiến → Lùi            | Tiến rồi chain Lùi; path có 2 waypoint teleport.                              | Client phát 2 animation teleport riêng; engine ghi 2 link trong path.                    |
+| TC-27  | Reward vượt ngưỡng hand     | A đang giữ 5 thẻ và nhận reward trung thực đến hạn.                           | A chọn 1 support card; thẻ được append và hand tăng lên 6. Nút bốc thẻ thường vẫn bị khóa. |
+| TC-28  | Reward tích lũy vượt ngưỡng | A đang giữ 6 thẻ và tiếp tục nhận reward mới.                                 | Reward mới vẫn được append; hand có thể tăng lên 7 hoặc cao hơn.                          |
+| TC-29  | Chọn reward theo ý muốn      | Reward đến hạn ở pha bốc và đặt thẻ của A.                                    | A được chọn 1 trong 5 support card; người khác chỉ nhận thông báo A được thưởng.           |
+| TC-30  | Timeout chọn reward          | Reward đến hạn nhưng A không chọn trước khi hết thời gian.                    | Server tự chọn ngẫu nhiên 1 support card, append vào hand và tiếp tục trận.                |
+| TC-31  | Dùng reward ngay             | A chọn Tiến 3 hoặc Xuất Chuồng làm reward trong lượt nhận thưởng.             | A có thể dùng thẻ ngay trong đúng pha tương ứng của cùng lượt như thẻ vừa bốc được.        |
+| TC-32  | Bắt đầu streak mới           | A nhận reward ở lượt thứ 6 và tiếp tục đặt toàn bộ marker chính danh trong pha hiện tại. | Sau khi reward reset streak về 0, lượt này được tính là lượt trung thực đầu tiên của chuỗi mới. |
+
 
 # 14. Phạm vi kế thừa, giới hạn và điểm cần lưu ý
 
@@ -735,12 +682,9 @@ Các xử lý Cá Ngựa nền đã có trong MVP tiếp tục được sử d�
 | **Hạng mục**      | **Quy tắc đã khóa**                                                                                                |
 |-------------------|--------------------------------------------------------------------------------------------------------------------|
 | Quota bốc         | Tối đa 25 lượt bốc ngẫu nhiên cho mỗi người chơi trong một ván.                                                    |
-| Hand array        | Tối đa 5 thẻ còn hạn; thẻ chưa đặt hoặc chưa dùng hết hạn sau 2 lượt bình thường tiếp theo của chủ thẻ.           |
+| Hand array        | Chỉ được bốc thẻ thường khi đang giữ dưới 5 thẻ còn hạn; reward có thể append vượt ngưỡng; mọi thẻ hết hạn sau 2 lượt bình thường tiếp theo của chủ thẻ. |
 | Lượt thưởng số 6  | Chỉ lặp từ tung xúc xắc; không bốc, không mở placement phase và không dùng Xuất Chuồng.                               |
-| Placement phase   | Mở sau khi active player bốc; mọi người đặt đồng thời; min 5s / max 30s; đóng sớm khi tất cả xác nhận; roll bị chặn cho đến khi đóng. |
-| Capture xúc xắc   | Chỉ ô đáp cuối; chỉ địch; cùng màu = illegal move.                                                                  |
-| Capture teleport  | Chỉ điểm dừng mỗi link burst; cùng màu và địch đều bị đá.                                                             |
-| Teleport chain    | Mỗi link burst = một waypoint teleport; animation client từng link.                                                    |
+| Placement phase   | Mở sau khi active player bốc; mọi người đặt đồng thời các thẻ tạo marker, không giới hạn số thẻ đặt.                  |
 | Ô hợp lệ          | Chỉ ô đường đi chung; không ô đang có ngựa, không đường về đích riêng, không ô đã có marker.                       |
 | Xung đột ô        | Request server đến trước thắng; request sau thất bại và giữ thẻ.                                                   |
 | Giả danh          | Áp dụng cho mọi marker; không áp dụng cho Xuất Chuồng vì thẻ này dùng trực tiếp. True placer không bao giờ bị lộ.      |
@@ -753,12 +697,11 @@ Các xử lý Cá Ngựa nền đã có trong MVP tiếp tục được sử d�
 | Swap              | Activator chọn một quân hợp lệ trên đường chung của displayed identity; tự giả danh thì không có hiệu ứng.         |
 | Xuất Chuồng       | Dùng trực tiếp sau placement phase và trước xúc xắc; luôn tiêu hao; không tạo marker; có thể kích hoạt marker tại ô xuất phát. |
 | Số quân / chiến thắng | Mỗi người có 2 quân; thắng khi đưa đủ 2 quân về đích.                                                           |
-| Thưởng trung thực | 5 lượt đặt chính danh liên tiếp; lượt không đặt giữ streak; giả danh reset; pending reward queue có thể tích lũy.  |
+| Thưởng trung thực | Sau 5 lượt đặt chính danh liên tiếp, reward đến hạn ở lượt bình thường tiếp theo; người nhận chọn 1 support card; timeout thì server chọn ngẫu nhiên; reward append vượt ngưỡng 5 và không lộ loại thẻ cho người khác. |
 
 # PHỤ LỤC B. Artwork concept bộ thẻ Rune
 
 Contact sheet minh họa bộ 11 thẻ Rune chính thức theo phong cách 3D low-poly bo tròn, màu sáng, thân thiện và icon đơn giản. Đây là artwork concept dùng để thống nhất định hướng hình ảnh; đội thiết kế có thể tách và tinh chỉnh asset production sau.
-
 
 <img src="media/image1.png" style="width:8.75in;height:6.5625in" />
 
