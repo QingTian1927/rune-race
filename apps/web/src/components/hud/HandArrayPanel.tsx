@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { HeldCard, PlayerColor } from '@rune-race/shared'
-import { RUNE_MAX_DRAW_PER_PLAYER, RUNE_MAX_HAND_SIZE } from '@rune-race/shared'
+import {
+  RUNE_DRAW_HAND_THRESHOLD,
+  RUNE_HONESTY_STREAK_FOR_REWARD,
+  RUNE_MAX_DRAW_PER_PLAYER,
+} from '@rune-race/shared'
 import { RUNE_CARD_DESCRIPTIONS, RUNE_CARD_IMAGES, RUNE_CARD_LABELS } from '../../lib/runeAssets'
 import { HUD_PANEL_LABEL_CLASS, PLAYER_COLOR_MAP } from './playerColorStyles'
 import { PanelCollapseButton } from './PanelCollapseButton'
@@ -8,7 +12,10 @@ import { useHandCardPress } from './useHandCardPress'
 
 type HandArrayPanelProps = {
   hand: HeldCard[]
-  pendingRewardCount: number
+  /** Honest placement streak (0–5); 5 = reward pending next normal turn. */
+  honestyStreak: number
+  /** Reward claimable right now — streak pill pulses. */
+  hasClaimableReward?: boolean
   drawCount: number
   selectedCardId: string | null
   onCardSelect: (heldCardId: string) => void
@@ -26,7 +33,8 @@ type HandArrayPanelProps = {
 
 export function HandArrayPanel({
   hand,
-  pendingRewardCount,
+  honestyStreak,
+  hasClaimableReward = false,
   drawCount,
   selectedCardId,
   onCardSelect,
@@ -44,19 +52,34 @@ export function HandArrayPanel({
   const [collapsed, setCollapsed] = useState(false)
   const colorStyles = PLAYER_COLOR_MAP[playerColor]
 
+  const streakPill =
+    honestyStreak > 0 || hasClaimableReward ? (
+      <span
+        className={[
+          'rune-hand-streak-pill',
+          hasClaimableReward ? 'rune-hand-streak-pill--ready' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        title={
+          hasClaimableReward
+            ? 'Phần thưởng trung thực đang chờ bạn chọn'
+            : `Chuỗi trung thực: ${honestyStreak}/${RUNE_HONESTY_STREAK_FOR_REWARD}`
+        }
+      >
+        ★{honestyStreak}/{RUNE_HONESTY_STREAK_FOR_REWARD}
+      </span>
+    ) : null
+
   useEffect(() => {
     if (runeActionActive) {
       setCollapsed(false)
     }
   }, [runeActionActive])
 
-  const showDrawSlot =
-    canDraw ||
-    Boolean(
-      runeActionActive &&
-        drawDisabledTitle &&
-        drawDisabledTitle !== 'Tay đầy',
-    )
+  // Spec §11.3: when the hand is at/over the draw threshold the draw button
+  // stays visible but disabled, with a short reason in its tooltip.
+  const showDrawSlot = canDraw || Boolean(runeActionActive && drawDisabledTitle)
 
   if (collapsed) {
     return (
@@ -68,10 +91,8 @@ export function HandArrayPanel({
           <span className="rune-hand-collapsed-icon" aria-hidden>
             🃏
           </span>
-          <span className="game-hud-label">{hand.length}/{RUNE_MAX_HAND_SIZE}</span>
-          {pendingRewardCount > 0 ? (
-            <span className="rune-hand-reward-pill">+{pendingRewardCount}</span>
-          ) : null}
+          <span className="game-hud-label">{hand.length} thẻ</span>
+          {streakPill}
           <PanelCollapseButton
             collapsed={collapsed}
             expandDirection="right"
@@ -84,14 +105,12 @@ export function HandArrayPanel({
 
   const handMeta = (
     <>
-      {hand.length}/{RUNE_MAX_HAND_SIZE}
+      {hand.length} thẻ
       <span className="rune-hand-meta-sep" aria-hidden>
         ·
       </span>
       {drawCount}/{RUNE_MAX_DRAW_PER_PLAYER}
-      {pendingRewardCount > 0 ? (
-        <span className="rune-hand-reward-pill">+{pendingRewardCount}</span>
-      ) : null}
+      {streakPill}
     </>
   )
 
@@ -154,7 +173,7 @@ export function HandArrayPanel({
         key="expanded"
         className={[
           'game-hud-panel rune-hand-panel game-hud-panel--motion',
-          hand.length >= RUNE_MAX_HAND_SIZE ? 'rune-hand-panel--full' : '',
+          hand.length >= RUNE_DRAW_HAND_THRESHOLD ? 'rune-hand-panel--full' : '',
           colorStyles.hudPanel,
         ]
           .filter(Boolean)

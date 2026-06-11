@@ -2594,6 +2594,11 @@ a.game-btn {
   flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
+  /* Honesty rewards can push the hand past 5 cards — scroll instead of clipping. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  padding-bottom: 1px;
 }
 
 .rune-hand-panel--full .rune-hand-cards {
@@ -2904,6 +2909,187 @@ a.game-btn {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+}
+
+/* Honesty streak reward — pick 1 of 5 support cards (3 + 2 centered rows) */
+.rune-reward-sheet {
+  max-width: min(680px, 96vw);
+  animation: rune-card-preview-sheet-in 0.38s cubic-bezier(0.22, 1.05, 0.32, 1) both;
+}
+
+.rune-reward-choices {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 600px;
+  margin: 16px auto 8px;
+}
+
+.rune-reward-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 7px 8px;
+  border: 2px solid rgba(90, 120, 180, 0.35);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rune-reward-choice:nth-child(1) {
+  grid-column: 1 / span 2;
+}
+
+.rune-reward-choice:nth-child(2) {
+  grid-column: 3 / span 2;
+}
+
+.rune-reward-choice:nth-child(3) {
+  grid-column: 5 / span 2;
+}
+
+.rune-reward-choice:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+
+.rune-reward-choice:nth-child(5) {
+  grid-column: 4 / span 2;
+}
+
+.rune-reward-choice:hover,
+.rune-reward-choice:focus-visible {
+  transform: translateY(-3px);
+  border-color: #f5a818;
+  box-shadow: 0 0 0 2px rgba(245, 168, 24, 0.35);
+}
+
+.rune-reward-choice-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  box-shadow: 0 4px 12px rgba(40, 60, 100, 0.18);
+}
+
+.rune-reward-choice-label {
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: #2a4080;
+  text-align: center;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+@media (min-width: 520px) {
+  .rune-reward-choices {
+    gap: 14px;
+    max-width: 640px;
+  }
+
+  .rune-reward-choice {
+    padding: 10px 8px 9px;
+  }
+
+  .rune-reward-choice-label {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 519px) {
+  .rune-card-preview-root--reward .rune-reward-sheet {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .rune-reward-choices {
+    gap: 10px;
+    max-width: none;
+  }
+
+  .rune-reward-choice {
+    padding: 8px 6px 7px;
+    border-radius: 12px;
+  }
+
+  .rune-reward-choice-img {
+    border-radius: 8px;
+  }
+
+  .rune-card-preview-root--reward .rune-card-preview-desc {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 360px) {
+  .rune-reward-choices {
+    gap: 8px;
+  }
+
+  .rune-reward-choice-label {
+    font-size: 10px;
+  }
+}
+
+.rune-reward-timeout {
+  margin: 6px 0 2px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a5a00;
+  text-align: center;
+}
+
+.rune-reward-reopen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 2px solid rgba(245, 168, 24, 0.6);
+  border-radius: 14px;
+  background: rgba(255, 248, 224, 0.95);
+  color: #8a5a00;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(40, 70, 130, 0.16);
+  animation: rune-hand-pending-pulse 1.6s ease-in-out infinite;
+}
+
+.rune-placement-hint--info {
+  border-color: rgba(245, 168, 24, 0.45);
+  background: rgba(255, 250, 235, 0.92);
+  color: #8a5a00;
+}
+
+.rune-hand-streak-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 180, 40, 0.22);
+  color: #8a5a00;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.rune-hand-streak-pill--ready {
+  background: rgba(255, 180, 40, 0.5);
+  animation: rune-hand-pending-pulse 1.6s ease-in-out infinite;
 }
 
 /* Activated rune reveal — right rail, stacked top → bottom */
@@ -3582,13 +3768,14 @@ a.game-btn {
 }
 
 .game-hud-orb--bot {
-  background: rgba(241, 245, 249, 0.98);
+  /* Player color comes from inline gradient in PlayerBadge */
 }
 
 .game-hud-orb-robot {
   font-size: 22px;
   line-height: 1;
-  color: #475569;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 
 .game-hud-orb--xs .game-hud-orb-robot {

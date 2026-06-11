@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import type { RuneClientView } from '@rune-race/shared'
+import type { RuneCardType, RuneClientView } from '@rune-race/shared'
 import {
   handleChooseMove,
   handleChooseSwap,
@@ -9,6 +9,7 @@ import {
   handleConfirmPlacementReady as engineConfirmPlacementReady,
   handlePlaceMarker as enginePlaceMarker,
   handleRoll as engineHandleRoll,
+  handleSelectHonestyReward,
   handleUseLeaveStable,
 } from '@rune-race/game-engine'
 import GameView from '../components/GameView'
@@ -103,6 +104,11 @@ export default function LocalGamePage() {
     if (result.success) apply(result.state)
   }
 
+  const handleSelectReward = (cardType: RuneCardType) => {
+    const result = handleSelectHonestyReward(displayState, activePlayerId, cardType)
+    if (result.success) apply(result.state)
+  }
+
   const canRoll = useMemo(() => {
     if (isPresentingDice || displayState.status !== 'playing') return false
     if (displayState.turn.currentPlayerId !== activePlayerId) return false
@@ -135,6 +141,7 @@ export default function LocalGamePage() {
       onPlaceMarker={handlePlaceMarker}
       onConfirmPlacementReady={onConfirmPlacementReady}
       onUseLeaveStable={handleUseLeaveStableCard}
+      onSelectHonestyReward={handleSelectReward}
       onChooseSwap={handleChooseSwapTarget}
     />
   )

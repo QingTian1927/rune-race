@@ -39,6 +39,7 @@ export default function OnlineGamePage() {
     placeMarker,
     confirmPlacementReady,
     useLeaveStable,
+    selectHonestyReward,
     chooseSwap,
     isPresentingDice,
   } = useGameSocket(
@@ -131,6 +132,7 @@ export default function OnlineGamePage() {
       onPlaceMarker={placeMarker}
       onConfirmPlacementReady={confirmPlacementReady}
       onUseLeaveStable={useLeaveStable}
+      onSelectHonestyReward={selectHonestyReward}
       onChooseSwap={chooseSwap}
       gameActionError={error}
       roomChat={
