@@ -1,6 +1,13 @@
 import { Helmet } from 'react-helmet-async'
 import { formatDocumentTitle, resolvePageSeo } from '../../lib/pageSeo'
-import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL } from '../../lib/siteConfig'
+import {
+  DEFAULT_OG_IMAGE,
+  DEFAULT_OG_IMAGE_HEIGHT,
+  DEFAULT_OG_IMAGE_TYPE,
+  DEFAULT_OG_IMAGE_WIDTH,
+  SITE_NAME,
+  SITE_URL,
+} from '../../lib/siteConfig'
 
 type PageMetaProps = {
   path: string
@@ -29,6 +36,10 @@ export function PageMeta({ path }: PageMetaProps) {
       <meta property="og:description" content={seo.description} />
       <meta property="og:url" content={canonical} />
       <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+      <meta property="og:image:secure_url" content={DEFAULT_OG_IMAGE} />
+      <meta property="og:image:type" content={DEFAULT_OG_IMAGE_TYPE} />
+      <meta property="og:image:width" content={String(DEFAULT_OG_IMAGE_WIDTH)} />
+      <meta property="og:image:height" content={String(DEFAULT_OG_IMAGE_HEIGHT)} />
       <meta property="og:image:alt" content={`${SITE_NAME} — Cá ngựa online có Rune`} />
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
