@@ -1,6 +1,7 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io'
 import type { ClientToServerEvents, ServerToClientEvents, ChatSystemEvent, PlayerColor } from '@rune-race/shared'
-import { buildClientGameSnapshot, validateCommand } from '@rune-race/shared'
+import { buildClientGameSnapshot, isBotPlayerId, validateCommand } from '@rune-race/shared'
+import type { BotManager } from '../bot/bot-manager'
 import type { ChatStore } from '../chat/chat-store'
 import type { LobbyStore } from '../lobby/lobby-store'
 import type { GameStore } from '../game/game-store'
@@ -149,6 +150,7 @@ export function setupSocketHandlers(
   chatStore: ChatStore,
   analyticsService: AnalyticsService,
   matchmakingQueue?: MatchmakingQueue,
+  botManager?: BotManager,
 ): void {
   const socketRegistry = new PlayerSocketRegistry()
 
@@ -168,6 +170,7 @@ export function setupSocketHandlers(
     onDestroy: (lobbyId) => {
       chatStore.clearLobby(lobbyId)
       matchmakingQueue?.clearMatchesForLobby(lobbyId)
+      botManager?.onLobbyDestroyed(lobbyId)
       io.to(`lobby:${lobbyId}`).emit('lobby:closed', { lobbyId, reason: 'empty' })
     },
     onPlayerTimedOut: (lobbyId, player, { wasInGame }) => {
@@ -209,6 +212,7 @@ export function setupSocketHandlers(
       io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', lobbyStore.getSnapshot(lobbyId)!)
 
       broadcastGameSnapshot(io, gameId, state, state.events)
+      botManager?.onGameStarted(gameId, lobbyId, state)
     },
   })
 
@@ -230,10 +234,12 @@ export function setupSocketHandlers(
   gameStore.setListeners({
     onChange: (gameId, state, events) => {
       broadcastGameSnapshot(io, gameId, state, events)
+      botManager?.onGameChange(gameId, state, events)
     },
     onFinished: (gameId, lobbyId, state) => {
       broadcastGameSnapshot(io, gameId, state, state.events)
       lobbyStore.resetAfterGame(lobbyId)
+      botManager?.onGameFinished(gameId, lobbyId, state)
       analyticsService.onGameFinished(gameId, lobbyId, state)
       void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
     },
@@ -382,13 +388,36 @@ export function setupSocketHandlers(
         const target = snapshot?.players.find((p) => p.id === cmd.targetPlayerId)
         notifyPlayerRemoved(socketRegistry, lobbyId, cmd.targetPlayerId, 'kicked')
         lobbyStore.kickPlayer(lobbyId, playerId, cmd.targetPlayerId)
-        analyticsService.onLobbyLeft(cmd.targetPlayerId, lobbyId, 'kick')
+        if (isBotPlayerId(cmd.targetPlayerId)) {
+          botManager?.onBotRemovedFromLobby(cmd.targetPlayerId)
+        } else {
+          analyticsService.onLobbyLeft(cmd.targetPlayerId, lobbyId, 'kick')
+        }
         void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
         if (target) {
           broadcastSystemChat(io, chatStore, lobbyId, target, 'player_left')
         }
       } catch (error) {
         lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'KICK_FAILED')
+      }
+    })
+
+    socket.on('lobby:add_bot', (payload) => {
+      try {
+        if (!botManager) throw new Error('Bots are not available')
+        const cmd = validateCommand('lobby:add_bot', payload)
+        const playerId = resolvePlayerId(socket, cmd.playerId)
+        const lobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
+        if (!lobbyId) throw new Error('Not in a lobby')
+        const wasCountdown = lobbyStore.getSnapshot(lobbyId)?.status === 'countdown'
+        const { snapshot, bot } = botManager.addBotToLobby(lobbyId, playerId)
+        io.to(`lobby:${lobbyId}`).emit('lobby:snapshot', snapshot)
+        broadcastSystemChat(io, chatStore, lobbyId, bot, 'player_joined')
+        if (!wasCountdown && snapshot.status === 'countdown') {
+          io.to(`lobby:${lobbyId}`).emit('lobby:start_countdown', { seconds: 5 })
+        }
+      } catch (error) {
+        lobbyError(socket, error instanceof Error ? error.message : 'Failed', 'ADD_BOT_FAILED')
       }
     })
 

@@ -101,6 +101,7 @@ export default function LobbyPage() {
     setReady,
     leave,
     kick,
+    addBot,
     cancelCountdown,
     updateSettings,
     transferHost,
@@ -367,7 +368,10 @@ export default function LobbyPage() {
                               : 'rgba(150,150,150,0.4)',
                           }}
                         >
-                          <i className="bi bi-person-fill" aria-hidden="true" />
+                          <i
+                            className={player.isBot ? 'bi bi-robot' : 'bi bi-person-fill'}
+                            aria-hidden="true"
+                          />
                         </div>
                         {isLikelySupabaseUserId(player.id) ? (
                           <Link to={`/profile/${player.id}`} className="slot-name">
@@ -379,6 +383,9 @@ export default function LobbyPage() {
                       </div>
                       {player.isHost ? (
                         <span className="slot-badge badge-host">HOST</span>
+                      ) : null}
+                      {player.isBot ? (
+                        <span className="slot-badge badge-bot">BOT</span>
                       ) : null}
                       {player.ready ? (
                         <span className="slot-badge badge-ready">SẴN SÀNG</span>
@@ -398,22 +405,37 @@ export default function LobbyPage() {
                       ) : null}
                     </div>
                   ))}
-                  {Array.from({ length: emptySlotCount }, (_, i) => (
-                    <div key={`empty-${i}`} className="player-slot empty">
-                      <div className="slot-strip" />
-                      <div className="slot-main">
-                        <div
-                          className="slot-avatar"
-                          style={{ background: 'rgba(150,150,150,0.4)' }}
-                        >
-                          <i className="bi bi-plus-lg" aria-hidden="true" />
+                  {Array.from({ length: emptySlotCount }, (_, i) => {
+                    const showAddBot = isHost && snapshot.status === 'lobby' && i === 0
+                    return (
+                      <div key={`empty-${i}`} className="player-slot empty">
+                        <div className="slot-strip" />
+                        <div className="slot-main">
+                          <div
+                            className="slot-avatar"
+                            style={{ background: 'rgba(150,150,150,0.4)' }}
+                          >
+                            <i
+                              className={showAddBot ? 'bi bi-robot' : 'bi bi-plus-lg'}
+                              aria-hidden="true"
+                            />
+                          </div>
+                          <div className="slot-name" style={{ color: '#B0906A' }}>
+                            Chỗ trống
+                          </div>
                         </div>
-                        <div className="slot-name" style={{ color: '#B0906A' }}>
-                          Chỗ trống
-                        </div>
+                        {showAddBot ? (
+                          <button
+                            type="button"
+                            className="add-bot-pill"
+                            onClick={addBot}
+                          >
+                            <i className="bi bi-plus-lg inline-icon" aria-hidden="true" /> Thêm bot
+                          </button>
+                        ) : null}
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
 
@@ -514,7 +536,7 @@ function HostPanel({
     runesEnabled?: boolean
   }) => void
   onTransferHost: (id: string) => void
-  players: Array<{ id: string; name: string; isHost: boolean }>
+  players: Array<{ id: string; name: string; isHost: boolean; isBot?: boolean }>
   currentName: string
   hasPassword: boolean
   runesEnabled: boolean
@@ -646,7 +668,7 @@ function HostPanel({
           >
             <option value="">Chọn người chơi</option>
             {players
-              .filter((p) => !p.isHost)
+              .filter((p) => !p.isHost && !p.isBot)
               .map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

@@ -4,6 +4,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { Server as SocketIOServer } from 'socket.io'
 import type { ClientToServerEvents, ServerToClientEvents } from '@rune-race/shared'
+import { BotManager } from './bot/bot-manager'
 import { ChatStore } from './chat/chat-store'
 import { LobbyStore } from './lobby/lobby-store'
 import { GameStore } from './game/game-store'
@@ -42,8 +43,9 @@ analyticsService.start()
 void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 
 const matchmaking = new MatchmakingQueue(lobbyStore)
+const botManager = new BotManager(lobbyStore, gameStore, chatStore, io)
 
-setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService, matchmaking)
+setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService, matchmaking, botManager)
 
 lobbyStore.startCleanupTimer()
 setInterval(() => {
@@ -84,6 +86,7 @@ const shutdown = async (signal: string) => {
   fastify.log.info({ signal }, 'Shutting down')
   analyticsService.stop()
   matchmaking.shutdown()
+  botManager.shutdown()
   lobbyStore.stopCleanupTimer()
   try {
     await fastify.close()

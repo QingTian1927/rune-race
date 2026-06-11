@@ -181,6 +181,10 @@ export function useLobbySocket(
     [authToken, playerId],
   )
 
+  const addBot = useCallback(() => {
+    getSocket(authToken).emit('lobby:add_bot', { playerId })
+  }, [authToken, playerId])
+
   const cancelCountdown = useCallback(() => {
     getSocket(authToken).emit('lobby:cancel_countdown', { playerId })
   }, [authToken, playerId])
@@ -213,6 +217,7 @@ export function useLobbySocket(
     setReady,
     leave,
     kick,
+    addBot,
     cancelCountdown,
     updateSettings,
     transferHost,

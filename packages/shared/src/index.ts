@@ -1,4 +1,5 @@
 export * from './auth.js'
+export * from './bot.js'
 export * from './types/game.js'
 export * from './types/rune.js'
 export * from './types/rune-definitions.js'

@@ -24,6 +24,8 @@ const libArgs = [
   '--filter',
   '@rune-race/game-engine',
   '--filter',
+  '@rune-race/bot-ai',
+  '--filter',
   '@rune-race/server',
   'dev',
 ]

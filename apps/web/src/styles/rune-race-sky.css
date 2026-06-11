@@ -1265,6 +1265,7 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
 }
 .badge-host  { background:#FFF0D0; border-color:#E8A000; color:#9A5500; }
 .badge-ready { background:#E0F8EA; border-color:#4A9E60; color:#1A6E35; }
+.badge-bot   { background:#E6EDFF; border-color:#7B98E8; color:#2E4FA8; }
 
 .slot-status { font-size:11px; font-weight:800; color:#B0906A; white-space: nowrap; }
 
@@ -1924,6 +1925,24 @@ a.nav-btn {
 
 .kick-pill:hover {
   background: linear-gradient(135deg, #FFEFEA, #FFDCD6);
+}
+
+.add-bot-pill {
+  background: linear-gradient(135deg, #E6EDFF, #D4E0FF);
+  border: 2px solid #7B98E8;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  color: #2E4FA8;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.add-bot-pill:hover {
+  background: linear-gradient(135deg, #EFF4FF, #DFE9FF);
 }
 
 select.game-input {

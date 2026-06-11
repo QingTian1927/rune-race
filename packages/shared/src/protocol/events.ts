@@ -57,6 +57,8 @@ export interface ClientToServerEvents {
   'lobby:unready': (payload: { playerId: string }) => void
   'lobby:leave': (payload: { playerId: string }) => void
   'lobby:kick': (payload: { playerId: string; targetPlayerId: string }) => void
+  /** Host only — add a server-controlled bot to a free slot. */
+  'lobby:add_bot': (payload: { playerId: string }) => void
   'lobby:cancel_countdown': (payload: { playerId: string }) => void
   'lobby:update_settings': (payload: {
     playerId: string

@@ -47,6 +47,9 @@ importers:
       '@fastify/cors':
         specifier: ^8.5.0
         version: 8.5.0
+      '@rune-race/bot-ai':
+        specifier: workspace:*
+        version: link:../../packages/bot-ai
       '@rune-race/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
@@ -148,6 +151,22 @@ importers:
       vite:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@20.19.41)
+
+  packages/bot-ai:
+    dependencies:
+      '@rune-race/game-engine':
+        specifier: workspace:*
+        version: link:../game-engine
+      '@rune-race/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.2.2
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.1
+        version: 1.6.1(@types/node@20.19.41)
 
   packages/game-engine:
     dependencies:
