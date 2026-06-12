@@ -23,6 +23,21 @@ export function formatDateTime(iso: string): string {
   })
 }
 
+export function formatReportDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export function formatLastPlayedAt(iso: string | null): string {
+  if (!iso) return 'Chưa chơi'
+  return formatReportDateTime(iso)
+}
+
 export function formatUptime(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds))
   const days = Math.floor(safe / 86_400)

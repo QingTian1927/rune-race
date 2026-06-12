@@ -5,6 +5,7 @@ import { AuthProvider } from './hooks/useAuth'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import SystemStatusPage from './pages/SystemStatusPage'
+import UserReportPage from './pages/UserReportPage'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
             <Route element={<AdminLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="status" element={<SystemStatusPage />} />
+              <Route path="reports/users" element={<UserReportPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

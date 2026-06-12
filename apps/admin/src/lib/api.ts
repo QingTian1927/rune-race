@@ -24,6 +24,21 @@ export type TopPlayer = {
   last_played_at: string | null
 }
 
+export type ReportUser = {
+  id: string
+  fullName: string | null
+  email: string | null
+  phone: string | null
+  accountCreatedAt: string | null
+  lastPlayedAt: string | null
+}
+
+export type UsersReportResponse = {
+  generatedAt: string
+  total: number
+  users: ReportUser[]
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -133,6 +148,10 @@ export async function fetchTopPlayers(
     accessToken,
   )
   return payload.players
+}
+
+export function fetchUsersReport(accessToken: string): Promise<UsersReportResponse> {
+  return adminFetch<UsersReportResponse>('/api/admin/users/report', accessToken)
 }
 
 /** Public readiness probe with operator detail (no auth). */

@@ -7,6 +7,7 @@ Console nội bộ cho vận hành business (tách khỏi game client `apps/web`
 - Đăng nhập Supabase (cùng project với game)
 - Chỉ user có trong `ADMIN_USER_IDS` trên server mới gọi được API
 - Dashboard: live counters, timeseries 24h, top players
+- **Báo cáo người dùng:** xem danh sách tài khoản đã đăng ký, chỉnh sửa/ẩn thông tin trước khi xuất Excel
 - **Feature flags:** toggle popup khuyến khích đăng ký (anon) trên dashboard
 
 ### Tắt popup đăng ký nhanh
