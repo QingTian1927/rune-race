@@ -19,7 +19,7 @@ export default defineConfig({
     vitePrerenderPlugin({
       renderTarget: '#root',
       prerenderScript: path.resolve(appRoot, 'src/prerender.tsx'),
-      additionalPrerenderRoutes: ['/about', '/guide'],
+      additionalPrerenderRoutes: ['/about', '/guide', '/privacy', '/privacy/en', '/terms', '/terms/en'],
     }),
   ],
   server: {

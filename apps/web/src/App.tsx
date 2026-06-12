@@ -8,6 +8,7 @@ import { SkyRouteLayout } from './components/sky/SkyRouteLayout'
 import LandingPage from './pages/marketing/LandingPage'
 import AboutPage from './pages/marketing/AboutPage'
 import GuidePage from './pages/marketing/GuidePage'
+import LegalPage from './pages/marketing/LegalPage'
 import PlayPage from './pages/PlayPage'
 import LobbyPage from './pages/LobbyPage'
 import OnlineGamePage from './pages/OnlineGamePage'
@@ -41,6 +42,10 @@ export function AppRoutes() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/guide" element={<GuidePage />} />
+        <Route path="/privacy" element={<LegalPage kind="privacy" lang="vi" />} />
+        <Route path="/privacy/en" element={<LegalPage kind="privacy" lang="en" />} />
+        <Route path="/terms" element={<LegalPage kind="terms" lang="vi" />} />
+        <Route path="/terms/en" element={<LegalPage kind="terms" lang="en" />} />
       </Route>
       <Route element={<SkyRouteLayout />}>
         <Route path="/play" element={<PlayPage />} />

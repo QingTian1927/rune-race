@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { clearStoredPlayerId, syncPlayerIdFromAuth } from '../lib/playerSession'
 import { clearRememberedAnonUserId, linkAnonSessionIfNeeded, rememberAnonUserId } from '../lib/linkAnonSession'
 import { isRegisteredUser } from '../lib/authUser'
+import { isInAppBrowser } from '../lib/inAppBrowser'
 
 type AuthContextValue = {
   user: User | null
@@ -107,6 +108,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return supabase.auth.signInWithPassword({ email, password })
       },
       signInWithGoogle: async () => {
+        if (isInAppBrowser()) {
+          throw new Error(
+            'Google không hỗ trợ đăng nhập trong trình duyệt của ứng dụng. Hãy mở trang trong Safari hoặc Chrome.',
+          )
+        }
         await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: { redirectTo: `${window.location.origin}/auth/login` },

@@ -1,7 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
+import { useAuthSubmitCooldown } from '../hooks/useAuthSubmitCooldown'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
+import {
+  AUTH_SIGNUP_COOLDOWN_SECONDS,
+  mapAuthError,
+  SIGNUP_EMAIL_ALREADY_REGISTERED_INFO,
+  SIGNUP_EMAIL_CONFIRM_INFO,
+} from '../lib/mapAuthError'
 import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { AUTH_FORM_PLACEHOLDERS } from '../lib/authFormPlaceholders'
@@ -19,11 +26,23 @@ export default function AuthSignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const submittingRef = useRef(false)
+  const { cooldownSeconds, isCoolingDown, startCooldown } = useAuthSubmitCooldown(
+    AUTH_SIGNUP_COOLDOWN_SECONDS * 1000,
+  )
+
+  const formComplete = Boolean(fullName.trim() && email && password)
+  const submitDisabled = busy || isCoolingDown || !formComplete
 
   const handleSignup = async () => {
+    if (submittingRef.current || busy || isCoolingDown || !formComplete) return
+
+    submittingRef.current = true
     setBusy(true)
     setError(null)
     setInfo(null)
+    startCooldown()
+
     try {
       const trimmedFullName = fullName.trim()
       const trimmedDisplay = displayName.trim() || trimmedFullName || 'Player'
@@ -36,6 +55,12 @@ export default function AuthSignupPage() {
       })
       if (result.error) throw result.error
 
+      const identities = result.data.user?.identities ?? []
+      if (result.data.user && identities.length === 0) {
+        setInfo(SIGNUP_EMAIL_ALREADY_REGISTERED_INFO)
+        return
+      }
+
       const newSession = result.data.session
       if (newSession?.user && newSession.access_token) {
         await linkAnonSessionIfNeeded(newSession.access_token, newSession.user.id)
@@ -43,13 +68,20 @@ export default function AuthSignupPage() {
         return
       }
 
-      setInfo('Vui lòng kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.')
+      setInfo(SIGNUP_EMAIL_CONFIRM_INFO)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Signup failed')
+      setError(mapAuthError(err, 'signup'))
     } finally {
       setBusy(false)
+      submittingRef.current = false
     }
   }
+
+  const submitLabel = busy
+    ? 'ĐANG TẠO...'
+    : isCoolingDown
+      ? `THỬ LẠI SAU ${cooldownSeconds}S`
+      : 'TẠO TÀI KHOẢN'
 
   return (
     <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
@@ -155,14 +187,14 @@ export default function AuthSignupPage() {
 
             <button
               type="button"
-              disabled={busy || !fullName.trim() || !email || !password}
+              disabled={submitDisabled}
               onClick={() => void handleSignup()}
               className="game-btn btn-green"
             >
               <span className="btn-icon">
                 <i className="bi bi-stars" aria-hidden="true" />
               </span>
-              <span>TẠO TÀI KHOẢN</span>
+              <span>{submitLabel}</span>
             </button>
           </div>
         </div>

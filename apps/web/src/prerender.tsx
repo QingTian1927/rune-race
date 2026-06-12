@@ -20,6 +20,7 @@ export async function prerender(data: { url: string }) {
   )
 
   const seo = resolvePageSeo(path)
+  const lang = path.endsWith('/en') ? 'en' : 'vi'
   const { parseLinks } = await import('vite-prerender-plugin/parse')
   const discovered = parseLinks(html).filter((link) => PRERENDER_SET.has(link))
 
@@ -27,9 +28,9 @@ export async function prerender(data: { url: string }) {
     html,
     links: new Set(discovered.length > 0 ? discovered : [path]),
     head: {
-      lang: 'vi',
+      lang,
       title: formatDocumentTitle(seo),
-      elements: buildOgHeadElements(seo),
+      elements: buildOgHeadElements(seo, lang),
     },
   }
 }

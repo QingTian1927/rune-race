@@ -32,6 +32,30 @@ export const PAGE_SEO: Record<string, PageSeo> = {
     description:
       'Hướng dẫn chơi Rune Race: mục tiêu, lượt chơi, Rune, marker bí mật, giả danh, cơ chế thưởng trung thực và luật chi tiết.',
   },
+  '/privacy': {
+    path: '/privacy',
+    title: 'Chính sách quyền riêng tư',
+    description:
+      'Chính sách quyền riêng tư của Rune Race: thu thập dữ liệu, đăng nhập Google, email, chơi ẩn danh, Supabase và Render.',
+  },
+  '/privacy/en': {
+    path: '/privacy/en',
+    title: 'Privacy Policy',
+    description:
+      'Rune Race Privacy Policy: data collection, Google Sign-In, email accounts, anonymous play, Supabase, and Render.',
+  },
+  '/terms': {
+    path: '/terms',
+    title: 'Điều khoản dịch vụ',
+    description:
+      'Điều khoản dịch vụ Rune Race: quy tắc sử dụng, tài khoản, chat trong game và trách nhiệm người chơi.',
+  },
+  '/terms/en': {
+    path: '/terms/en',
+    title: 'Terms of Service',
+    description:
+      'Rune Race Terms of Service: usage rules, accounts, in-game chat, and player responsibilities.',
+  },
 }
 
 export function resolvePageSeo(path: string): PageSeo {
@@ -47,15 +71,16 @@ type HeadElement = {
   props: Record<string, string | undefined>
 }
 
-export function buildOgHeadElements(seo: PageSeo): Set<HeadElement> {
+export function buildOgHeadElements(seo: PageSeo, lang: 'vi' | 'en' = 'vi'): Set<HeadElement> {
   const canonical = `${SITE_URL}${seo.path}`
   const fullTitle = formatDocumentTitle(seo)
+  const ogLocale = lang === 'en' ? 'en_US' : 'vi_VN'
 
   return new Set([
     { type: 'meta', props: { name: 'description', content: seo.description } },
     { type: 'link', props: { rel: 'canonical', href: canonical } },
     { type: 'meta', props: { property: 'og:site_name', content: SITE_NAME } },
-    { type: 'meta', props: { property: 'og:locale', content: 'vi_VN' } },
+    { type: 'meta', props: { property: 'og:locale', content: ogLocale } },
     { type: 'meta', props: { property: 'og:type', content: 'website' } },
     { type: 'meta', props: { property: 'og:title', content: fullTitle } },
     { type: 'meta', props: { property: 'og:description', content: seo.description } },
@@ -77,4 +102,4 @@ export function buildOgHeadElements(seo: PageSeo): Set<HeadElement> {
 }
 
 /** Marketing routes included in static prerender for SEO / Open Graph. */
-export const PRERENDER_PATHS = ['/', '/about', '/guide'] as const
+export const PRERENDER_PATHS = ['/', '/about', '/guide', '/privacy', '/privacy/en', '/terms', '/terms/en'] as const

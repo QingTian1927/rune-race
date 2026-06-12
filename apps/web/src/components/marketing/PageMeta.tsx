@@ -11,9 +11,10 @@ import {
 
 type PageMetaProps = {
   path: string
+  lang?: 'vi' | 'en'
 }
 
-export function PageMeta({ path }: PageMetaProps) {
+export function PageMeta({ path, lang = 'vi' }: PageMetaProps) {
   // Marketing SEO head tags are injected during static prerender (see prerender.tsx).
   if (typeof window === 'undefined') {
     return null
@@ -22,15 +23,16 @@ export function PageMeta({ path }: PageMetaProps) {
   const seo = resolvePageSeo(path)
   const fullTitle = formatDocumentTitle(seo)
   const canonical = `${SITE_URL}${seo.path}`
+  const ogLocale = lang === 'en' ? 'en_US' : 'vi_VN'
 
   return (
     <Helmet>
-      <html lang="vi" />
+      <html lang={lang} />
       <title>{fullTitle}</title>
       <meta name="description" content={seo.description} />
       <link rel="canonical" href={canonical} />
       <meta property="og:site_name" content={SITE_NAME} />
-      <meta property="og:locale" content="vi_VN" />
+      <meta property="og:locale" content={ogLocale} />
       <meta property="og:type" content="website" />
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={seo.description} />
