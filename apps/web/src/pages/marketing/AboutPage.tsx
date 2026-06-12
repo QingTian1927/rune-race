@@ -14,6 +14,7 @@ const TEAM = [
 const SUPPORTERS = [
   'Đặng Phúc Khanh',
   'Khánh Phạm',
+  'Bùi Minh Đăng',
   'Dương Trọng Khánh',
   'Bùi Thị Bắp (Một con mèo cute)',
 ] as const
