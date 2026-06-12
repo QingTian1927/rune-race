@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { PLAYER_COLORS, type PlayerColor } from '@rune-race/shared'
 import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
+import { LobbyKickedOverlay } from '../components/lobby/LobbyKickedOverlay'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { PLAYER_GRADIENT } from '../components/sky/skyColors'
 import { RoomChatPanel } from '../components/chat/RoomChatPanel'
@@ -73,6 +74,7 @@ export default function LobbyPage() {
   const { accountNudgeEnabled, loading: flagsLoading } = useFeatureFlags()
   const { playerId, playerName, accessToken, canEditNameOnHome, identityReady } = usePlayerIdentity()
   const [nudgeOpen, setNudgeOpen] = useState(false)
+  const [kickedOverlayOpen, setKickedOverlayOpen] = useState(false)
   const canShowNudge =
     accountNudgeEnabled && !isRegistered && !authLoading && !flagsLoading
 
@@ -86,11 +88,20 @@ export default function LobbyPage() {
   }, [isRegistered])
 
   const handleLobbyRemoved = useCallback(
-    (_reason: 'closed' | 'kicked' | 'disconnect_timeout') => {
+    (reason: 'closed' | 'kicked' | 'disconnect_timeout') => {
+      if (reason === 'kicked') {
+        setKickedOverlayOpen(true)
+        return
+      }
       navigate('/play')
     },
     [navigate],
   )
+
+  const dismissKickedOverlay = useCallback(() => {
+    setKickedOverlayOpen(false)
+    navigate('/play')
+  }, [navigate])
 
   const {
     snapshot,
@@ -216,6 +227,8 @@ export default function LobbyPage() {
   const isHost = me?.isHost ?? false
   const maxPlayers = snapshot?.settings.maxPlayers ?? 4
   const players = snapshot?.players ?? []
+  const humanCount = players.filter((p) => !p.isBot).length
+  const botCount = players.filter((p) => p.isBot).length
   const emptySlotCount = Math.max(0, maxPlayers - players.length)
   const inLobbyPhase = snapshot?.status === 'lobby' || snapshot?.status === 'countdown'
   const enteringGame = snapshot?.status === 'in_game'
@@ -224,7 +237,9 @@ export default function LobbyPage() {
   const waitingSubtitle =
     snapshot?.status === 'countdown' && snapshot.countdownSeconds !== null
       ? `Bắt đầu sau ${snapshot.countdownSeconds}s...`
-      : `Đang chờ đủ ${maxPlayers} người...`
+      : botCount > 0
+        ? `${humanCount} / ${maxPlayers} người chơi · ${botCount} bot — bấm SẴN SÀNG để bắt đầu`
+        : `Đang chờ đủ ${maxPlayers} người...`
 
   return (
     <SkyPageLayout
@@ -234,6 +249,7 @@ export default function LobbyPage() {
       topNavExtra={homeNavButton}
     >
       <AccountNudgeModal open={nudgeOpen} onClose={closeLobbyNudge} />
+      <LobbyKickedOverlay open={kickedOverlayOpen} onDismiss={dismissKickedOverlay} />
       {snapshot ? (
         <RoomChatPanel
           placement="lobby"

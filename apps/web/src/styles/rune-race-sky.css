@@ -863,6 +863,11 @@ body.sky-phase-dawn .clouds-layer { opacity: 0.85; filter: brightness(0.9) satur
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .rp-empty { background:rgba(0,0,0,0.06); border-style:dashed; border-color:#D4C080; }
+.rp-bot {
+  background: linear-gradient(135deg, #B8B0A8, #8A8278);
+  border-color: rgba(255,255,255,0.55);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.15);
+}
 
 .room-name {
   font-family: 'Be Vietnam Pro', sans-serif;
@@ -1745,6 +1750,14 @@ a.nav-btn {
   font-size: 11px;
   font-weight: 700;
   color: #7A5500;
+}
+
+.mm-queue-elapsed {
+  margin-top: 4px;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1A5BA8;
 }
 
 @media (max-width: 760px) {
@@ -4462,6 +4475,45 @@ a.game-btn {
   opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Lobby kicked overlay */
+.lobby-kicked-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: rgba(12, 28, 58, 0.55);
+  backdrop-filter: blur(6px);
+  animation: account-nudge-fade-in 0.22s ease;
+}
+
+.lobby-kicked-dialog {
+  width: min(400px, 100%);
+  box-shadow: 0 24px 48px rgba(20, 50, 100, 0.35);
+  animation: account-nudge-rise 0.28s ease;
+}
+
+.lobby-kicked-dialog .panel-head {
+  padding: 20px 22px 16px;
+  gap: 14px;
+}
+
+.lobby-kicked-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lobby-kicked-lead {
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
+.lobby-kicked-body {
+  padding: 0 22px 22px;
 }
 
 /* Account nudge overlay (anon → register) */
