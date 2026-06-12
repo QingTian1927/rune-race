@@ -14,6 +14,8 @@ export function MarketingFooter() {
         <div className="footer-links">
           <Link to="/guide">Hướng dẫn</Link>
           <Link to="/about">Về đội ngũ</Link>
+          <Link to="/privacy">Chính sách quyền riêng tư</Link>
+          <Link to="/terms">Điều khoản dịch vụ</Link>
           <a href="mailto:runerace.team@gmail.com">Liên hệ</a>
         </div>
       </div>
