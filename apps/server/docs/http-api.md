@@ -235,6 +235,7 @@ Response: `{ "merged": boolean, "profile": Profile }`.
 ### Admin (separate admin app)
 
 - `GET /api/admin/analytics/*` — live stats, timeseries, top players
+- `GET /api/admin/users/report` — registered users list for Excel export (PII; admin only)
 - `GET/PATCH /api/admin/settings` — server-side settings
 
 ### `POST /dev/create-room` (deprecated)

@@ -526,6 +526,134 @@ code,
   cursor: not-allowed;
 }
 
+.page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.report-search {
+  min-width: min(320px, 100%);
+}
+
+.report-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.report-table .report-cell-input {
+  width: 100%;
+  min-width: 120px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  background: transparent;
+}
+
+.report-table .report-cell-input:hover {
+  border-color: var(--border);
+  background: #fff;
+}
+
+.report-table .report-cell-input:focus {
+  outline: 2px solid #bfdbfe;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.report-readonly-cell {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.report-row-modified {
+  background: #fffbeb;
+}
+
+.report-row-modified:hover {
+  background: #fef3c7 !important;
+}
+
+.report-row-redacted {
+  background: #f1f5f9;
+}
+
+.report-row-redacted:hover {
+  background: #e2e8f0 !important;
+}
+
+.report-redact-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.report-redact-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.report-redact-toggle-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.report-row-redacted .report-redact-toggle-label {
+  color: #475569;
+  font-weight: 600;
+}
+
+.report-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.report-dialog {
+  width: min(480px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.report-dialog h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.report-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
 @media (max-width: 768px) {
   .admin-shell {
     grid-template-columns: 1fr;

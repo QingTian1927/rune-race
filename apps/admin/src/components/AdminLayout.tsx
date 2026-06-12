@@ -21,6 +21,9 @@ export function AdminLayout() {
           <NavLink to="/status" className={({ isActive }) => (isActive ? 'active' : undefined)}>
             Trạng thái hệ thống
           </NavLink>
+          <NavLink to="/reports/users" className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            Báo cáo người dùng
+          </NavLink>
         </nav>
         <div className="admin-sidebar-foot">
           <p className="admin-user-email">{user?.email ?? user?.id}</p>

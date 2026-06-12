@@ -19,6 +19,7 @@ import { AnalyticsService } from './analytics/service'
 import { registerAdminAnalyticsRoutes } from './http/admin-analytics'
 import { registerFeatureFlagRoutes } from './http/feature-flags'
 import { registerAdminSettingsRoutes } from './http/admin-settings'
+import { registerAdminUsersReportRoutes } from './http/admin-users-report'
 import { registerHealthRoutes } from './http/health'
 import { resolveCorsOrigins } from './lib/cors-origins'
 
@@ -63,6 +64,7 @@ registerAuthRoutes(fastify)
 registerAdminAnalyticsRoutes(fastify, analyticsService)
 registerFeatureFlagRoutes(fastify)
 registerAdminSettingsRoutes(fastify)
+registerAdminUsersReportRoutes(fastify)
 registerHealthRoutes(fastify, {
   io,
   lobbyStore,
@@ -120,7 +122,7 @@ const start = async () => {
     console.log(`Server running on port ${port}`)
     console.log('Socket.IO attached to same host')
     console.log('API: GET/POST /api/rooms, POST /api/matchmaking/join')
-    console.log('Admin API: GET /api/admin/analytics/*')
+    console.log('Admin API: GET /api/admin/analytics/*, GET /api/admin/users/report')
   } catch (err) {
     fastify.log.error(err)
     process.exit(1)
