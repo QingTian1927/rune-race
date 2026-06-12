@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { vitePrerenderPlugin } from 'vite-prerender-plugin'
-import { buildSitemapXml } from './src/lib/sitemap.ts'
+import { buildRobotsTxt, buildSitemapXml } from './src/lib/sitemap.ts'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const appRoot = path.resolve(repoRoot, 'apps/web')
@@ -13,16 +13,19 @@ function resolveSiteUrl(): string {
   return (process.env.VITE_SITE_URL ?? 'https://rune-race.onrender.com').replace(/\/$/, '')
 }
 
-function sitemapPlugin() {
+function writePublicAndDist(relativePath: string, content: string) {
+  fs.writeFileSync(path.resolve(appRoot, 'public', relativePath), content, 'utf8')
+  fs.writeFileSync(path.resolve(appRoot, 'dist', relativePath), content, 'utf8')
+}
+
+function seoStaticFilesPlugin() {
   return {
-    name: 'rune-race-sitemap',
+    name: 'rune-race-seo-static-files',
     closeBundle() {
+      const siteUrl = resolveSiteUrl()
       const lastmod = new Date().toISOString().slice(0, 10)
-      const xml = buildSitemapXml(resolveSiteUrl(), lastmod)
-      const publicPath = path.resolve(appRoot, 'public/sitemap.xml')
-      const distPath = path.resolve(appRoot, 'dist/sitemap.xml')
-      fs.writeFileSync(publicPath, xml, 'utf8')
-      fs.writeFileSync(distPath, xml, 'utf8')
+      writePublicAndDist('sitemap.xml', buildSitemapXml(siteUrl, lastmod))
+      writePublicAndDist('robots.txt', buildRobotsTxt(siteUrl))
     },
   }
 }
@@ -36,7 +39,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    sitemapPlugin(),
+    seoStaticFilesPlugin(),
     vitePrerenderPlugin({
       renderTarget: '#root',
       prerenderScript: path.resolve(appRoot, 'src/prerender.tsx'),

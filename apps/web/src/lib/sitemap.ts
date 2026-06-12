@@ -90,3 +90,9 @@ export function buildSitemapXml(siteUrl: string, lastmod: string): string {
   lines.push('</urlset>', '')
   return lines.join('\n')
 }
+
+/** Build robots.txt with sitemap URL derived from the public site origin. */
+export function buildRobotsTxt(siteUrl: string): string {
+  const normalizedSiteUrl = siteUrl.replace(/\/$/, '')
+  return ['User-agent: *', 'Allow: /', '', `Sitemap: ${normalizedSiteUrl}/sitemap.xml`, ''].join('\n')
+}
