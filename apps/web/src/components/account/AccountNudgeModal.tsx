@@ -5,6 +5,7 @@ import { GoogleSignInUnavailableNotice } from '../auth/GoogleSignInUnavailableNo
 import { useAuth } from '../../hooks/useAuth'
 import { AUTH_FORM_PLACEHOLDERS } from '../../lib/authFormPlaceholders'
 import { isInAppBrowser } from '../../lib/inAppBrowser'
+import { mapAuthError } from '../../lib/mapAuthError'
 import { linkAnonSessionIfNeeded } from '../../lib/linkAnonSession'
 
 type AccountNudgeModalProps = {
@@ -54,7 +55,7 @@ export function AccountNudgeModal({ open, onClose }: AccountNudgeModalProps) {
       onClose()
       navigate('/play')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Đăng nhập thất bại')
+      setError(mapAuthError(err, 'login'))
     } finally {
       setBusy(false)
     }
@@ -66,7 +67,7 @@ export function AccountNudgeModal({ open, onClose }: AccountNudgeModalProps) {
     try {
       await signInWithGoogle()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Đăng nhập Google thất bại')
+      setError(mapAuthError(err, 'login'))
       setBusy(false)
     }
   }

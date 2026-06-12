@@ -4,6 +4,7 @@ import { GoogleSignInUnavailableNotice } from '../components/auth/GoogleSignInUn
 import { useAuth } from '../hooks/useAuth'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
 import { isInAppBrowser } from '../lib/inAppBrowser'
+import { mapAuthError } from '../lib/mapAuthError'
 import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { AUTH_FORM_PLACEHOLDERS } from '../lib/authFormPlaceholders'
@@ -31,7 +32,7 @@ export default function AuthLoginPage() {
       }
       navigate('/play')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(mapAuthError(err, 'login'))
     } finally {
       setBusy(false)
     }
@@ -43,7 +44,7 @@ export default function AuthLoginPage() {
     try {
       await signInWithGoogle()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google login failed')
+      setError(mapAuthError(err, 'login'))
       setBusy(false)
     }
   }
