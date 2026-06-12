@@ -4,6 +4,9 @@ export type PublicRoom = {
   lobbyId: string
   joinCode: string
   name: string
+  humanPlayerCount: number
+  botCount: number
+  /** Human players — mirrors humanPlayerCount for compatibility. */
   playerCount: number
   maxPlayers: number
   hasPassword: boolean

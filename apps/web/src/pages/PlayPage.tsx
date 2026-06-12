@@ -22,6 +22,11 @@ import { ensureOnlineSession } from '../lib/ensureOnlineSession'
 import { getPlayerName, setPlayerName } from '../lib/playerSession'
 import { PublicRoomCard } from '../components/sky/PublicRoomCard'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
+import {
+  MATCHMAKING_SOLO_BOT_SECONDS,
+  MATCHMAKING_TIER_2_SECONDS,
+  MATCHMAKING_TIER_3_SECONDS,
+} from '@rune-race/shared'
 
 type HomeView = 'menu' | 'form'
 type HomeForm = 'join' | 'create' | 'match' | 'public'
@@ -30,6 +35,29 @@ type MatchSearchSession = {
   playerId: string
   playerName: string
   accessToken: string | null
+}
+
+function getMatchmakingWaitHint(queueSize: number, waitedSeconds: number): string {
+  if (queueSize >= 4) return 'Đủ 4 người rồi — đang mở phòng...'
+  if (queueSize === 3) {
+    if (waitedSeconds < MATCHMAKING_TIER_3_SECONDS) {
+      return 'Gần đủ bàn rồi — đang tìm thêm một người nữa...'
+    }
+    return 'Đang ghép trận — sẽ có bot bù chỗ trống'
+  }
+  if (queueSize === 2) {
+    if (waitedSeconds < MATCHMAKING_TIER_2_SECONDS) {
+      return 'Đang tìm thêm người chơi...'
+    }
+    return 'Đang ghép trận — sẽ có bot bù chỗ trống'
+  }
+  if (waitedSeconds < MATCHMAKING_SOLO_BOT_SECONDS - 5) {
+    return 'Đang tìm đối thủ — chờ thêm chút nhé...'
+  }
+  if (waitedSeconds < MATCHMAKING_SOLO_BOT_SECONDS) {
+    return 'Chưa thấy ai — sắp mời bot vào chơi cùng bạn'
+  }
+  return 'Đang tạo phòng — bot sẽ đồng hành cùng bạn'
 }
 
 export default function PlayPage() {
@@ -551,7 +579,8 @@ export default function PlayPage() {
                       <div className="mm-dot" />
                     </div>
                     <span>
-                      Ghép 4 người ngay · 3 người sau 5s · 2 người sau 3s
+                      Ưu tiên ghép đủ 4 người · Chờ thêm chút nếu thiếu · Một mình vẫn chơi được
+                      với bot
                     </span>
                   </div>
 
@@ -560,10 +589,9 @@ export default function PlayPage() {
                       <div className="mm-queue-count">{queueSize}</div>
                       <div className="mm-queue-label">người đang tìm trận</div>
                       <div className="mm-queue-wait">
-                        {queueSize <= 1
-                          ? `Đang chờ thêm người chơi... (${waitedSeconds}s)`
-                          : `Đang ghép trận... ${waitedSeconds}s`}
+                        {getMatchmakingWaitHint(queueSize, waitedSeconds)}
                       </div>
+                      <div className="mm-queue-elapsed">Đã chờ {waitedSeconds}s</div>
                     </div>
                   ) : null}
 

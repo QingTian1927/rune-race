@@ -10,6 +10,14 @@ type PublicRoomCardProps = {
   onJoin: () => void
 }
 
+function formatRoomOccupancy(room: PublicRoom): string {
+  const humans = room.humanPlayerCount ?? room.playerCount
+  const bots = room.botCount ?? 0
+  const base = `${humans} / ${room.maxPlayers} người chơi`
+  if (bots <= 0) return base
+  return `${base} · ${bots} bot`
+}
+
 export function PublicRoomCard({
   room,
   loading,
@@ -18,8 +26,10 @@ export function PublicRoomCard({
   onRoomPasswordChange,
   onJoin,
 }: PublicRoomCardProps) {
-  const dots = roomPawnDots(room.playerCount, room.maxPlayers)
-  const isFull = room.playerCount >= room.maxPlayers
+  const humans = room.humanPlayerCount ?? room.playerCount
+  const bots = room.botCount ?? 0
+  const dots = roomPawnDots(humans, room.maxPlayers, bots)
+  const isFull = humans >= room.maxPlayers && bots === 0
 
   return (
     <div className="room-card">
@@ -28,8 +38,14 @@ export function PublicRoomCard({
           {dots.map((dot, i) => (
             <div
               key={i}
-              className={dot.filled ? 'rp' : 'rp rp-empty'}
-              style={dot.filled ? { background: dot.color } : undefined}
+              className={
+                dot.kind === 'human'
+                  ? 'rp'
+                  : dot.kind === 'bot'
+                    ? 'rp rp-bot'
+                    : 'rp rp-empty'
+              }
+              style={dot.kind === 'human' ? { background: dot.color } : undefined}
             />
           ))}
         </div>
@@ -37,10 +53,10 @@ export function PublicRoomCard({
           <div className="room-name">{room.name}</div>
           <div className="room-meta">
             <i
-              className={`bi ${room.playerCount > 1 ? 'bi-people-fill' : 'bi-person-fill'} inline-icon`}
+              className={`bi ${humans > 1 ? 'bi-people-fill' : 'bi-person-fill'} inline-icon`}
               aria-hidden="true"
             />{' '}
-            {room.playerCount} / {room.maxPlayers} người chơi
+            {formatRoomOccupancy(room)}
             {room.hasPassword ? ' · có mật khẩu' : ''}
           </div>
         </div>
