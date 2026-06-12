@@ -58,4 +58,5 @@ Import from `@rune-race/shared`:
 ## Health
 
 - `GET /` — status message
-- `GET /health` — `{ status, timestamp }`
+- `GET /health` — liveness `{ status, timestamp, readiness }` (Render health check)
+- `GET /ready` — readiness `{ status, checks }`; `?detail=admin` for operator metrics

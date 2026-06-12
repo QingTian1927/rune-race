@@ -3,6 +3,7 @@ import { CardRail } from '../../components/marketing/CardRail'
 import { MarkerPreview } from '../../components/marketing/MarkerPreview'
 import { PageMeta } from '../../components/marketing/PageMeta'
 import { PlayCta } from '../../components/marketing/PlayCta'
+import { HeroReadinessBadge } from '../../components/marketing/HeroReadinessBadge'
 import { Reveal } from '../../components/marketing/Reveal'
 
 export default function LandingPage() {
@@ -50,9 +51,7 @@ export default function LandingPage() {
                 width={1200}
                 height={400}
               />
-              <div className="hero-float">
-                <span className="pulse" /> Sẵn sàng tạo phòng
-              </div>
+              <HeroReadinessBadge />
             </Reveal>
           </div>
           <Reveal className="stat-strip" aria-label="Tóm tắt gameplay">

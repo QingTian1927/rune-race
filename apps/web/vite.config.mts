@@ -33,6 +33,14 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      '/health': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/ready': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
       '/socket.io': {
         target: 'http://localhost:3000',
         ws: true,

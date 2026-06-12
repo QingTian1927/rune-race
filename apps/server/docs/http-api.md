@@ -20,9 +20,79 @@ Server status.
 
 ### `GET /health`
 
+Liveness probe for load balancers (always `200` while the process is running).
+
 ```json
-{ "status": "ok", "timestamp": "2026-05-21T12:00:00.000Z" }
+{
+  "status": "ok",
+  "timestamp": "2026-05-21T12:00:00.000Z",
+  "readiness": "/ready"
+}
 ```
+
+### `GET /ready`
+
+Readiness probe for clients (marketing badge, incident banners) and operators.
+
+- `200` when `status` is `ready` or `degraded`
+- `503` when `status` is `down` (a critical dependency failed)
+
+**Public response** (default):
+
+```json
+{
+  "status": "ready",
+  "timestamp": "2026-05-21T12:00:00.000Z",
+  "checks": {
+    "api": { "status": "ok" },
+    "socket": { "status": "ok" },
+    "database": { "status": "ok" },
+    "analytics": { "status": "ok" }
+  }
+}
+```
+
+`status` values: `ready` | `degraded` | `down`.  
+Per-check `status`: `ok` | `warn` | `fail` | `skipped`.
+
+**Admin detail** — `GET /ready?detail=admin` adds latency, messages, uptime, live counters, and dependency flags:
+
+```json
+{
+  "status": "ready",
+  "timestamp": "2026-05-21T12:00:00.000Z",
+  "uptimeSeconds": 3600,
+  "nodeEnv": "production",
+  "checks": {
+    "api": { "status": "ok", "critical": true, "latencyMs": 0 },
+    "socket": { "status": "ok", "critical": true, "latencyMs": 0 },
+    "database": { "status": "ok", "critical": true, "latencyMs": 42 },
+    "analytics": { "status": "ok", "critical": false, "latencyMs": 0 }
+  },
+  "metrics": {
+    "activeLobbies": 3,
+    "activeGames": 1,
+    "connectedSockets": 12,
+    "matchmakingQueueSize": 0
+  },
+  "dependencies": {
+    "supabaseConfigured": true,
+    "analyticsSchedulerActive": true,
+    "corsRestricted": true
+  }
+}
+```
+
+Checks:
+
+| Check | Critical | Description |
+| --- | --- | --- |
+| `api` | yes | HTTP server responding |
+| `socket` | yes | Socket.IO attached and HTTP server listening |
+| `database` | no | Supabase reachable (`app_settings` ping); failures degrade status but do not block room creation |
+| `analytics` | no | Hourly rollup scheduler running when Supabase is configured |
+
+Only `api` and `socket` failures produce `down`. Database or analytics issues produce `degraded`.
 
 ### `GET /api/public/feature-flags`
 
