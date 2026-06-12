@@ -35,6 +35,10 @@ export class MatchmakingQueue {
     this.matchedResults.delete(playerId)
   }
 
+  getQueueSize(): number {
+    return this.queue.length
+  }
+
   clearMatchesForLobby(lobbyId: string): void {
     for (const [playerId, result] of this.matchedResults) {
       if (result.lobbyId === lobbyId) {

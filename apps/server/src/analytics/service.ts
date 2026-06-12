@@ -50,6 +50,10 @@ export class AnalyticsService {
     this.rollupTimer = null
   }
 
+  isSchedulerActive(): boolean {
+    return this.rollupTimer !== null
+  }
+
   onPresenceConnected(playerId: string, lobbyId: string): void {
     this.liveCounters.markSocketConnected(playerId)
     if (!this.activeSessions.has(playerId)) {

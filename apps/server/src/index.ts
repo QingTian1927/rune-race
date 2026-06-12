@@ -19,10 +19,12 @@ import { AnalyticsService } from './analytics/service'
 import { registerAdminAnalyticsRoutes } from './http/admin-analytics'
 import { registerFeatureFlagRoutes } from './http/feature-flags'
 import { registerAdminSettingsRoutes } from './http/admin-settings'
+import { registerHealthRoutes } from './http/health'
 import { resolveCorsOrigins } from './lib/cors-origins'
 
 const port = Number(process.env.PORT) || 3000
 const corsOrigins = resolveCorsOrigins()
+const serverStartedAtMs = Date.now()
 
 const fastify = Fastify({ logger: true })
 const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(fastify.server, {
@@ -61,15 +63,19 @@ registerAuthRoutes(fastify)
 registerAdminAnalyticsRoutes(fastify, analyticsService)
 registerFeatureFlagRoutes(fastify)
 registerAdminSettingsRoutes(fastify)
+registerHealthRoutes(fastify, {
+  io,
+  lobbyStore,
+  gameStore,
+  matchmaking,
+  analyticsService,
+  corsRestricted: corsOrigins !== true,
+  startedAtMs: serverStartedAtMs,
+})
 
 fastify.get('/', async () => ({
   message: 'Rune Race Server',
   status: 'running',
-}))
-
-fastify.get('/health', async () => ({
-  status: 'ok',
-  timestamp: new Date().toISOString(),
 }))
 
 /** @deprecated Use POST /api/rooms */
