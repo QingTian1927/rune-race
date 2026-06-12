@@ -45,8 +45,8 @@ const analyticsService = new AnalyticsService({
 analyticsService.start()
 void analyticsService.syncCounters(lobbyStore.getActiveLobbyCount(), gameStore.getActiveGameCount())
 
-const matchmaking = new MatchmakingQueue(lobbyStore)
 const botManager = new BotManager(lobbyStore, gameStore, chatStore, io)
+const matchmaking = new MatchmakingQueue(lobbyStore, botManager)
 
 setupSocketHandlers(io, lobbyStore, gameStore, chatStore, analyticsService, matchmaking, botManager)
 

@@ -101,9 +101,16 @@ On `game:join`, the socket also joins `game:{gameId}`. Clients typically remain 
 
 ## Matchmaking
 
-`MatchmakingQueue` runs every 1s and creates a **public** lobby (visible in `GET /api/rooms`, joinable like any room) when wait time and queue size match tiers in `@rune-race/shared` (`MATCHMAKING_*_SECONDS`, `MATCHMAKING_PRIORITIZE_WINDOW_SECONDS`).
+`MatchmakingQueue` runs every 1s and creates a **public** lobby when queue size and wait time match tiers in `@rune-race/shared` (`MATCHMAKING_*_SECONDS`). Remaining seats are filled with bots (`BotManager.fillBotsToLobby`). Humans get auto-assigned colors; bots are ready immediately.
 
-During the first **15s** prioritize window: match 4 immediately if possible, else 3, else 2 after **3s** wait. After the window: match 4/3/2 when oldest wait ≥ **0s / 5s / 3s** respectively.
+| Queue size | Match when oldest wait ≥ |
+|------------|--------------------------|
+| 4+ | 0s (match 4) |
+| 3 | 7s (match 3 + 1 bot) |
+| 2 | 4s (match 2 + 2 bots) |
+| 1 | 18s (solo + 3 bots) |
+
+When a human joins a full bot-filled public room, one bot is evicted to make space. `GET /api/rooms` exposes `humanPlayerCount` and `botCount` for list UI.
 
 Matched players receive `lobbyId` + `joinCode` via HTTP status polling; they must still `lobby:join` over Socket.IO when opening the lobby page.
 
