@@ -7,6 +7,8 @@ import {
   SITE_URL,
 } from './siteConfig'
 
+export { PRERENDER_PATHS } from './sitemap'
+
 export type PageSeo = {
   title: string
   description: string
@@ -101,5 +103,3 @@ export function buildOgHeadElements(seo: PageSeo, lang: 'vi' | 'en' = 'vi'): Set
   ])
 }
 
-/** Marketing routes included in static prerender for SEO / Open Graph. */
-export const PRERENDER_PATHS = ['/', '/about', '/guide', '/privacy', '/privacy/en', '/terms', '/terms/en'] as const
