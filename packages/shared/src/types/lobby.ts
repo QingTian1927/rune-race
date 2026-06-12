@@ -31,6 +31,10 @@ export interface LobbyListItem {
   lobbyId: string
   joinCode: string
   name: string
+  /** Human players seated (excludes bots). */
+  humanPlayerCount: number
+  botCount: number
+  /** @deprecated Use humanPlayerCount — kept for older clients. */
   playerCount: number
   maxPlayers: number
   hasPassword: boolean
@@ -57,10 +61,11 @@ export const LOBBY_START_COUNTDOWN_SECONDS = 5
 export const JOIN_CODE_LENGTH = 8
 
 /** Matchmaking timing (seconds). */
-export const MATCHMAKING_PRIORITIZE_WINDOW_SECONDS = 15
 export const MATCHMAKING_TIER_4_SECONDS = 0
-export const MATCHMAKING_TIER_3_SECONDS = 5
-export const MATCHMAKING_TIER_2_SECONDS = 3
+export const MATCHMAKING_TIER_3_SECONDS = 7
+export const MATCHMAKING_TIER_2_SECONDS = 4
+/** Solo queue — fill remaining slots with bots after this wait. */
+export const MATCHMAKING_SOLO_BOT_SECONDS = 18
 
 /** Disconnect grace (milliseconds) — accidental disconnect only; active leave is immediate. */
 export const LOBBY_DISCONNECT_GRACE_MS = 30_000
