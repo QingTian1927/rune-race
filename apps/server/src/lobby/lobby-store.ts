@@ -36,6 +36,12 @@ export interface LobbyRecord {
   hostPlayerId: string
 }
 
+export interface LobbyJoinResult {
+  snapshot: LobbySnapshot
+  /** Set when a bot was removed to make room for an incoming human. */
+  evictedBotId?: string
+}
+
 export type LobbyChangeListener = (lobbyId: string, snapshot: LobbySnapshot) => void
 export type LobbyDestroyListener = (lobbyId: string) => void
 export type LobbyPlayerTimedOutListener = (
@@ -206,7 +212,7 @@ export class LobbyStore {
     playerId: string
     playerName: string
     password?: string
-  }): LobbySnapshot {
+  }): LobbyJoinResult {
     const id = this.resolveLobbyId(params.lobbyId, params.joinCode)
     if (!id) {
       throw new Error('Lobby not found')
@@ -231,13 +237,18 @@ export class LobbyStore {
       existing.connected = true
       existing.name = params.playerName
       this.playerLobbyIndex.set(params.playerId, id)
+      this.autoAssignColorIfOnlyOneLeft(record, params.playerId)
       const snapshot = this.toSnapshot(record)
       this.emitChange(id, snapshot)
-      return snapshot
+      return { snapshot }
     }
 
+    let evictedBotId: string | undefined
     if (record.players.length >= LOBBY_MAX_PLAYERS) {
-      throw new Error('Lobby is full')
+      evictedBotId = this.evictOneBot(record) ?? undefined
+      if (record.players.length >= LOBBY_MAX_PLAYERS) {
+        throw new Error('Lobby is full')
+      }
     }
 
     record.players.push({
@@ -250,10 +261,33 @@ export class LobbyStore {
       disconnectTimer: null,
     })
     this.playerLobbyIndex.set(params.playerId, id)
+    this.autoAssignColorIfOnlyOneLeft(record, params.playerId)
 
     this.cancelCountdown(record, 'player_joined')
     const snapshot = this.toSnapshot(record)
     this.emitChange(id, snapshot)
+    return { snapshot, evictedBotId }
+  }
+
+  /** Assign the first free colors to human players that do not have one yet. */
+  assignAutoColorsToHumans(lobbyId: string): LobbySnapshot {
+    const record = this.lobbies.get(lobbyId)
+    if (!record) throw new Error('Lobby not found')
+
+    const takenColors = new Set(
+      record.players.map((p) => p.color).filter((c): c is PlayerColor => c !== null),
+    )
+
+    for (const player of record.players) {
+      if (player.isBot || player.color) continue
+      const freeColor = PLAYER_COLORS.find((color) => !takenColors.has(color))
+      if (!freeColor) continue
+      player.color = freeColor
+      takenColors.add(freeColor)
+    }
+
+    const snapshot = this.toSnapshot(record)
+    this.emitChange(lobbyId, snapshot)
     return snapshot
   }
 
@@ -572,9 +606,39 @@ export class LobbyStore {
   }
 
   private canStartCountdown(record: LobbyRecord): boolean {
+    const humans = record.players.filter((p) => !p.isBot)
+    if (humans.some((p) => !p.connected)) return false
+
     const active = record.players.filter((p) => p.connected)
     if (active.length < LOBBY_MIN_PLAYERS_TO_START) return false
     return active.every((p) => p.ready && p.color !== null)
+  }
+
+  private evictOneBot(record: LobbyRecord): string | null {
+    const bot = record.players.find((p) => p.isBot)
+    if (!bot) return null
+    this.removePlayer(record, bot.id, 'evicted_for_human')
+    return bot.id
+  }
+
+  /** When exactly one color remains, pick it for players who have not chosen yet. */
+  private autoAssignColorIfOnlyOneLeft(record: LobbyRecord, playerId: string): void {
+    if (record.status !== 'lobby') return
+
+    const player = record.players.find((p) => p.id === playerId)
+    if (!player || player.isBot || player.color) return
+
+    const takenColors = new Set(
+      record.players
+        .filter((p) => p.id !== playerId)
+        .map((p) => p.color)
+        .filter((c): c is PlayerColor => c !== null),
+    )
+    const freeColors = PLAYER_COLORS.filter((color) => !takenColors.has(color))
+    if (freeColors.length !== 1) return
+
+    player.color = freeColors[0]!
+    player.ready = false
   }
 
   private startCountdown(record: LobbyRecord): void {

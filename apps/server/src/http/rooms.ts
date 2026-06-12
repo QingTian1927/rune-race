@@ -1,21 +1,34 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
+import type { LobbyPlayer, LobbySnapshot } from '@rune-race/shared'
 import type { LobbyStore } from '../lobby/lobby-store'
 import { displayNameFromMetadata } from '@rune-race/shared'
 import { getAuthUser } from '../lib/auth'
+
+function countLobbySeats(players: LobbyPlayer[]) {
+  const botCount = players.filter((p) => p.isBot).length
+  const humanPlayerCount = players.filter((p) => !p.isBot).length
+  return { humanPlayerCount, botCount, playerCount: humanPlayerCount }
+}
+
+function toPublicRoomEntry(snapshot: LobbySnapshot) {
+  const counts = countLobbySeats(snapshot.players)
+  return {
+    lobbyId: snapshot.lobbyId,
+    joinCode: snapshot.joinCode,
+    name: snapshot.settings.name,
+    ...counts,
+    maxPlayers: snapshot.settings.maxPlayers,
+    hasPassword: snapshot.settings.hasPassword,
+    status: snapshot.status,
+  }
+}
+
 export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbyStore): void {
   fastify.get('/api/rooms', async () => {
     const lobbies = lobbyStore.listPublicLobbies()
     return {
-      rooms: lobbies.map((l) => ({
-        lobbyId: l.lobbyId,
-        joinCode: l.joinCode,
-        name: l.settings.name,
-        playerCount: l.players.filter((p) => p.connected).length,
-        maxPlayers: l.settings.maxPlayers,
-        hasPassword: l.settings.hasPassword,
-        status: l.status,
-      })),
+      rooms: lobbies.map((l) => toPublicRoomEntry(l)),
     }
   })
 
@@ -29,15 +42,7 @@ export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbySt
     if (!snapshot) {
       return reply.status(404).send({ error: 'Room not found' })
     }
-    return {
-      lobbyId: snapshot.lobbyId,
-      joinCode: snapshot.joinCode,
-      name: snapshot.settings.name,
-      playerCount: snapshot.playerCount,
-      maxPlayers: snapshot.settings.maxPlayers,
-      hasPassword: snapshot.settings.hasPassword,
-      status: snapshot.status,
-    }
+    return toPublicRoomEntry(snapshot)
   })
 
   fastify.get('/api/rooms/:lobbyId', async (request, reply) => {
@@ -46,15 +51,7 @@ export function registerRoomRoutes(fastify: FastifyInstance, lobbyStore: LobbySt
     if (!snapshot) {
       return reply.status(404).send({ error: 'Room not found' })
     }
-    return {
-      lobbyId: snapshot.lobbyId,
-      joinCode: snapshot.joinCode,
-      name: snapshot.settings.name,
-      playerCount: snapshot.playerCount,
-      maxPlayers: snapshot.settings.maxPlayers,
-      hasPassword: snapshot.settings.hasPassword,
-      status: snapshot.status,
-    }
+    return toPublicRoomEntry(snapshot)
   })
 
   fastify.post('/api/rooms', async (request) => {

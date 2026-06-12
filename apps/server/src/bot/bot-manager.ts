@@ -54,6 +54,21 @@ export class BotManager {
     private readonly io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>,
   ) {}
 
+  /** Matchmaking / host — seat multiple bots in free slots. */
+  fillBotsToLobby(lobbyId: string, hostPlayerId: string, count: number): LobbySnapshot {
+    if (count <= 0) {
+      const snapshot = this.lobbyStore.getSnapshot(lobbyId)
+      if (!snapshot) throw new Error('Lobby not found')
+      return snapshot
+    }
+
+    let snapshot: LobbySnapshot | undefined
+    for (let i = 0; i < count; i += 1) {
+      ;({ snapshot } = this.addBotToLobby(lobbyId, hostPlayerId))
+    }
+    return snapshot!
+  }
+
   /** Host action — create a bot with random name + profile and seat it in the lobby. */
   addBotToLobby(
     lobbyId: string,

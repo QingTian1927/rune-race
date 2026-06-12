@@ -9,9 +9,17 @@ export const PLAYER_GRADIENT: Record<PlayerColor, string> = {
   red: 'linear-gradient(135deg,#FF6B60,#D93025)',
 }
 
-export function roomPawnDots(playerCount: number, maxPlayers: number) {
-  return Array.from({ length: maxPlayers }, (_, i) => ({
-    filled: i < playerCount,
-    color: PAWN_SLOT_COLORS[i % PAWN_SLOT_COLORS.length],
-  }))
+export function roomPawnDots(humanCount: number, maxPlayers: number, botCount = 0) {
+  return Array.from({ length: maxPlayers }, (_, i) => {
+    if (i < humanCount) {
+      return {
+        kind: 'human' as const,
+        color: PAWN_SLOT_COLORS[i % PAWN_SLOT_COLORS.length],
+      }
+    }
+    if (i < humanCount + botCount) {
+      return { kind: 'bot' as const }
+    }
+    return { kind: 'empty' as const }
+  })
 }

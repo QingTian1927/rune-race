@@ -10,7 +10,7 @@ describe('LobbyStore password', () => {
       password: 'secret',
     })
 
-    const snapshot = store.joinLobby({
+    const { snapshot } = store.joinLobby({
       lobbyId: created.lobbyId,
       playerId: 'host-1',
       playerName: 'Host',
@@ -37,7 +37,7 @@ describe('LobbyStore password', () => {
       }),
     ).toThrow(/invalid password/i)
 
-    const joined = store.joinLobby({
+    const { snapshot: joined } = store.joinLobby({
       lobbyId: created.lobbyId,
       playerId: 'guest-1',
       playerName: 'Guest',
@@ -65,7 +65,7 @@ describe('LobbyStore password', () => {
     expect(updated.settings.hasPassword).toBe(false)
     expect(store.getHostRoomPassword(created.lobbyId, 'host-1')).toBeNull()
 
-    const guest = store.joinLobby({
+    const { snapshot: guest } = store.joinLobby({
       lobbyId: created.lobbyId,
       playerId: 'guest-1',
       playerName: 'Guest',

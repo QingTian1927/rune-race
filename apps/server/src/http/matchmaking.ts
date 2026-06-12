@@ -1,10 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import {
+  LOBBY_MAX_PLAYERS,
+  MATCHMAKING_SOLO_BOT_SECONDS,
   MATCHMAKING_TIER_2_SECONDS,
   MATCHMAKING_TIER_3_SECONDS,
   MATCHMAKING_TIER_4_SECONDS,
-  MATCHMAKING_PRIORITIZE_WINDOW_SECONDS,
 } from '@rune-race/shared'
+import type { BotManager } from '../bot/bot-manager'
 import type { LobbyStore } from '../lobby/lobby-store'
 import { displayNameFromMetadata } from '@rune-race/shared'
 import { getAuthUser } from '../lib/auth'
@@ -20,7 +22,10 @@ export class MatchmakingQueue {
   private interval: ReturnType<typeof setInterval> | null = null
   private matchedResults = new Map<string, { lobbyId: string; joinCode: string }>()
 
-  constructor(private lobbyStore: LobbyStore) {
+  constructor(
+    private lobbyStore: LobbyStore,
+    private botManager?: BotManager,
+  ) {
     this.interval = setInterval(() => this.tick(), 1000)
   }
 
@@ -82,38 +87,30 @@ export class MatchmakingQueue {
   }
 
   private tick(): void {
-    if (this.queue.length < 2) return
+    if (this.queue.length === 0) return
 
     const now = Date.now()
-    const oldestWait = Math.max(
-      ...this.queue.map((e) => (now - e.joinedAt) / 1000),
-    )
+    const oldestWait = Math.max(...this.queue.map((e) => (now - e.joinedAt) / 1000))
 
     let batchSize: number | null = null
 
-    // Prioritize matching larger groups during the initial window.
-    if (oldestWait < MATCHMAKING_PRIORITIZE_WINDOW_SECONDS) {
-      if (this.queue.length >= 4) {
-        batchSize = 4
-      } else if (this.queue.length >= 3) {
-        batchSize = 3
-      } else if (this.queue.length >= 2 && oldestWait >= MATCHMAKING_TIER_2_SECONDS) {
-        batchSize = 2
-      }
-    } else {
-      // After the prioritize window, match as fast as possible using tier thresholds.
-      if (this.queue.length >= 4 && oldestWait >= MATCHMAKING_TIER_4_SECONDS) {
-        batchSize = 4
-      } else if (this.queue.length >= 3 && oldestWait >= MATCHMAKING_TIER_3_SECONDS) {
-        batchSize = 3
-      } else if (this.queue.length >= 2 && oldestWait >= MATCHMAKING_TIER_2_SECONDS) {
-        batchSize = 2
-      }
+    if (this.queue.length >= 4 && oldestWait >= MATCHMAKING_TIER_4_SECONDS) {
+      batchSize = 4
+    } else if (this.queue.length === 3 && oldestWait >= MATCHMAKING_TIER_3_SECONDS) {
+      batchSize = 3
+    } else if (this.queue.length === 2 && oldestWait >= MATCHMAKING_TIER_2_SECONDS) {
+      batchSize = 2
+    } else if (this.queue.length === 1 && oldestWait >= MATCHMAKING_SOLO_BOT_SECONDS) {
+      batchSize = 1
     }
 
     if (!batchSize) return
 
     const batch = this.queue.splice(0, batchSize)
+    this.createMatch(batch)
+  }
+
+  private createMatch(batch: QueueEntry[]): void {
     const host = batch[0]
     const snapshot = this.lobbyStore.createLobby({
       hostPlayerId: host.playerId,
@@ -121,19 +118,33 @@ export class MatchmakingQueue {
       visibility: 'public',
       name: `Match ${snapshotJoinSuffix()}`,
     })
+    const lobbyId = snapshot.lobbyId
 
     for (let i = 1; i < batch.length; i += 1) {
       this.lobbyStore.joinLobby({
-        lobbyId: snapshot.lobbyId,
+        lobbyId,
         playerId: batch[i].playerId,
         playerName: batch[i].playerName,
       })
     }
 
+    const botCount = LOBBY_MAX_PLAYERS - batch.length
+    if (botCount > 0) {
+      if (!this.botManager) {
+        throw new Error('Bot filler is not configured')
+      }
+      this.botManager.fillBotsToLobby(lobbyId, host.playerId, botCount)
+    }
+
+    this.lobbyStore.assignAutoColorsToHumans(lobbyId)
+
+    const finalSnapshot = this.lobbyStore.getSnapshot(lobbyId)
+    if (!finalSnapshot) return
+
     for (const entry of batch) {
       this.matchedResults.set(entry.playerId, {
-        lobbyId: snapshot.lobbyId,
-        joinCode: snapshot.joinCode,
+        lobbyId,
+        joinCode: finalSnapshot.joinCode,
       })
     }
   }

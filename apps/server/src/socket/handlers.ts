@@ -260,13 +260,16 @@ export function setupSocketHandlers(
         const cmd = validateCommand('lobby:join', payload)
         const playerId = resolvePlayerId(socket, cmd.playerId)
         const priorLobbyId = lobbyStore.getLobbyIdForPlayer(playerId)
-        const snapshot = lobbyStore.joinLobby({
+        const { snapshot, evictedBotId } = lobbyStore.joinLobby({
           lobbyId: cmd.lobbyId,
           joinCode: cmd.joinCode,
           playerId: playerId,
           playerName: cmd.playerName,
           password: cmd.password,
         })
+        if (evictedBotId) {
+          botManager?.onBotRemovedFromLobby(evictedBotId)
+        }
         trackLobby(snapshot.lobbyId, playerId)
 
         if (isUuidLike(playerId)) {
