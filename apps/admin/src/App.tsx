@@ -4,6 +4,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { AuthProvider } from './hooks/useAuth'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
+import SystemStatusPage from './pages/SystemStatusPage'
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AdminLayout />}>
               <Route index element={<DashboardPage />} />
+              <Route path="status" element={<SystemStatusPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

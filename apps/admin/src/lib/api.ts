@@ -80,6 +80,36 @@ export type AdminSettings = {
   accountNudgeEnvDisabled: boolean
 }
 
+export type ReadinessCheckStatus = 'ok' | 'warn' | 'fail' | 'skipped'
+
+export type OverallReadinessStatus = 'ready' | 'degraded' | 'down'
+
+export type AdminReadinessCheck = {
+  status: ReadinessCheckStatus
+  critical: boolean
+  latencyMs?: number
+  message?: string
+}
+
+export type AdminReadinessResponse = {
+  status: OverallReadinessStatus
+  timestamp: string
+  uptimeSeconds: number
+  nodeEnv: string
+  checks: Record<string, AdminReadinessCheck>
+  metrics: {
+    activeLobbies: number
+    activeGames: number
+    connectedSockets: number
+    matchmakingQueueSize: number
+  }
+  dependencies: {
+    supabaseConfigured: boolean
+    analyticsSchedulerActive: boolean
+    corsRestricted: boolean
+  }
+}
+
 export function fetchAdminSettings(accessToken: string): Promise<AdminSettings> {
   return adminFetch<AdminSettings>('/api/admin/settings', accessToken)
 }
@@ -103,4 +133,16 @@ export async function fetchTopPlayers(
     accessToken,
   )
   return payload.players
+}
+
+/** Public readiness probe with operator detail (no auth). */
+export async function fetchReadinessDetail(): Promise<AdminReadinessResponse> {
+  const res = await fetch(`${API_BASE}/ready?detail=admin`, {
+    headers: { Accept: 'application/json' },
+  })
+  const body = (await res.json().catch(() => null)) as AdminReadinessResponse | null
+  if (!body || typeof body !== 'object' || !('status' in body)) {
+    throw new ApiError(`HTTP ${res.status}`, res.status)
+  }
+  return body
 }

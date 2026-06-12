@@ -22,3 +22,15 @@ export function formatDateTime(iso: string): string {
     minute: '2-digit',
   })
 }
+
+export function formatUptime(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds))
+  const days = Math.floor(safe / 86_400)
+  const hours = Math.floor((safe % 86_400) / 3600)
+  const minutes = Math.floor((safe % 3600) / 60)
+
+  if (days > 0) return `${days} ngày ${hours} giờ`
+  if (hours > 0) return `${hours} giờ ${minutes} phút`
+  if (minutes > 0) return `${minutes} phút`
+  return `${safe} giây`
+}
