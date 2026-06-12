@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AccountNudgeModal } from '../components/account/AccountNudgeModal'
+import { InAppBrowserPlayBanner } from '../components/auth/InAppBrowserPlayBanner'
 import {
   createRoom,
   fetchPublicRooms,
@@ -392,6 +393,7 @@ export default function PlayPage() {
       onPlayerNameBlur={() => void saveAnonDisplayName()}
     >
       <AccountNudgeModal open={nudgeOpen} onClose={closeNudge} />
+      <InAppBrowserPlayBanner />
       <div
         className="screen active home-screen"
         data-home-state={homeView}

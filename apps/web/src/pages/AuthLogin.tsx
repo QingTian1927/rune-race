@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { GoogleSignInUnavailableNotice } from '../components/auth/GoogleSignInUnavailableNotice'
 import { useAuth } from '../hooks/useAuth'
 import { linkAnonSessionIfNeeded } from '../lib/linkAnonSession'
+import { isInAppBrowser } from '../lib/inAppBrowser'
 import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { AUTH_FORM_PLACEHOLDERS } from '../lib/authFormPlaceholders'
@@ -15,6 +17,7 @@ export default function AuthLoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const inAppBrowser = useMemo(() => isInAppBrowser(), [])
 
   const handleLogin = async () => {
     setBusy(true)
@@ -147,17 +150,21 @@ export default function AuthLoginPage() {
               <span>ĐĂNG NHẬP</span>
             </button>
 
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleGoogle()}
-              className="game-btn btn-outline"
-            >
-              <span className="btn-icon">
-                <i className="bi bi-google" aria-hidden="true" />
-              </span>
-              <span>TIẾP TỤC VỚI GOOGLE</span>
-            </button>
+            {inAppBrowser ? (
+              <GoogleSignInUnavailableNotice />
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleGoogle()}
+                className="game-btn btn-outline"
+              >
+                <span className="btn-icon">
+                  <i className="bi bi-google" aria-hidden="true" />
+                </span>
+                <span>TIẾP TỤC VỚI GOOGLE</span>
+              </button>
+            )}
           </div>
         </div>
 

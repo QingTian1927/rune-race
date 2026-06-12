@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
+import { GoogleSignInUnavailableNotice } from '../auth/GoogleSignInUnavailableNotice'
 import { useAuth } from '../../hooks/useAuth'
 import { AUTH_FORM_PLACEHOLDERS } from '../../lib/authFormPlaceholders'
+import { isInAppBrowser } from '../../lib/inAppBrowser'
 import { linkAnonSessionIfNeeded } from '../../lib/linkAnonSession'
 
 type AccountNudgeModalProps = {
@@ -17,6 +19,7 @@ export function AccountNudgeModal({ open, onClose }: AccountNudgeModalProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const inAppBrowser = useMemo(() => isInAppBrowser(), [])
 
   useEffect(() => {
     if (!open) return
@@ -169,17 +172,21 @@ export function AccountNudgeModal({ open, onClose }: AccountNudgeModalProps) {
             <span>ĐĂNG NHẬP</span>
           </button>
 
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleGoogle()}
-            className="game-btn btn-outline"
-          >
-            <span className="btn-icon">
-              <i className="bi bi-google" aria-hidden="true" />
-            </span>
-            <span>TIẾP TỤC VỚI GOOGLE</span>
-          </button>
+          {inAppBrowser ? (
+            <GoogleSignInUnavailableNotice compact />
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleGoogle()}
+              className="game-btn btn-outline"
+            >
+              <span className="btn-icon">
+                <i className="bi bi-google" aria-hidden="true" />
+              </span>
+              <span>TIẾP TỤC VỚI GOOGLE</span>
+            </button>
+          )}
         </div>
 
         <footer className="account-nudge-footer">
