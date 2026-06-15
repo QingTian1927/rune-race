@@ -4,6 +4,7 @@ import { RoomChatPanel } from '../components/chat/RoomChatPanel'
 import GameView from '../components/GameView'
 import { useGameSocket } from '../hooks/useGameSocket'
 import { usePlayerIdentity } from '../hooks/usePlayerIdentity'
+import { usePlayerProfile } from '../hooks/usePlayerProfile'
 import { useRoomChat } from '../hooks/useRoomChat'
 import { emitLeaveLobby, getSocket } from '../lib/socket'
 
@@ -24,6 +25,7 @@ export default function OnlineGamePage() {
   const { playerId, playerName, accessToken, avatarEmoji, identityReady } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
   const lobbyHref = lobbyId ? `/lobby/${lobbyId}` : '/'
+  const { refetch: refetchProfile } = usePlayerProfile()
 
   const {
     gameState,
@@ -102,6 +104,11 @@ export default function OnlineGamePage() {
 
     return false
   }, [gameState, isPresentingDice, playerId])
+
+  useEffect(() => {
+    if (gameState?.status !== 'finished') return
+    void refetchProfile()
+  }, [gameState?.status, refetchProfile])
 
   if (!gameId) {
     return <GameLoadingScreen message="Thiếu mã game." />

@@ -12,12 +12,12 @@ type PlayerProfileContextValue = {
 const PlayerProfileContext = createContext<PlayerProfileContextValue | null>(null)
 
 export function PlayerProfileProvider({ children }: { children: React.ReactNode }) {
-  const { accessToken, isRegistered } = useAuth()
+  const { accessToken } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(false)
 
   const refetch = useCallback(async () => {
-    if (!accessToken || !isRegistered) {
+    if (!accessToken) {
       setProfile(null)
       return
     }
@@ -32,7 +32,7 @@ export function PlayerProfileProvider({ children }: { children: React.ReactNode 
     } finally {
       setLoading(false)
     }
-  }, [accessToken, isRegistered])
+  }, [accessToken])
 
   useEffect(() => {
     void refetch()

@@ -1,6 +1,7 @@
 import type { GameState } from '@rune-race/shared'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ensureProfileRow } from '../lib/ensure-profile'
+import { applyCoinSettlement } from './coin-settlement'
 import { AnalyticsEventWriter, isUuidLike } from './event-writer'
 import { LiveCounters } from './live-counters'
 import { runAnalyticsRollup } from './rollup'
@@ -120,6 +121,7 @@ export class AnalyticsService {
       },
     })
     void this.applyGameResultToProfiles(state)
+    void this.applyCoinSettlementSafe(gameId, state)
   }
 
   async syncCounters(activeLobbies: number, activeGames: number): Promise<void> {
@@ -245,6 +247,16 @@ export class AnalyticsService {
           this.logger.error('analytics_profile_stats_mark_failed', markError)
         }
       }
+    }
+  }
+
+  private async applyCoinSettlementSafe(gameId: string, state: GameState): Promise<void> {
+    const supabase = this.supabase
+    if (!supabase) return
+    try {
+      await applyCoinSettlement(supabase, gameId, state, this.logger)
+    } catch (error) {
+      this.logger.error('coin_settlement_failed', error)
     }
   }
 

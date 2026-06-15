@@ -966,6 +966,8 @@ export function resolveTurn(state: GameState, moveId?: string) {
       playerId: mover.playerId,
       details: {
         capturedTokenId: capturedToken.id,
+        capturedPlayerId: capturedToken.playerId,
+        isFriendlyCapture: capturedToken.playerId === mover.playerId,
         byTokenId: mover.id,
         byPlayerId: mover.playerId,
       },
