@@ -7,6 +7,7 @@ import { RuneLibrary } from '../../components/marketing/RuneLibrary'
 
 const GUIDE_NAV = [
   { href: '#quick-start', label: 'Bắt đầu nhanh' },
+  { href: '#coins', label: 'Hệ thống Xu' },
   { href: '#turn-flow', label: 'Một lượt chơi' },
   { href: '#marker', label: 'Marker bí mật' },
   { href: '#rune-library', label: 'Bộ thẻ Rune' },
@@ -69,6 +70,81 @@ export default function GuidePage() {
               <div className="step-number">4</div>
               <h3>Đọc vị đối thủ</h3>
               <p>Marker có thể hiển thị danh tính giả. Đừng vội tin avatar mà bạn nhìn thấy trên bàn cờ.</p>
+            </Reveal>
+          </div>
+        </section>
+
+        <section className="section section-sm" id="coins">
+          <Reveal className="section-head">
+            <span className="eyebrow">
+              <i className="bi bi-cash-coin" aria-hidden="true" /> Hệ thống Xu
+            </span>
+            <h2 className="section-title">Chơi online để tích Xu</h2>
+            <p className="section-copy">
+              Xu là phần thưởng trên hồ sơ của bạn — xem số dư tại trang Profile và theo dõi biến động trong từng
+              trận online. Chỉ tính cho người chơi thật; bot không nhận Xu.
+            </p>
+          </Reveal>
+          <Reveal className="rule-spotlight surface" style={{ marginBottom: 18 }}>
+            <div className="rule-spotlight-icon" style={{ background: 'linear-gradient(135deg,#ffd740,#e8a000)' }}>
+              <i className="bi bi-gift-fill" aria-hidden="true" />
+            </div>
+            <div>
+              <h3>Quà chào mừng 2.000 Xu</h3>
+              <p>
+                Người chơi đã có tài khoản trước khi hệ thống Xu ra mắt được tặng một lần <strong>2.000 Xu</strong>{' '}
+                vào số dư Profile. Mở Profile để kiểm tra số Xu hiện có trước khi vào trận mới.
+              </p>
+            </div>
+          </Reveal>
+          <div className="step-grid">
+            <Reveal className="step-card surface">
+              <div className="step-number">+50</div>
+              <h3>Đá quân đối thủ</h3>
+              <p>Mỗi lần bạn đá quân của người chơi khác về chuồng trong trận online, bạn nhận 50 Xu.</p>
+            </Reveal>
+            <Reveal className="step-card surface">
+              <div className="step-number">−30</div>
+              <h3>Tự đá quân mình</h3>
+              <p>Đá nhầm quân của chính bạn sẽ bị trừ 30 Xu trong phần thưởng trận đó.</p>
+            </Reveal>
+            <Reveal className="step-card surface">
+              <div className="step-number">🏁</div>
+              <h3>Thưởng về đích</h3>
+              <p>
+                Khi trận kết thúc, thưởng về đích phụ thuộc thứ hạng và số người chơi — về sớm, nhiều người thì Xu
+                càng cao.
+              </p>
+            </Reveal>
+            <Reveal className="step-card surface">
+              <div className="step-number">200</div>
+              <h3>Chưa kịp về đích</h3>
+              <p>
+                Nếu trận đã kết thúc mà bạn chưa đưa đủ quân về đích, bạn vẫn nhận 200 Xu cơ bản thay cho phần thưởng
+                hạng.
+              </p>
+            </Reveal>
+          </div>
+          <div className="split" style={{ marginTop: 20 }}>
+            <Reveal className="story-panel surface">
+              <span className="eyebrow">
+                <i className="bi bi-trophy-fill" aria-hidden="true" /> Ví dụ thưởng về đích
+              </span>
+              <h3>Phòng 4 người</h3>
+              <p>
+                Hạng nhất có thể nhận tới <strong>1.600 Xu</strong>, hạng nhì khoảng <strong>800 Xu</strong>, hạng
+                ba khoảng <strong>400 Xu</strong>. Người về cuối cùng trong số đã về đích nhận 200 Xu cơ bản.
+              </p>
+            </Reveal>
+            <Reveal className="story-panel surface">
+              <span className="eyebrow">
+                <i className="bi bi-person-badge-fill" aria-hidden="true" /> Xem số dư ở đâu?
+              </span>
+              <h3>Profile và trong trận</h3>
+              <p>
+                Số Xu trên Profile là số dư chính thức. Trong trận online, HUD hiển thị biến động Xu của bạn theo từng
+                lượt; màn hình kết thúc tổng hợp phần thưởng trận đó trước khi cộng vào Profile.
+              </p>
             </Reveal>
           </div>
         </section>
