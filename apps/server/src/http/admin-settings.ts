@@ -78,13 +78,14 @@ export function registerAdminSettingsRoutes(fastify: FastifyInstance): void {
       }
 
       let accountNudgeEnabled = await getAccountNudgeEnabled(supabase)
-      if (hasNudge) {
-        if (isAccountNudgeEnvDisabled() && body.accountNudgeEnabled) {
+      if (hasNudge && typeof body.accountNudgeEnabled === 'boolean') {
+        const nextAccountNudgeEnabled = body.accountNudgeEnabled
+        if (isAccountNudgeEnvDisabled() && nextAccountNudgeEnabled) {
           return reply.status(409).send({
             error: 'ACCOUNT_NUDGE_ENABLED=false on server; cannot enable via admin until env is cleared',
           })
         }
-        await setAccountNudgeEnabled(supabase, body.accountNudgeEnabled)
+        await setAccountNudgeEnabled(supabase, nextAccountNudgeEnabled)
         accountNudgeEnabled = await getAccountNudgeEnabled(supabase)
       }
 
