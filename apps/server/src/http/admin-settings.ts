@@ -7,6 +7,12 @@ import {
   isAccountNudgeEnvDisabled,
   setAccountNudgeEnabled,
 } from '../feature-flags/service'
+import {
+  getAdminSiteBanner,
+  SiteBannerValidationError,
+  updateSiteBanner,
+  type SiteBannerPatch,
+} from '../site-banner/service'
 
 function isAdminUser(userId: string): boolean {
   const allowlist = (process.env.ADMIN_USER_IDS ?? '')
@@ -31,8 +37,10 @@ export function registerAdminSettingsRoutes(fastify: FastifyInstance): void {
       }
 
       const flags = await getPublicFeatureFlags(supabase)
+      const banner = await getAdminSiteBanner(supabase)
       return {
         ...flags,
+        ...banner,
         accountNudgeEnvDisabled: isAccountNudgeEnvDisabled(),
       }
     } catch (err) {
@@ -56,22 +64,46 @@ export function registerAdminSettingsRoutes(fastify: FastifyInstance): void {
         return reply.status(503).send({ error: 'Supabase not configured on server' })
       }
 
-      const body = (request.body ?? {}) as { accountNudgeEnabled?: unknown }
-      if (typeof body.accountNudgeEnabled !== 'boolean') {
-        return reply.status(400).send({ error: 'accountNudgeEnabled must be a boolean' })
+      const body = (request.body ?? {}) as {
+        accountNudgeEnabled?: unknown
+        siteBanner?: unknown
       }
 
-      if (isAccountNudgeEnvDisabled() && body.accountNudgeEnabled) {
-        return reply.status(409).send({
-          error: 'ACCOUNT_NUDGE_ENABLED=false on server; cannot enable via admin until env is cleared',
+      const hasNudge = typeof body.accountNudgeEnabled === 'boolean'
+      const hasBanner = body.siteBanner !== null && typeof body.siteBanner === 'object'
+      if (!hasNudge && !hasBanner) {
+        return reply.status(400).send({
+          error: 'Provide accountNudgeEnabled and/or siteBanner',
         })
       }
 
-      await setAccountNudgeEnabled(supabase, body.accountNudgeEnabled)
-      const accountNudgeEnabled = await getAccountNudgeEnabled(supabase)
+      let accountNudgeEnabled = await getAccountNudgeEnabled(supabase)
+      if (hasNudge) {
+        if (isAccountNudgeEnvDisabled() && body.accountNudgeEnabled) {
+          return reply.status(409).send({
+            error: 'ACCOUNT_NUDGE_ENABLED=false on server; cannot enable via admin until env is cleared',
+          })
+        }
+        await setAccountNudgeEnabled(supabase, body.accountNudgeEnabled)
+        accountNudgeEnabled = await getAccountNudgeEnabled(supabase)
+      }
+
+      let banner = await getAdminSiteBanner(supabase)
+      if (hasBanner) {
+        try {
+          banner = await updateSiteBanner(supabase, body.siteBanner as SiteBannerPatch)
+        } catch (err) {
+          if (err instanceof SiteBannerValidationError) {
+            return reply.status(400).send({ error: err.message })
+          }
+          throw err
+        }
+      }
+
       return {
         accountNudgeEnabled,
         accountNudgeEnvDisabled: isAccountNudgeEnvDisabled(),
+        ...banner,
       }
     } catch (err) {
       request.log.error({ err }, 'admin_settings_patch_failed')

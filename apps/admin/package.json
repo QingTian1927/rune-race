@@ -9,6 +9,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@rune-race/shared": "workspace:*",
     "@supabase/supabase-js": "^2.106.2",
     "@tanstack/react-query": "^5.62.8",
     "react": "^18.2.0",
