@@ -21,11 +21,9 @@ export function usePlayerIdentity(): PlayerIdentity {
 
   const playerId = user?.id ?? (authLoading ? '' : getOrCreatePlayerId())
   const playerName = user
-    ? isRegistered && profile?.display_name
-      ? profile.display_name
-      : getDisplayName(user)
+    ? (profile?.display_name ?? getDisplayName(user))
     : getPlayerName()
-  const avatarEmoji = isRegistered ? (profile?.avatar_emoji ?? null) : null
+  const avatarEmoji = profile?.avatar_emoji ?? null
   const isAnon = isAnonUser(user)
   const identityReady =
     !authLoading &&
@@ -46,7 +44,7 @@ export function usePlayerIdentity(): PlayerIdentity {
 }
 
 export function useMyProfilePath(): string | null {
-  const { user, isRegistered } = useAuth()
-  if (isRegistered && user?.id) return `/profile/${user.id}`
+  const { user } = useAuth()
+  if (user?.id) return `/profile/${user.id}`
   return null
 }

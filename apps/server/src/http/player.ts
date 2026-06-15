@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { requireAuthUser } from '../lib/auth'
-import { setAuthDisplayName } from '../lib/supabase-server'
+import { ensureProfileRow } from '../lib/ensure-profile'
+import { getSupabaseAdminClient, setAuthDisplayName } from '../lib/supabase-server'
 
 export function registerPlayerRoutes(fastify: FastifyInstance): void {
   fastify.patch('/api/player/display-name', async (request, reply) => {
@@ -22,6 +23,11 @@ export function registerPlayerRoutes(fastify: FastifyInstance): void {
 
     try {
       await setAuthDisplayName(user.id, name)
+      const supabase = getSupabaseAdminClient()
+      if (supabase) {
+        await ensureProfileRow(supabase, user.id)
+        await supabase.from('profiles').update({ display_name: name }).eq('id', user.id)
+      }
       return { display_name: name }
     } catch (err) {
       return reply.status(500).send({

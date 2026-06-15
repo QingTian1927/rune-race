@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { fetchProfile, updateProfile } from '../lib/api'
-import { getDisplayName } from '../lib/authUser'
+import { fetchProfile, updateDisplayName, updateProfile } from '../lib/api'
+import { getDisplayName, isAnonUser } from '../lib/authUser'
 import { supabase } from '../lib/supabase'
 import { PROFILE_EMOJIS } from '../lib/profileEmojis'
 import { useAuth } from '../hooks/useAuth'
 import { usePlayerProfile } from '../hooks/usePlayerProfile'
+import {
+  ProfileAnonBanner,
+  ProfileLockedFieldsGroup,
+} from '../components/profile/ProfileAnonBanner'
 import { SkyFormStage } from '../components/sky/SkyFormStage'
 import { SkyPageLayout } from '../components/sky/SkyPageLayout'
 import { useSkyPageName } from '../components/sky/useSkyPageName'
@@ -14,7 +18,7 @@ const MAX_BIO_LENGTH = 200
 
 export default function ProfileEditPage() {
   const navigate = useNavigate()
-  const { accessToken, user, loading: authLoading, isRegistered, updateEmail } = useAuth()
+  const { accessToken, user, loading: authLoading, updateEmail } = useAuth()
   const { refetch: refetchProfile } = usePlayerProfile()
   const { name, setName, onNameBlur } = useSkyPageName()
   const [displayName, setDisplayName] = useState('')
@@ -27,9 +31,11 @@ export default function ProfileEditPage() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
+  const isAnon = isAnonUser(user)
+
   useEffect(() => {
     if (authLoading) return
-    if (!isRegistered || !accessToken) {
+    if (!accessToken) {
       setLoading(false)
       return
     }
@@ -44,7 +50,7 @@ export default function ProfileEditPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load profile'))
       .finally(() => setLoading(false))
-  }, [accessToken, authLoading, isRegistered, user])
+  }, [accessToken, authLoading, user])
 
   const handleSave = async () => {
     if (!accessToken) return
@@ -52,6 +58,16 @@ export default function ProfileEditPage() {
     setError(null)
     setInfo(null)
     try {
+      if (isAnon) {
+        const trimmed = displayName.trim()
+        if (!trimmed) throw new Error('Tên hiển thị không được để trống')
+        await updateDisplayName(accessToken, trimmed)
+        await supabase.auth.refreshSession()
+        await refetchProfile()
+        navigate(`/profile/${user?.id ?? ''}`)
+        return
+      }
+
       const trimmedEmail = email.trim()
       if (trimmedEmail && user?.email && trimmedEmail !== user.email) {
         const emailResult = await updateEmail(trimmedEmail)
@@ -78,43 +94,7 @@ export default function ProfileEditPage() {
   const cancelHref = user ? `/profile/${user.id}` : '/'
   const displayEmoji = avatarEmoji || PROFILE_EMOJIS[0]
 
-  if (!authLoading && !isRegistered) {
-    return (
-      <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
-        <SkyFormStage backTo="/">
-          <div className="panel p-yellow">
-            <div className="panel-head">
-              <div className="panel-icon icon-yellow">
-                <i className="bi bi-person-exclamation" aria-hidden="true" />
-              </div>
-              <div>
-                <div className="panel-title">Cần tài khoản</div>
-                <div className="panel-subtitle">
-                  Profile dành cho tài khoản đăng ký. Khách chỉ đổi tên trên trang chủ.
-                </div>
-              </div>
-            </div>
-            <div className="panel-body sky-form-stack">
-              <Link to="/auth/signup" className="game-btn btn-green">
-                <span className="btn-icon">
-                  <i className="bi bi-person-plus-fill" aria-hidden="true" />
-                </span>
-                <span>ĐĂNG KÝ</span>
-              </Link>
-              <Link to="/auth/login" className="game-btn btn-blue">
-                <span className="btn-icon">
-                  <i className="bi bi-box-arrow-in-right" aria-hidden="true" />
-                </span>
-                <span>ĐĂNG NHẬP</span>
-              </Link>
-            </div>
-          </div>
-        </SkyFormStage>
-      </SkyPageLayout>
-    )
-  }
-
-  if (!accessToken && !loading) {
+  if (!authLoading && !accessToken) {
     return (
       <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
         <SkyFormStage backTo="/">
@@ -125,15 +105,21 @@ export default function ProfileEditPage() {
               </div>
               <div>
                 <div className="panel-title">Cần đăng nhập</div>
-                <div className="panel-subtitle">Đăng nhập để chỉnh sửa profile của bạn</div>
+                <div className="panel-subtitle">Đăng nhập hoặc chơi ẩn danh để xem profile</div>
               </div>
             </div>
-            <div className="panel-body">
+            <div className="panel-body sky-form-stack">
               <Link to="/auth/login" className="game-btn btn-blue">
                 <span className="btn-icon">
                   <i className="bi bi-box-arrow-in-right" aria-hidden="true" />
                 </span>
-                <span>ĐẾN TRANG ĐĂNG NHẬP</span>
+                <span>ĐĂNG NHẬP</span>
+              </Link>
+              <Link to="/play" className="game-btn btn-green">
+                <span className="btn-icon">
+                  <i className="bi bi-controller" aria-hidden="true" />
+                </span>
+                <span>CHƠI NGAY</span>
               </Link>
             </div>
           </div>
@@ -148,125 +134,182 @@ export default function ProfileEditPage() {
         {loading ? (
           <p className="sky-loading-text">Đang tải...</p>
         ) : (
-          <>
-            <div className="profile-hero">
-              <div className="profile-avatar-lg">{displayEmoji}</div>
-            </div>
-
+          <div className="profile-page-stack">
             {error ? <div className="sky-alert-error">{error}</div> : null}
             {info ? <div className="sky-alert-success">{info}</div> : null}
 
-            <div className="panel p-yellow">
-              <div className="panel-head">
-                <div className="panel-icon icon-yellow">
-                  <i className="bi bi-pencil-square" aria-hidden="true" />
-                </div>
-                <div>
-                  <div className="panel-title">Chỉnh sửa profile</div>
-                  <div className="panel-subtitle">Cập nhật thông tin hiển thị công khai</div>
-                </div>
-              </div>
-              <div className="panel-body sky-form-stack">
-                <div className="field-block">
-                  <div className="field-label">Tên hiển thị</div>
-                  <div className="input-wrap">
-                    <span className="input-icon">
-                      <i className="bi bi-person-fill" aria-hidden="true" />
-                    </span>
-                    <input
-                      id="profile-name"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="game-input"
-                      maxLength={50}
-                    />
+            {isAnon ? (
+              <>
+                <ProfileAnonBanner />
+                <div className="panel p-yellow">
+                  <div className="panel-head">
+                    <div className="panel-icon icon-yellow">
+                      <i className="bi bi-pencil-square" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="panel-title">Chỉnh sửa profile</div>
+                      <div className="panel-subtitle">Cập nhật tên hiển thị trong game</div>
+                    </div>
+                  </div>
+                  <div className="panel-body sky-form-stack">
+                    <div className="field-block">
+                      <div className="field-label">Tên hiển thị</div>
+                      <div className="input-wrap">
+                        <span className="input-icon">
+                          <i className="bi bi-person-fill" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="profile-name"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="game-input"
+                          maxLength={50}
+                        />
+                      </div>
+                    </div>
+
+                    <ProfileLockedFieldsGroup />
+
+                    <button
+                      type="button"
+                      onClick={() => void handleSave()}
+                      disabled={saving}
+                      className="game-btn btn-green"
+                    >
+                      <span className="btn-icon">
+                        <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                      </span>
+                      <span>{saving ? 'ĐANG LƯU...' : 'LƯU TÊN'}</span>
+                    </button>
+
+                    <Link to={cancelHref} className="game-btn btn-outline">
+                      <span className="btn-icon">
+                        <i className="bi bi-x-circle" aria-hidden="true" />
+                      </span>
+                      <span>HỦY</span>
+                    </Link>
                   </div>
                 </div>
-
-                <div className="field-block">
-                  <div className="field-label">Email</div>
-                  <div className="input-wrap">
-                    <span className="input-icon">
-                      <i className="bi bi-envelope-fill" aria-hidden="true" />
-                    </span>
-                    <input
-                      id="profile-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="game-input"
-                    />
-                  </div>
-                  <p className="profile-field-hint">Đổi email cần xác nhận qua hộp thư mới.</p>
+              </>
+            ) : (
+              <>
+                <div className="profile-hero">
+                  <div className="profile-avatar-lg">{displayEmoji}</div>
                 </div>
 
-                <div className="field-block">
-                  <div className="field-label">SĐT</div>
-                  <div className="input-wrap">
-                    <span className="input-icon">
-                      <i className="bi bi-telephone-fill" aria-hidden="true" />
-                    </span>
-                    <input
-                      id="profile-phone"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="game-input"
-                    />
+                <div className="panel p-yellow">
+                  <div className="panel-head">
+                    <div className="panel-icon icon-yellow">
+                      <i className="bi bi-pencil-square" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="panel-title">Chỉnh sửa profile</div>
+                      <div className="panel-subtitle">Cập nhật thông tin hiển thị công khai</div>
+                    </div>
+                  </div>
+                  <div className="panel-body sky-form-stack">
+                    <div className="field-block">
+                      <div className="field-label">Tên hiển thị</div>
+                      <div className="input-wrap">
+                        <span className="input-icon">
+                          <i className="bi bi-person-fill" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="profile-name"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="game-input"
+                          maxLength={50}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field-block">
+                      <div className="field-label">Email</div>
+                      <div className="input-wrap">
+                        <span className="input-icon">
+                          <i className="bi bi-envelope-fill" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="profile-email"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="game-input"
+                        />
+                      </div>
+                      <p className="profile-field-hint">Đổi email cần xác nhận qua hộp thư mới.</p>
+                    </div>
+
+                    <div className="field-block">
+                      <div className="field-label">SĐT</div>
+                      <div className="input-wrap">
+                        <span className="input-icon">
+                          <i className="bi bi-telephone-fill" aria-hidden="true" />
+                        </span>
+                        <input
+                          id="profile-phone"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="game-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="field-block">
+                      <div className="field-label">Bio</div>
+                      <textarea
+                        id="profile-bio"
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LENGTH))}
+                        rows={4}
+                        className="game-input game-textarea"
+                      />
+                      <div className="profile-char-count">
+                        {bio.length}/{MAX_BIO_LENGTH}
+                      </div>
+                    </div>
+
+                    <div className="field-block">
+                      <div className="field-label">Avatar</div>
+                      <div className="avatar-picker">
+                        {PROFILE_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => setAvatarEmoji(emoji)}
+                            className={`avatar-pick-btn${avatarEmoji === emoji ? ' selected' : ''}`}
+                            aria-label={`Chọn avatar ${emoji}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleSave()}
+                      disabled={saving}
+                      className="game-btn btn-green"
+                    >
+                      <span className="btn-icon">
+                        <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                      </span>
+                      <span>{saving ? 'ĐANG LƯU...' : 'LƯU THAY ĐỔI'}</span>
+                    </button>
+
+                    <Link to={cancelHref} className="game-btn btn-outline">
+                      <span className="btn-icon">
+                        <i className="bi bi-x-circle" aria-hidden="true" />
+                      </span>
+                      <span>HỦY</span>
+                    </Link>
                   </div>
                 </div>
-
-                <div className="field-block">
-                  <div className="field-label">Bio</div>
-                  <textarea
-                    id="profile-bio"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LENGTH))}
-                    rows={4}
-                    className="game-input game-textarea"
-                  />
-                  <div className="profile-char-count">
-                    {bio.length}/{MAX_BIO_LENGTH}
-                  </div>
-                </div>
-
-                <div className="field-block">
-                  <div className="field-label">Avatar</div>
-                  <div className="avatar-picker">
-                    {PROFILE_EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => setAvatarEmoji(emoji)}
-                        className={`avatar-pick-btn${avatarEmoji === emoji ? ' selected' : ''}`}
-                        aria-label={`Chọn avatar ${emoji}`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  className="game-btn btn-green"
-                >
-                  <span className="btn-icon">
-                    <i className="bi bi-check-circle-fill" aria-hidden="true" />
-                  </span>
-                  <span>{saving ? 'ĐANG LƯU...' : 'LƯU THAY ĐỔI'}</span>
-                </button>
-
-                <Link to={cancelHref} className="game-btn btn-outline">
-                  <span className="btn-icon">
-                    <i className="bi bi-x-circle" aria-hidden="true" />
-                  </span>
-                  <span>HỦY</span>
-                </Link>
-              </div>
-            </div>
-          </>
+              </>
+            )}
+          </div>
         )}
       </SkyFormStage>
     </SkyPageLayout>
