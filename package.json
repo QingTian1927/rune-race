@@ -18,7 +18,7 @@
     "dev:host": "node scripts/dev.mjs --host",
     "build": "pnpm -r build",
     "build:web": "pnpm --filter @rune-race/web build",
-    "build:admin": "pnpm --filter @rune-race/admin build",
+    "build:admin": "pnpm build:shared && pnpm --filter @rune-race/admin build",
     "build:server": "pnpm build:shared && pnpm build:game-engine && pnpm build:bot-ai && pnpm --filter @rune-race/server build",
     "build:render": "pnpm build:shared && pnpm build:game-engine && pnpm build:bot-ai && pnpm build:server && pnpm build:web",
     "build:shared": "pnpm --filter @rune-race/shared build",
