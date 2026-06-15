@@ -97,19 +97,19 @@ export default function GuidePage() {
               </p>
             </div>
           </Reveal>
-          <div className="step-grid">
+          <div className="step-grid step-grid--coins">
             <Reveal className="step-card surface">
-              <div className="step-number">+50</div>
+              <div className="step-number step-number--coin">+50</div>
               <h3>Đá quân đối thủ</h3>
               <p>Mỗi lần bạn đá quân của người chơi khác về chuồng trong trận online, bạn nhận 50 Xu.</p>
             </Reveal>
             <Reveal className="step-card surface">
-              <div className="step-number">−30</div>
+              <div className="step-number step-number--coin">−30</div>
               <h3>Tự đá quân mình</h3>
               <p>Đá nhầm quân của chính bạn sẽ bị trừ 30 Xu trong phần thưởng trận đó.</p>
             </Reveal>
             <Reveal className="step-card surface">
-              <div className="step-number">🏁</div>
+              <div className="step-number step-number--coin">🏁</div>
               <h3>Thưởng về đích</h3>
               <p>
                 Khi trận kết thúc, thưởng về đích phụ thuộc thứ hạng và số người chơi — về sớm, nhiều người thì Xu
@@ -117,7 +117,7 @@ export default function GuidePage() {
               </p>
             </Reveal>
             <Reveal className="step-card surface">
-              <div className="step-number">200</div>
+              <div className="step-number step-number--coin">200</div>
               <h3>Chưa kịp về đích</h3>
               <p>
                 Nếu trận đã kết thúc mà bạn chưa đưa đủ quân về đích, bạn vẫn nhận 200 Xu cơ bản thay cho phần thưởng

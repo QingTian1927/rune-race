@@ -630,6 +630,26 @@ body.marketing-active.night .marketing-site .guide-nav a { color: #c8e4ff; backg
 .marketing-site .step-card:nth-child(4n) .step-number { background: linear-gradient(135deg,#ff6b60,#d93025); }
 .marketing-site .step-card h3 { margin: 13px 0 0; font-size: 17px; font-weight: 700; }
 .marketing-site .step-card p { color: #70583e; margin: 7px 0 0; font-size: 13px; line-height: 1.7; }
+.marketing-site .step-number--coin {
+  width: auto;
+  min-width: 0;
+  height: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow: 0 3px 0 rgba(26, 91, 168, 0.18);
+}
+.marketing-site .step-grid--coins .step-card:nth-child(2n) .step-number--coin {
+  box-shadow: 0 3px 0 rgba(40, 148, 76, 0.2);
+}
+.marketing-site .step-grid--coins .step-card:nth-child(3n) .step-number--coin {
+  box-shadow: 0 3px 0 rgba(168, 128, 0, 0.22);
+}
+.marketing-site .step-grid--coins .step-card:nth-child(4n) .step-number--coin {
+  box-shadow: 0 3px 0 rgba(217, 48, 37, 0.2);
+}
 
 .marketing-site .rule-spotlight { padding: 26px; display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
 .marketing-site .rule-spotlight-icon { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 22px; color: #fff; font-size: 30px; background: linear-gradient(135deg,#a96cff,#6b2fe8); box-shadow: 0 6px 0 rgba(87,32,181,.24); }
