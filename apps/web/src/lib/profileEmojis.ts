@@ -1,16 +1,1 @@
-export const PROFILE_EMOJIS = [
-  '🍎',
-  '🍊',
-  '🍋',
-  '🍇',
-  '🍉',
-  '🍓',
-  '🍒',
-  '🥭',
-  '🍍',
-  '🥝',
-  '🫐',
-  '🥥',
-] as const
-
-export type ProfileEmoji = (typeof PROFILE_EMOJIS)[number]
+export { PROFILE_EMOJIS, type ProfileEmoji } from '@rune-race/shared'

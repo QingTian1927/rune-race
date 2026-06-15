@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useProgress } from '@react-three/drei'
 import type { Player, GameState, RuneCardType, RuneClientView } from '@rune-race/shared'
 import {
+  captureCoinDeltaFromEvent,
+  computeCoinSettlement,
+  formatCoinAmount,
   isBoardMarkerCardType,
+  isCoinEligiblePlayer,
   RUNE_DRAW_HAND_THRESHOLD,
   RUNE_MAX_DRAW_PER_PLAYER,
   type HeldCard,
@@ -172,6 +176,9 @@ export default function GameView({
   const [rewardNotice, setRewardNotice] = useState<string | null>(null)
   const rewardNoticeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const rewardEventsCursorRef = useRef({ version: -1, eventCount: 0 })
+  const [coinNotice, setCoinNotice] = useState<string | null>(null)
+  const coinNoticeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const coinEventsCursorRef = useRef({ version: -1, eventCount: 0 })
 
   const finishOrder = useMemo(() => {
     const seen = new Set<string>()
@@ -189,6 +196,24 @@ export default function GameView({
   }, [gameState.events, gameState.players])
 
   const finishOrderIds = useMemo(() => finishOrder.map((player) => player.id), [finishOrder])
+
+  const coinSettlement = useMemo(
+    () => (gameState.status === 'finished' ? computeCoinSettlement(gameState) : null),
+    [gameState],
+  )
+
+  const sessionCoinTotal = useMemo(() => {
+    if (!localPlayerId || !isCoinEligiblePlayer(localPlayerId)) return null
+    if (coinSettlement) return coinSettlement[localPlayerId]?.total ?? 0
+
+    let captureTotal = 0
+    for (const event of gameState.events) {
+      if (event.type !== 'token_captured' || event.playerId !== localPlayerId) continue
+      const delta = captureCoinDeltaFromEvent(event)
+      if (delta !== null) captureTotal += delta
+    }
+    return captureTotal
+  }, [coinSettlement, gameState.events, localPlayerId])
 
   const isLocalPlayersTurn =
     localPlayerId === undefined || gameState.turn.currentPlayerId === localPlayerId
@@ -380,8 +405,9 @@ export default function GameView({
       player,
       rank: index + 1,
       isUnfinished: !finishedIds.has(player.id),
+      coins: coinSettlement?.[player.id] ?? null,
     }))
-  }, [displayedFinishOrder, displayedFinishOrderIds, gameState.players])
+  }, [coinSettlement, displayedFinishOrder, displayedFinishOrderIds, gameState.players])
 
   const playerIds = useMemo(() => gameState.players.map((p) => p.id), [gameState.players])
   const fetchedAvatars = usePlayerAvatars(
@@ -1008,9 +1034,16 @@ export default function GameView({
     rewardNoticeTimerRef.current = window.setTimeout(() => setRewardNotice(null), 5000)
   }, [])
 
+  const showCoinNotice = useCallback((message: string) => {
+    setCoinNotice(message)
+    if (coinNoticeTimerRef.current) window.clearTimeout(coinNoticeTimerRef.current)
+    coinNoticeTimerRef.current = window.setTimeout(() => setCoinNotice(null), 5000)
+  }, [])
+
   useEffect(
     () => () => {
       if (rewardNoticeTimerRef.current) window.clearTimeout(rewardNoticeTimerRef.current)
+      if (coinNoticeTimerRef.current) window.clearTimeout(coinNoticeTimerRef.current)
     },
     [],
   )
@@ -1042,6 +1075,43 @@ export default function GameView({
       }
     }
   }, [gameState.events, gameState.players, gameState.version, localPlayerId, showRewardNotice])
+
+  useEffect(() => {
+    const cursor = coinEventsCursorRef.current
+    const deltaEvents =
+      gameState.version !== cursor.version ? gameState.events.slice(cursor.eventCount) : []
+    coinEventsCursorRef.current = {
+      version: gameState.version,
+      eventCount: gameState.events.length,
+    }
+
+    for (const event of deltaEvents) {
+      if (event.type !== 'token_captured') continue
+      if (!isCoinEligiblePlayer(event.playerId)) continue
+      const delta = captureCoinDeltaFromEvent(event)
+      if (delta === null) continue
+
+      const isMine = Boolean(localPlayerId) && event.playerId === localPlayerId
+      const signedAmount = `${delta >= 0 ? '+' : ''}${formatCoinAmount(delta)}`
+
+      if (isMine) {
+        showCoinNotice(
+          delta >= 0
+            ? `${signedAmount} — đá quân đối thủ`
+            : `${signedAmount} — tự đá quân của bạn`,
+        )
+        continue
+      }
+
+      const playerName =
+        gameState.players.find((p) => p.id === event.playerId)?.name ?? 'Người chơi'
+      showCoinNotice(
+        delta >= 0
+          ? `${playerName} ${signedAmount} (đá quân)`
+          : `${playerName} ${signedAmount} (tự đá quân)`,
+      )
+    }
+  }, [gameState.events, gameState.players, gameState.version, localPlayerId, showCoinNotice])
 
   useEffect(() => {
     if (!runePlacementActive) return
@@ -1165,7 +1235,11 @@ export default function GameView({
               isLocalTurn={isMyTurn}
               avatarEmoji={avatarFor(displayedTurnPlayer?.id)}
             />
-            <MyPlayerPanel player={localPlayer} avatarEmoji={avatarFor(localPlayer?.id)} />
+            <MyPlayerPanel
+              player={localPlayer}
+              avatarEmoji={avatarFor(localPlayer?.id)}
+              sessionCoinTotal={sessionCoinTotal}
+            />
             <FinishOrderPanel
               players={displayedFinishOrder}
               avatarsByPlayerId={avatarsByPlayerId}
@@ -1319,6 +1393,19 @@ export default function GameView({
                   {placementNotice}
                 </p>
               </div>
+            ) : coinNotice ? (
+              <div className="game-hud-slot game-hud-slot--placement-hint">
+                <p
+                  className={[
+                    'rune-placement-hint',
+                    coinNotice.includes('-') ? 'rune-placement-hint--error' : 'rune-placement-hint--info',
+                  ].join(' ')}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {coinNotice}
+                </p>
+              </div>
             ) : rewardNotice ? (
               <div className="game-hud-slot game-hud-slot--placement-hint">
                 <p className="rune-placement-hint rune-placement-hint--info" role="status" aria-live="polite">
@@ -1396,6 +1483,7 @@ export default function GameView({
         countdownSeconds={endCountdownSeconds}
         returnDestinationLabel={returnDestinationLabel}
         avatarsByPlayerId={avatarsByPlayerId}
+        localPlayerId={localPlayerId}
         onLeave={handleLeaveNow}
       />
 

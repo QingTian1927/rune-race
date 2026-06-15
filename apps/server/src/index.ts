@@ -19,6 +19,7 @@ import { AnalyticsService } from './analytics/service'
 import { registerAdminAnalyticsRoutes } from './http/admin-analytics'
 import { registerFeatureFlagRoutes } from './http/feature-flags'
 import { registerAdminSettingsRoutes } from './http/admin-settings'
+import { registerSiteBannerRoutes } from './http/site-banner'
 import { registerAdminUsersReportRoutes } from './http/admin-users-report'
 import { registerHealthRoutes } from './http/health'
 import { resolveCorsOrigins } from './lib/cors-origins'
@@ -63,6 +64,7 @@ registerPlayerRoutes(fastify)
 registerAuthRoutes(fastify)
 registerAdminAnalyticsRoutes(fastify, analyticsService)
 registerFeatureFlagRoutes(fastify)
+registerSiteBannerRoutes(fastify)
 registerAdminSettingsRoutes(fastify)
 registerAdminUsersReportRoutes(fastify)
 registerHealthRoutes(fastify, {

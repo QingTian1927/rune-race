@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FeatureFlagsPanel } from '../components/FeatureFlagsPanel'
+import { SiteBannerPanel } from '../components/SiteBannerPanel'
 import { KpiCard } from '../components/KpiCard'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError, fetchLive, fetchTimeseries, fetchTopPlayers } from '../lib/api'
@@ -83,6 +84,7 @@ export default function DashboardPage() {
       </header>
 
       <FeatureFlagsPanel />
+      <SiteBannerPanel />
 
       {isLoading ? <p className="muted">Đang tải dữ liệu...</p> : null}
       {anyError && !(anyError instanceof ApiError && anyError.status === 403) ? (

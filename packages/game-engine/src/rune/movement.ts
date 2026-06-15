@@ -592,6 +592,8 @@ function applyCellOccupancyKick(
             tokenId: moverTokenId,
             playerId: mover.playerId,
             capturedTokenId: captured.id,
+            capturedPlayerId: captured.playerId,
+            isFriendlyCapture: captured.playerId === mover.playerId,
             from: pathTo,
             to: { state: 'in_base', position: captureSlot },
           },

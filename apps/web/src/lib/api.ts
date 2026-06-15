@@ -23,6 +23,7 @@ export type Profile = {
   total_games: number
   total_wins: number
   total_losses: number
+  coins: number
   last_played_at: string | null
 }
 
@@ -40,10 +41,26 @@ export type FeatureFlags = {
   accountNudgeEnabled: boolean
 }
 
+export type PublicSiteBannerPayload = {
+  active: boolean
+  banner: {
+    id: string
+    message: string
+    linkUrl: string | null
+    linkLabel: string
+  } | null
+}
+
 export async function fetchFeatureFlags(): Promise<FeatureFlags> {
   const res = await fetch(`${API_BASE}/api/public/feature-flags`)
   if (!res.ok) throw new Error('Failed to load feature flags')
   return res.json() as Promise<FeatureFlags>
+}
+
+export async function fetchSiteBanner(): Promise<PublicSiteBannerPayload> {
+  const res = await fetch(`${API_BASE}/api/public/site-banner`)
+  if (!res.ok) throw new Error('Failed to load site banner')
+  return res.json() as Promise<PublicSiteBannerPayload>
 }
 
 export async function fetchPublicRooms(): Promise<PublicRoom[]> {

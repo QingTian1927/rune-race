@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { GameHeader } from './GameHeader'
+import { SiteBanner } from '../banner/SiteBanner'
 
 type SkyPageLayoutProps = {
   children: ReactNode
@@ -21,6 +22,7 @@ export function SkyPageLayout({
 }: SkyPageLayoutProps) {
   return (
     <div className="page">
+      <SiteBanner placement="sky" />
       <GameHeader
         name={playerName}
         onNameChange={onPlayerNameChange}

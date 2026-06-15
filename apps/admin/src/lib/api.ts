@@ -1,4 +1,5 @@
 import { API_BASE } from '../config'
+import type { SiteBannerAdminStatus, SiteBannerConfig } from '@rune-race/shared'
 
 export type LiveSnapshot = {
   onlineNow: number
@@ -90,9 +91,20 @@ export async function fetchTimeseries(
   return payload.points
 }
 
+export type SiteBannerFormPatch = {
+  enabled: boolean
+  message: string
+  linkUrl: string | null
+  linkLabel: string
+  visibleFrom: string | null
+  visibleUntil: string | null
+}
+
 export type AdminSettings = {
   accountNudgeEnabled: boolean
   accountNudgeEnvDisabled: boolean
+  siteBanner: SiteBannerConfig | null
+  siteBannerStatus: SiteBannerAdminStatus
 }
 
 export type ReadinessCheckStatus = 'ok' | 'warn' | 'fail' | 'skipped'
@@ -131,7 +143,7 @@ export function fetchAdminSettings(accessToken: string): Promise<AdminSettings> 
 
 export function updateAdminSettings(
   accessToken: string,
-  patch: { accountNudgeEnabled: boolean },
+  patch: { accountNudgeEnabled?: boolean; siteBanner?: SiteBannerFormPatch },
 ): Promise<AdminSettings> {
   return adminFetch<AdminSettings>('/api/admin/settings', accessToken, {
     method: 'PATCH',

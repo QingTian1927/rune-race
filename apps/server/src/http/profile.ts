@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import type { User } from '@supabase/supabase-js'
-import { isRegisteredAccount } from '@rune-race/shared'
+import { isRegisteredAccount, isAllowedProfileEmoji } from '@rune-race/shared'
 import { isRegisteredUser, requireAuthUser } from '../lib/auth'
+import { ensureProfileRow, ensureProfileRowAndSelect } from '../lib/ensure-profile'
 import {
   mapDbProfileRow,
   PROFILE_SELECT_COLUMNS,
@@ -20,20 +21,6 @@ export type PublicProfileResponse = Omit<ProfileRow, 'is_anon' | 'phone' | 'stor
 }
 
 const MAX_BIO_LENGTH = 200
-const ALLOWED_AVATARS = new Set([
-  '🍎',
-  '🍊',
-  '🍋',
-  '🍇',
-  '🍉',
-  '🍓',
-  '🍒',
-  '🥭',
-  '🍍',
-  '🥝',
-  '🫐',
-  '🥥',
-])
 
 function fullNameFromUser(user: User): string | null {
   const meta = user.user_metadata as Record<string, unknown>
@@ -137,20 +124,32 @@ async function ensureRegisteredProfileRow(
   return { row: mapDbProfileRow(insert.data), error: null, status: 200 }
 }
 
+async function ensureAuthProfileRow(
+  supabase: NonNullable<ReturnType<typeof getSupabaseAdminClient>>,
+  user: User,
+): Promise<{ row: ProfileRow | null; error: string | null; status: number }> {
+  if (isRegisteredUser(user)) {
+    return ensureRegisteredProfileRow(supabase, user)
+  }
+
+  const row = await ensureProfileRowAndSelect(supabase, user.id)
+  if (!row) {
+    return { row: null, error: 'Profile not found', status: 404 }
+  }
+  return { row, error: null, status: 200 }
+}
+
 export function registerProfileRoutes(fastify: FastifyInstance): void {
   fastify.get('/api/profile', async (request, reply) => {
     const user = await requireAuthUser(request, reply)
     if (!user) return
-    if (!isRegisteredUser(user)) {
-      return reply.status(403).send({ error: 'Profile requires a registered account' })
-    }
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
       return reply.status(503).send({ error: 'Supabase not configured on server' })
     }
 
-    const ensured = await ensureRegisteredProfileRow(supabase, user)
+    const ensured = await ensureAuthProfileRow(supabase, user)
     if (!ensured.row) {
       return reply.status(ensured.status).send({ error: ensured.error ?? 'Profile not found' })
     }
@@ -192,9 +191,6 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
   fastify.patch('/api/profile', async (request, reply) => {
     const user = await requireAuthUser(request, reply)
     if (!user) return
-    if (!isRegisteredUser(user)) {
-      return reply.status(403).send({ error: 'Profile requires a registered account' })
-    }
 
     const supabase = getSupabaseAdminClient()
     if (!supabase) {
@@ -208,7 +204,20 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
       displayName?: string
     }
 
-    if (
+    const isAnon = !isRegisteredUser(user)
+
+    if (isAnon) {
+      if (
+        typeof body.bio === 'string' ||
+        typeof body.avatarEmoji === 'string' ||
+        typeof body.phone === 'string'
+      ) {
+        return reply.status(403).send({ error: 'Registered account required to edit this field' })
+      }
+      if (typeof body.displayName !== 'string') {
+        return reply.status(400).send({ error: 'No changes' })
+      }
+    } else if (
       typeof body.displayName !== 'string' &&
       typeof body.bio !== 'string' &&
       typeof body.avatarEmoji !== 'string' &&
@@ -249,7 +258,7 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
     }
     if (typeof body.avatarEmoji === 'string') {
       const avatar = body.avatarEmoji.trim()
-      if (avatar && !ALLOWED_AVATARS.has(avatar)) {
+      if (avatar && !isAllowedProfileEmoji(avatar)) {
         return reply.status(400).send({ error: 'Invalid avatar' })
       }
       patch.avatar_emoji = avatar || null
@@ -259,11 +268,12 @@ export function registerProfileRoutes(fastify: FastifyInstance): void {
     }
 
     if (Object.keys(patch).length > 0) {
-      const { error } = await supabase
-        .from('profiles')
-        .update(patch)
-        .eq('id', user.id)
-        .eq('is_anon', false)
+      await ensureProfileRow(supabase, user.id)
+      let updateQuery = supabase.from('profiles').update(patch).eq('id', user.id)
+      if (!isAnon) {
+        updateQuery = updateQuery.eq('is_anon', false)
+      }
+      const { error } = await updateQuery
 
       if (error) {
         return reply.status(500).send({ error: error.message })

@@ -1,0 +1,136 @@
+/* Compact announcement strip below site headers (marketing) or fixed top (sky) */
+.site-banner {
+  width: 100%;
+  align-self: stretch;
+  background: #ffd740;
+  color: #1a1200;
+  border-bottom: 2px solid #e8a000;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.site-banner--sky {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  align-self: auto;
+}
+
+html.site-banner-sky-active .top-nav {
+  top: calc(var(--site-banner-height, 40px) + 8px);
+}
+
+html.site-banner-sky-active .game-header {
+  padding-top: calc(28px + var(--site-banner-height, 40px));
+}
+
+.site-banner-inner {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.45rem 3rem 0.45rem 1rem;
+}
+
+.site-banner-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  min-width: 0;
+  max-width: min(980px, calc(100% - 1rem));
+}
+
+.site-banner-text {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.site-banner-link {
+  flex-shrink: 0;
+  color: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.site-banner-link:hover {
+  color: #000;
+}
+
+.site-banner-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 3rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #1a1200;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.site-banner-close-icon {
+  width: 1.45rem;
+  height: 1.45rem;
+  display: block;
+  flex-shrink: 0;
+}
+
+.site-banner-close:hover {
+  color: #000;
+  background: rgba(26, 18, 0, 0.1);
+}
+
+@media (max-width: 760px) {
+  html.site-banner-sky-active .top-nav {
+    top: calc(var(--site-banner-height, 40px) + 6px);
+  }
+
+  html.site-banner-sky-active .game-header {
+    padding-top: calc(20px + var(--site-banner-height, 40px));
+  }
+}
+
+@media (max-width: 640px) {
+  .site-banner-inner {
+    padding-right: 2.75rem;
+    padding-left: 0.75rem;
+  }
+
+  .site-banner-message {
+    gap: 0.5rem;
+  }
+
+  .site-banner-text {
+    font-size: 0.8125rem;
+  }
+
+  .site-banner-close {
+    width: 2.75rem;
+  }
+
+  .site-banner-close-icon {
+    width: 1.35rem;
+    height: 1.35rem;
+  }
+}

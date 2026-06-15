@@ -20,17 +20,15 @@ export function GameHeader({ name, onNameChange, onNameBlur, topNavExtra }: Game
     <div className="game-header" style={{ position: 'relative', width: '100%', maxWidth: '980px' }}>
       <div className="top-nav">
         {topNavExtra}
+        {profilePath ? (
+          <Link to={profilePath} className="nav-btn">
+            Profile
+          </Link>
+        ) : null}
         {isRegistered ? (
-          <>
-            {profilePath ? (
-              <Link to={profilePath} className="nav-btn">
-                Profile
-              </Link>
-            ) : null}
-            <button type="button" className="nav-btn" onClick={() => void signOut()}>
-              Đăng xuất
-            </button>
-          </>
+          <button type="button" className="nav-btn" onClick={() => void signOut()}>
+            Đăng xuất
+          </button>
         ) : (
           <>
             <Link to="/auth/login" className="nav-btn">

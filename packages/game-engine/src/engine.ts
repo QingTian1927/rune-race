@@ -992,6 +992,8 @@ export function resolveTurn(state: GameState, moveId?: string) {
         tokenId: moveToken.id,
         playerId: moveToken.playerId,
         capturedTokenId: captureCandidate.id,
+        capturedPlayerId: captureCandidate.playerId,
+        isFriendlyCapture: false,
         from: pathInfo.to,
         to: {
           state: 'in_base',

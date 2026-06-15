@@ -10,6 +10,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@rune-race/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.106.2
         version: 2.106.2

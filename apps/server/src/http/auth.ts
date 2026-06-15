@@ -71,6 +71,7 @@ export function registerAuthRoutes(fastify: FastifyInstance): void {
       total_games: (registered.total_games ?? 0) + (anon.total_games ?? 0),
       total_wins: (registered.total_wins ?? 0) + (anon.total_wins ?? 0),
       total_losses: (registered.total_losses ?? 0) + (anon.total_losses ?? 0),
+      coins: (registered.coins ?? 0) + (anon.coins ?? 0),
       ...statsUpdateFromMergedSeconds(mergePlayedSeconds(registered, anon)),
     }
 

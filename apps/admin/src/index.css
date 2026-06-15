@@ -526,6 +526,71 @@ code,
   cursor: not-allowed;
 }
 
+.site-banner-panel {
+  margin-bottom: 1.5rem;
+}
+
+.site-banner-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.site-banner-status {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.site-banner-status-live strong {
+  color: #15803d;
+}
+
+.site-banner-status-expired strong {
+  color: #b45309;
+}
+
+.site-banner-toggle-row {
+  margin: 0;
+}
+
+.site-banner-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.site-banner-field span {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.site-banner-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.site-banner-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.alert-success {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+@media (max-width: 720px) {
+  .site-banner-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .page-header-actions {
   display: flex;
   flex-wrap: wrap;

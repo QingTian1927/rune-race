@@ -4003,6 +4003,325 @@ a.game-btn {
   background: rgba(255, 255, 255, 0.75);
 }
 
+.game-hud-finish-item--local {
+  border-color: rgba(255, 196, 84, 0.95);
+  box-shadow: 0 0 0 1px rgba(255, 196, 84, 0.35);
+}
+
+.game-hud-coin-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.game-hud-coin-amount {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-mid);
+}
+
+.game-hud-coin-amount--gain {
+  color: #1f7a45;
+}
+
+.game-hud-coin-amount--loss {
+  color: #b42318;
+}
+
+.game-hud-coin-breakdown-detail {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(74, 55, 40, 0.72);
+}
+
+.game-hud-session-coins {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1f7a45;
+}
+
+.game-hud-session-coins--loss {
+  color: #b42318;
+}
+
+.profile-stat-value--coins {
+  font-weight: 800;
+}
+
+.profile-anon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #7a4a00;
+  background: rgba(255, 217, 125, 0.35);
+  border: 2px solid rgba(244, 166, 35, 0.55);
+}
+
+.profile-hero--anon {
+  margin-bottom: 0;
+}
+
+.profile-hero--anon .profile-display-name {
+  margin-top: 0;
+}
+
+.profile-page-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.profile-page-stack .panel {
+  margin-bottom: 0;
+}
+
+.profile-anon-banner-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+
+.profile-anon-unlock-list {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b3a00;
+  line-height: 1.55;
+}
+
+.profile-anon-banner-cta {
+  width: 100%;
+}
+
+.profile-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff4e8, #ffe8cc);
+  border: 2px solid rgba(180, 83, 9, 0.35);
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-lock-badge--sm {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.profile-stat-row--locked {
+  background: rgba(255, 248, 232, 0.65);
+  margin: 0 -4px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 2px dashed rgba(180, 83, 9, 0.28);
+}
+
+.profile-stat-value--locked {
+  color: rgba(107, 58, 0, 0.62);
+  font-style: italic;
+  font-weight: 700;
+  text-align: right;
+}
+
+.profile-locked-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255, 251, 240, 0.95), rgba(255, 242, 220, 0.85));
+  border: 2px dashed rgba(180, 83, 9, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+.profile-locked-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.profile-locked-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #6b3a00;
+}
+
+.profile-locked-section-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(74, 55, 40, 0.72);
+  line-height: 1.45;
+}
+
+.profile-locked-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.profile-locked-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(180, 83, 9, 0.15);
+}
+
+.profile-locked-field--wide {
+  grid-column: 1 / -1;
+}
+
+.profile-locked-field-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(74, 55, 40, 0.55);
+}
+
+.profile-locked-field-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(74, 55, 40, 0.45);
+  font-style: italic;
+}
+
+.profile-locked-section-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2a6fc0;
+  text-decoration: none;
+  background: linear-gradient(135deg, #eef8ff, #d0eaff);
+  border: 2px solid #7ab8f5;
+  box-shadow: 0 2px 0 #4a8ed0;
+  transition: transform 0.15s;
+}
+
+.profile-locked-section-link:hover {
+  transform: translateY(-1px);
+}
+
+.profile-locked-avatar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-locked-avatar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profile-locked-avatar-desc {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(74, 55, 40, 0.72);
+  line-height: 1.45;
+}
+
+.profile-locked-avatar-picker {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 2px dashed rgba(180, 83, 9, 0.22);
+  overflow: hidden;
+}
+
+.profile-locked-avatar-option {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 3px solid #ffe080;
+  background: linear-gradient(135deg, #ffffff, #fff8e8);
+  font-size: 22px;
+  line-height: 44px;
+  text-align: center;
+  opacity: 0.72;
+  filter: grayscale(0.15);
+  box-shadow: 0 2px 0 #e8c840;
+  user-select: none;
+}
+
+.profile-locked-avatar-option--sample {
+  opacity: 1;
+  filter: none;
+  border-color: #ffb300;
+  box-shadow: 0 0 0 2px rgba(255, 179, 0, 0.2), 0 2px 0 #e8c840;
+}
+
+.profile-locked-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 251, 240, 0.52);
+  color: #9a3412;
+  font-size: 28px;
+  pointer-events: none;
+}
+
+.profile-locked-avatar--compact .profile-locked-avatar-picker {
+  margin-top: 4px;
+  padding: 8px;
+}
+
+.profile-stat-row--locked-wide {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.profile-stat-row--locked-wide .profile-stat-value {
+  text-align: left;
+}
+
+.profile-stat-locked-block {
+  width: 100%;
+}
+
+.profile-stat-locked-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .game-hud-finish-rank {
   width: 22px;
   font-size: 13px;
