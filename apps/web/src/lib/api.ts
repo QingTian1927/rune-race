@@ -1,3 +1,4 @@
+import type { HouseSkinDefinition, HouseSkinId } from '@rune-race/shared'
 import { API_BASE } from '../config'
 
 export type PublicRoom = {
@@ -24,6 +25,7 @@ export type Profile = {
   total_wins: number
   total_losses: number
   coins: number
+  equipped_house_id: HouseSkinId
   last_played_at: string | null
 }
 
@@ -202,4 +204,68 @@ export async function linkAnonProfile(accessToken: string, anonId: string) {
   })
   if (!res.ok) throw new Error('Failed to link anon profile')
   return res.json() as Promise<{ merged: boolean; profile: Profile }>
+}
+
+export type ShopInventory = {
+  coins: number
+  equippedHouseId: HouseSkinId
+  ownedHouseIds: HouseSkinId[]
+}
+
+export async function fetchShopCatalog(): Promise<{ houses: HouseSkinDefinition[] }> {
+  const res = await fetch(`${API_BASE}/api/shop/catalog`)
+  if (!res.ok) throw new Error('Failed to load shop catalog')
+  return res.json() as Promise<{ houses: HouseSkinDefinition[] }>
+}
+
+export async function fetchShopInventory(accessToken: string): Promise<ShopInventory> {
+  const res = await fetch(`${API_BASE}/api/shop/inventory`, {
+    headers: authHeaders(accessToken),
+  })
+  if (res.status === 401) throw new Error('SESSION_EXPIRED')
+  if (!res.ok) throw new Error('Failed to load shop inventory')
+  return res.json() as Promise<ShopInventory>
+}
+
+export async function purchaseHouse(accessToken: string, houseId: HouseSkinId): Promise<ShopInventory> {
+  const res = await fetch(`${API_BASE}/api/shop/purchase`, {
+    method: 'POST',
+    headers: jsonHeaders(accessToken),
+    body: JSON.stringify({ houseId }),
+  })
+  if (res.status === 401) throw new Error('SESSION_EXPIRED')
+  if (res.status === 402) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? 'Insufficient coins')
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? 'Purchase failed')
+  }
+  const data = (await res.json()) as ShopInventory & { purchasedHouseId?: HouseSkinId }
+  return {
+    coins: data.coins,
+    equippedHouseId: data.equippedHouseId,
+    ownedHouseIds: data.ownedHouseIds,
+  }
+}
+
+export async function equipHouse(accessToken: string, houseId: HouseSkinId): Promise<ShopInventory> {
+  const res = await fetch(`${API_BASE}/api/shop/equip`, {
+    method: 'PATCH',
+    headers: jsonHeaders(accessToken),
+    body: JSON.stringify({ houseId }),
+  })
+  if (res.status === 401) throw new Error('SESSION_EXPIRED')
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? 'Equip failed')
+  }
+  return res.json() as Promise<ShopInventory>
+}
+
+export async function fetchPlayerCosmetics(playerId: string): Promise<{ equippedHouseId: HouseSkinId }> {
+  const res = await fetch(`${API_BASE}/api/players/${encodeURIComponent(playerId)}/cosmetics`)
+  if (!res.ok) throw new Error('Failed to load player cosmetics')
+  return res.json() as Promise<{ equippedHouseId: HouseSkinId }>
 }

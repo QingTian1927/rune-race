@@ -24,7 +24,7 @@ export default function OnlineGamePage() {
   const navigate = useNavigate()
   const { playerId, playerName, accessToken, avatarEmoji, identityReady } = usePlayerIdentity()
   const lobbyId = sessionStorage.getItem('rune-race-lobby-id')
-  const lobbyHref = lobbyId ? `/lobby/${lobbyId}` : '/'
+  const lobbyHref = lobbyId ? `/lobby/${lobbyId}` : '/play'
   const { refetch: refetchProfile } = usePlayerProfile()
 
   const {

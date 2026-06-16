@@ -16,12 +16,13 @@ export type ProfileRow = {
   total_wins: number
   total_losses: number
   coins: number
+  equipped_house_id: string
   last_played_at: string | null
 }
 
 /** Columns present on both legacy and v2 schemas (safe to select). */
 export const PROFILE_SELECT_COLUMNS =
-  'id, full_name, display_name, phone, bio, avatar_emoji, is_anon, total_games, total_wins, total_losses, total_played_hours, total_played_seconds, last_played_at, coins'
+  'id, full_name, display_name, phone, bio, avatar_emoji, is_anon, total_games, total_wins, total_losses, total_played_hours, total_played_seconds, last_played_at, coins, equipped_house_id'
 
 type DbProfileRow = {
   id: string
@@ -38,6 +39,7 @@ type DbProfileRow = {
   last_played_at?: string | null
   display_name?: string | null
   coins?: number | null
+  equipped_house_id?: string | null
 }
 
 export function playedSecondsFromRow(row: DbProfileRow | Record<string, unknown>): number {
@@ -61,6 +63,10 @@ export function mapDbProfileRow(row: DbProfileRow): ProfileRow {
     total_wins: row.total_wins ?? 0,
     total_losses: row.total_losses ?? 0,
     coins: row.coins ?? 0,
+    equipped_house_id:
+      typeof row.equipped_house_id === 'string' && row.equipped_house_id.trim()
+        ? row.equipped_house_id.trim()
+        : 'house_default',
     last_played_at: row.last_played_at ?? null,
   }
 }

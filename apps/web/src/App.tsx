@@ -16,6 +16,7 @@ import AuthLoginPage from './pages/AuthLogin'
 import AuthSignupPage from './pages/AuthSignup'
 import ProfileViewPage from './pages/ProfileView'
 import ProfileEditPage from './pages/ProfileEdit'
+import ShopPage from './pages/ShopPage'
 import { AuthProvider } from './hooks/useAuth'
 import { FeatureFlagsProvider } from './hooks/useFeatureFlags'
 import { PlayerProfileProvider } from './hooks/usePlayerProfile'
@@ -53,6 +54,7 @@ export function AppRoutes() {
         <Route path="/auth/signup" element={<AuthSignupPage />} />
         <Route path="/profile/edit" element={<ProfileEditPage />} />
         <Route path="/profile/:profileId" element={<ProfileViewPage />} />
+        <Route path="/shop" element={<ShopPage />} />
         <Route path="/lobby/:lobbyId" element={<LobbyPage />} />
       </Route>
       <Route path="/game/:gameId" element={<OnlineGamePage />} />

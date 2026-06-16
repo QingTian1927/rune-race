@@ -97,7 +97,7 @@ export default function ProfileEditPage() {
   if (!authLoading && !accessToken) {
     return (
       <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
-        <SkyFormStage backTo="/">
+        <SkyFormStage backTo="/play">
           <div className="panel p-blue">
             <div className="panel-head">
               <div className="panel-icon icon-blue">

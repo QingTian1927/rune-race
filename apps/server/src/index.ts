@@ -12,6 +12,7 @@ import { setupSocketHandlers } from './socket/handlers'
 import { registerRoomRoutes } from './http/rooms'
 import { MatchmakingQueue, registerMatchmakingRoutes } from './http/matchmaking'
 import { registerProfileRoutes } from './http/profile'
+import { registerShopRoutes } from './http/shop'
 import { registerPlayerRoutes } from './http/player'
 import { registerAuthRoutes } from './http/auth'
 import { getSupabaseAdminClient } from './lib/supabase-server'
@@ -60,6 +61,7 @@ setInterval(() => {
 registerRoomRoutes(fastify, lobbyStore)
 registerMatchmakingRoutes(fastify, matchmaking)
 registerProfileRoutes(fastify)
+registerShopRoutes(fastify)
 registerPlayerRoutes(fastify)
 registerAuthRoutes(fastify)
 registerAdminAnalyticsRoutes(fastify, analyticsService)

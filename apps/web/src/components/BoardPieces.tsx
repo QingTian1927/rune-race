@@ -5,6 +5,8 @@ import * as THREE from 'three'
 import type { GameState, Token } from '@rune-race/shared'
 import boardLayout from '../../data/board-layout.json'
 import { boardSlotForPlayer } from '../utils/boardSlots'
+import HouseModel from './houses/HouseModel'
+import type { HouseSkinId } from '@rune-race/shared'
 import {
   extractCaptureDetailsFromDelta,
   extractMoveDetailsFromDelta,
@@ -178,6 +180,7 @@ interface BoardPiecesProps {
   boardImpactFeedback?: BoardImpactFeedback
   graphicsQuality?: GraphicsQuality
   shadowsEnabled?: boolean
+  houseSkinsByPlayerId?: Record<string, HouseSkinId>
 }
 
 type CaptureMotion = {
@@ -1894,75 +1897,6 @@ function SwapExchangeArcLine({
   )
 }
 
-function HousePlaceholder({
-  box,
-  color = '#ffffff',
-  cartoonMaterials = true,
-  basicMaterials = false,
-  castShadow = true,
-}: {
-  box: any
-  color?: string
-  cartoonMaterials?: boolean
-  basicMaterials?: boolean
-  castShadow?: boolean
-}) {
-  if (!box) return null
-  const cx = (box.minX + box.maxX) / 2
-  const cy = (box.minY + box.maxY) / 2
-  const cz = (box.minZ + box.maxZ) / 2
-  const w = box.maxX - box.minX
-  const h = box.maxY - box.minY
-  const d = box.maxZ - box.minZ
-
-  // base + roof + chimney
-  const baseColor = new THREE.Color(color)
-  const roofColor = baseColor.clone().offsetHSL(0, 0, -0.18).getStyle()
-  const chimneyColor = baseColor.clone().offsetHSL(0, -0.4, -0.45).getStyle()
-  const gradientMap = cartoonMaterials ? getBoardGradientMap() : undefined
-
-  const BaseMat = cartoonMaterials ? (
-    <meshToonMaterial color={color} gradientMap={gradientMap} />
-  ) : basicMaterials ? (
-    <meshBasicMaterial color={color} />
-  ) : (
-    <meshLambertMaterial color={color} />
-  )
-  const RoofMat = cartoonMaterials ? (
-    <meshToonMaterial color={roofColor} gradientMap={gradientMap} />
-  ) : basicMaterials ? (
-    <meshBasicMaterial color={roofColor} />
-  ) : (
-    <meshLambertMaterial color={roofColor} />
-  )
-  const ChimneyMat = cartoonMaterials ? (
-    <meshToonMaterial color={chimneyColor} gradientMap={gradientMap} />
-  ) : basicMaterials ? (
-    <meshBasicMaterial color={chimneyColor} />
-  ) : (
-    <meshLambertMaterial color={chimneyColor} />
-  )
-
-  return (
-    <group position={[cx, cy, cz]} rotation-y={box.rotationY ?? 0}>
-      <mesh position={[0, -h * 0.12, 0]} castShadow={castShadow}>
-        <boxGeometry args={[w * 0.9, h * 0.6, d * 0.9]} />
-        {BaseMat}
-      </mesh>
-
-      <mesh position={[0, h * 0.18, 0]} rotation={[0, 0, 0]} castShadow={castShadow}>
-        <boxGeometry args={[w * 0.98, h * 0.2, d * 0.98]} />
-        {RoofMat}
-      </mesh>
-
-      <mesh position={[w * 0.28, h * 0.22, -d * 0.18]} castShadow={castShadow}>
-        <boxGeometry args={[w * 0.12, h * 0.18, d * 0.12]} />
-        {ChimneyMat}
-      </mesh>
-    </group>
-  )
-}
-
 function PawnInstance({
   token,
   playerIndex,
@@ -2759,6 +2693,7 @@ export default function BoardPieces({
   boardImpactFeedback,
   graphicsQuality = 'high',
   shadowsEnabled = true,
+  houseSkinsByPlayerId,
 }: BoardPiecesProps) {
   const markerVisibility = useRuneMarkerVisibility()
   const triggerFlash = useRuneTriggerFlash()
@@ -4089,11 +4024,13 @@ export default function BoardPieces({
       {gameState.players.map((p) => {
         const slot = boardSlotForPlayer(gameState.players, p.id)
         const home = layout.players?.[slot]?.home ?? null
+        const skinId = houseSkinsByPlayerId?.[p.id] ?? 'house_default'
         return (
-          <HousePlaceholder
+          <HouseModel
             key={`house-${p.id}`}
             box={home}
-            color={PLAYER_COLOR_HEX[p.color] ?? '#ddd'}
+            skinId={skinId}
+            color={p.color}
             cartoonMaterials={cartoonMaterials}
             basicMaterials={basicMaterials}
             castShadow={shadowsEnabled}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { HOUSE_CATALOG } from '@rune-race/shared'
 import { fetchProfile, fetchProfileById, type PublicProfile } from '../lib/api'
 import { isAnonUser } from '../lib/authUser'
 import { supabase } from '../lib/supabase'
@@ -62,7 +63,7 @@ export default function ProfileViewPage() {
 
   return (
     <SkyPageLayout playerName={name} onPlayerNameChange={setName} onPlayerNameBlur={onNameBlur}>
-      <SkyFormStage backTo="/">
+      <SkyFormStage backTo="/play">
         {loading ? (
           <p className="sky-loading-text">Đang tải profile...</p>
         ) : error ? (
@@ -150,6 +151,17 @@ export default function ProfileViewPage() {
                     <span className="profile-stat-label">Xu</span>
                     <span className="profile-stat-value profile-stat-value--coins">
                       {profile.coins.toLocaleString('vi-VN')} 🪙
+                      {isOwnProfile ? (
+                        <Link to="/shop" className="profile-shop-link">
+                          Cửa hàng nhà
+                        </Link>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div className="profile-stat-row">
+                    <span className="profile-stat-label">Nhà trang trí</span>
+                    <span className="profile-stat-value">
+                      {HOUSE_CATALOG[profile.equipped_house_id]?.name ?? 'Nhà cổ điển'}
                     </span>
                   </div>
                   <div className="profile-stat-row">

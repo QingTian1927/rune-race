@@ -52,7 +52,7 @@ export default function LobbyPage() {
       .catch(() => {
         if (!cancelled) {
           setRoomHasPassword(null)
-          navigate('/', {
+          navigate('/play', {
             replace: true,
             state: { lobbyError: 'Phòng không còn tồn tại — có thể đã bị đóng.' },
           })

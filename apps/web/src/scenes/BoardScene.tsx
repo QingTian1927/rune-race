@@ -14,7 +14,7 @@ import { SceneRendererSetup } from './SceneRendererSetup'
 import { BoardEditorVisualization } from '../components/BoardEditorVisualization'
 import { BoardEditorInputHandler } from '../components/BoardEditorInputHandler'
 import { BoardLayoutData, EditorMode } from '../utils/boardEditorState'
-import type { GameState, Player, RuneCardType, RuneClientView } from '@rune-race/shared'
+import type { GameState, Player, RuneCardType, RuneClientView, HouseSkinId } from '@rune-race/shared'
 import RuneMarkers from '../components/board/RuneMarkers'
 import RunePlacementLayer from '../components/board/RunePlacementLayer'
 import { RuneMarkerVisibilityProvider } from '../contexts/RuneMarkerVisibilityContext'
@@ -57,6 +57,7 @@ interface BoardSceneProps {
   placementPreviewAvatar?: string | null
   onHoverPlacementCell?: (cellId: number | null) => void
   onSelectPlacementCell?: (cellId: number) => void
+  houseSkinsByPlayerId?: Record<string, HouseSkinId>
 }
 
 function toFixedNumber(value: number, digits = 3): number {
@@ -277,6 +278,7 @@ export default function BoardScene({
   placementPreviewAvatar = null,
   onHoverPlacementCell,
   onSelectPlacementCell,
+  houseSkinsByPlayerId,
 }: BoardSceneProps) {
   const controlsRef = useRef<any>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number; z: number } | null>(null)
@@ -347,6 +349,7 @@ export default function BoardScene({
             boardImpactFeedback={boardImpactFeedback}
             graphicsQuality={graphicsQuality}
             shadowsEnabled={shadowsEnabled}
+            houseSkinsByPlayerId={houseSkinsByPlayerId}
           />
           <DiceShaker
             gameState={activeGameState}
