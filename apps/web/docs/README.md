@@ -1,6 +1,6 @@
 # Web client documentation
 
-Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune cards, chat, and online multiplayer.
+Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune cards, chat, coin shop, and online multiplayer.
 
 ## Read first
 
@@ -16,11 +16,11 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune car
 
 | Mode | Route | Authority |
 |------|-------|-----------|
-| Home / rooms | `/` | HTTP + socket lobby |
-| Guide | `/guide` | Static rules page |
+| Marketing | `/`, `/about`, `/guide` | Static |
+| Play hub | `/play` | HTTP + socket lobby |
+| Shop | `/shop` | HTTP shop API + profile coins |
 | Lobby | `/lobby/:lobbyId` | Server `lobby:snapshot` |
 | Online game | `/game/:gameId` | Server `game:state_snapshot` + `runeView` |
-| Local test | `/play/local` | `@rune-race/game-engine` (same rules as server) |
 
 ## Stack
 
@@ -32,7 +32,8 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune car
 
 ## Rendering capabilities
 
-- 3D board, houses, pawns with path animation
+- 3D board, procedural/GLB **house skins** on home tiles, pawns with path animation
+- **Coin shop** (`/shop`): catalog, 3D preview, purchase/equip house skins
 - **Rune layer:** hand array, 3D map pins, placement picking, card preview, impersonation picker
 - **Gameplay HUD** (warm glass-style overlay): current turn, local player, finish order, turn banner, roll button — see [Architecture → GameView](./architecture.md#gameview)
 - **Lobby chat** in-game via `RoomChatPanel` + `useRoomChat`
@@ -55,13 +56,15 @@ Vite + React + TypeScript client for **Rune Race** — 3D board, lobby, rune car
 apps/web/src/
 ├── App.tsx                 # Routes
 ├── pages/
-│   ├── HomePage.tsx        # Rooms + matchmaking
+│   ├── PlayPage.tsx        # Rooms + matchmaking hub (/play)
+│   ├── ShopPage.tsx        # House cosmetics shop
 │   ├── LobbyPage.tsx       # Ready, host settings (incl. runesEnabled)
 │   ├── OnlineGamePage.tsx
-│   ├── LocalGamePage.tsx
-│   └── GuidePage.tsx
+│   └── marketing/          # Landing, guide, legal
 ├── components/
 │   ├── GameView.tsx        # HUD shell + rune + presentation timing
+│   ├── houses/             # HouseModel, proceduralHouses
+│   ├── shop/               # HousePreviewCanvas
 │   ├── hud/                # HandArrayPanel, CurrentTurnPanel, …
 │   ├── board/              # RuneMarkers, RunePlacementLayer
 │   ├── chat/RoomChatPanel.tsx
@@ -74,6 +77,7 @@ apps/web/src/
 │   ├── useGameSocket.ts
 │   ├── useRoomChat.ts
 │   ├── usePresentationGameState.ts
+│   ├── usePlayerHouseSkins.ts
 │   ├── useUiSoundEffects.ts
 │   └── useAudioSettings.ts
 └── lib/

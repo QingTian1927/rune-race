@@ -5,8 +5,9 @@
 1. `main.tsx` → `App` router.
 2. `App` registers `useUiSoundEffects()` — UI click/hover SFX on all routes (unlocks audio on first gesture).
 3. `AuthProvider` restores the Supabase session and guest id.
-4. `HomePage` uses `usePlayerIdentity()` to derive the active player id and display name.
-5. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
+4. User opens **`/play`** (`PlayPage`) for rooms/matchmaking, or **`/shop`** for house cosmetics.
+5. `PlayPage` uses `usePlayerIdentity()` to derive the active player id and display name.
+6. User creates/joins room → `/lobby/:lobbyId` or matchmaking → lobby.
 
 ## Lobby flow (`LobbyPage`)
 
@@ -16,15 +17,15 @@
 4. All ready → server countdown 5s → `lobby:game_started`.
 5. Navigate to `/game/:gameId`; `retainLobbyOnUnmount` keeps lobby membership; `sessionStorage` stores `rune-race-lobby-id` for Back.
 
-**Leaving:** use **Rời phòng** or **← Trang chủ** (both emit `lobby:leave`). Accidental tab close → server disconnect grace (30s) then removal.
+**Leaving:** use **Rời phòng** or **← Trang chủ** (both emit `lobby:leave` and navigate to `/play`). Accidental tab close → server disconnect grace (30s) then removal.
 
 ## Online game flow (`OnlineGamePage`)
 
 1. `useGameSocket(gameId, playerId, accessToken, lobbyPresence)` → `game:join` on connect; re-joins lobby for chat/removal.
-2. **Back** → `/lobby/:lobbyId` (still a lobby member).
-3. **Rời game** → `lobby:leave` + navigate home (forfeit + leave lobby).
-4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect if removed while in match.
-5. `GameView` receives display state from presentation hook + `runeView` for marker tooltips.
+2. **Back** → `/lobby/:lobbyId` when `rune-race-lobby-id` is in `sessionStorage`, otherwise `/play`.
+3. **Rời game** → `lobby:leave` + navigate to `/play` (forfeit + leave lobby).
+4. Listens for `lobby:closed` / `lobby:kicked` / `lobby:removed` to redirect to `/play` if removed while in match.
+5. `GameView` receives display state from presentation hook + `runeView` for marker tooltips; `usePlayerHouseSkins` loads equipped homes for all seated players.
 6. **Rune turn (when enabled):** active player draws → all players place during `placement_phase` (confirm when done; confirmed players cannot place or draw until window closes) → optional leave-stable → active player rolls — see [Rune system](./rune-system.md). Roll is hidden until placement ends.
 7. **Roll:** if `canRoll` → `game:roll`. After **10s** idle in roll phases, client and server auto-roll; countdown bar shown for active player.
 8. Server snapshot with delta `dice_roll` (+ maybe `token_moved` / `token_stepped` if auto-resolved):
@@ -35,12 +36,17 @@
 11. **Finished:** `GameState.status === 'finished'`; finish-order HUD updates after token animations (see [HUD timing](#hud-timing)).
 12. **Chat:** `RoomChatPanel` via `useRoomChat` (same lobby id in `sessionStorage`).
 
-## Local game flow (`LocalGamePage`)
+## Local game flow
 
-1. Initial state from `getMockSnapshot()`.
-2. `usePresentationGameState` + `rollMockTurn` / `resolveMockTurn` (engine).
-3. `autoResolveRolled` on `GameView` resolves single-move turns after presentation gate opens.
-4. No `localPlayerId` restriction on arrows (single tester controls all seats).
+Local/offline play is not exposed as a dedicated route in the current app shell. Engine-only testing can still use `@rune-race/game-engine` directly in dev.
+
+## Shop flow (`ShopPage`)
+
+1. Navigate to `/shop` (header **Cửa hàng** or profile link).
+2. Load catalog (`GET /api/shop/catalog`) and, when signed in, inventory (`GET /api/shop/inventory`).
+3. Preview selected skin + player color in `HousePreviewCanvas`.
+4. **Purchase** spends coins; **Equip** updates `equipped_house_id` (visible on profile and on your home tile in the next online game).
+5. Back link returns to `/play`.
 
 ## Dice presentation timeline
 
@@ -128,9 +134,10 @@ When turn advances to the local player via `turn_advanced`, banner timing waits 
 - Refresh on lobby: re-emit `lobby:join` or `lobby:sync_request`.
 - Refresh in game: `game:join` + `game:sync_request` if needed.
 
-## Auth / profile flow
+## Auth / profile / shop flow
 
 1. `AuthLoginPage` can start a Supabase anonymous session with the guest button.
 2. `ProfileEditPage` auto-starts a guest session if the user opens it without an access token.
-3. `ProfileViewPage` loads public profile data by id.
+3. `ProfileViewPage` loads public profile data by id (coins, equipped house name).
 4. `AuthSignupPage` can merge the current anon profile into a new registered account.
+5. `ShopPage` requires a Supabase session (anonymous or registered) to purchase or equip; catalog preview is public.

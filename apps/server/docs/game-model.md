@@ -112,4 +112,4 @@ Appended to `GameState.events` (server sends **delta** on updates):
 | `ChatStore` | Lobby-scoped messages |
 | `game-engine` | Pure state transitions; no I/O |
 
-Client must not compute authoritative legal moves for online play (local `/play/local` uses the same engine for testing).
+Client must not compute authoritative legal moves for online play (local engine testing uses the same package in dev).

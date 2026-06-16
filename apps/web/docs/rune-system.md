@@ -152,4 +152,4 @@ Watch delta `events` for rune-related types (same version cursor as `tokenMotion
 
 ## Local mode
 
-`/play/local` uses the same engine via `mock/mockGameEngine.ts` with identical rune props on `GameView`.
+Offline/engine testing can use `mock/mockGameEngine.ts` with the same rune props on `GameView` (no dedicated route in the current `App.tsx` shell).

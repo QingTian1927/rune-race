@@ -6,21 +6,22 @@ How the **web app** (`apps/web`) connects to this server today.
 
 | Path | Page | Socket / HTTP |
 |------|------|----------------|
-| `/` | `HomePage` | HTTP rooms + matchmaking + feature flags |
+| `/` | `LandingPage` | Marketing (static) |
+| `/play` | `PlayPage` | HTTP rooms + matchmaking + feature flags |
 | `/guide` | `GuidePage` | Static |
 | `/auth/login` | `AuthLoginPage` | Supabase email/password, Google, anonymous sign-in |
 | `/auth/signup` | `AuthSignupPage` | Supabase email/password signup |
 | `/profile/:profileId` | `ProfileViewPage` | Public profile fetch |
 | `/profile/edit` | `ProfileEditPage` | Authenticated profile update |
+| `/shop` | `ShopPage` | Shop catalog + inventory + purchase/equip |
 | `/lobby/:lobbyId` | `LobbyPage` | `lobby:*` |
 | `/game/:gameId` | `OnlineGamePage` | `game:*`, `chat:*`, re-joins `lobby:*` |
-| `/play/local` | `LocalGamePage` | No server (engine only) |
 
 ## Client modules
 
 | File | Role |
 |------|------|
-| `lib/api.ts` | `fetch` wrappers for `/api/rooms`, matchmaking, profile, feature flags |
+| `lib/api.ts` | `fetch` wrappers for `/api/rooms`, matchmaking, profile, shop, feature flags |
 | `lib/socket.ts` | Singleton `socket.io-client` + Supabase access token handshake |
 | `lib/supabase.ts` | Supabase client configured from Vite env |
 | `hooks/useAuth.tsx` | Session state, email/password, Google, anonymous auth |
@@ -32,7 +33,10 @@ How the **web app** (`apps/web`) connects to this server today.
 | `hooks/usePresentationGameState.ts` | Dice animation gate before applying moves |
 | `hooks/useUiSoundEffects.ts` | Global UI click / hover SFX (all routes) |
 | `hooks/useAudioSettings.ts` | Persisted master volume (`rune-race-audio-volume`) |
+| `hooks/usePlayerHouseSkins.ts` | Fetches `GET /api/players/:id/cosmetics` for board home tiles |
 | `lib/audio/audioManager.ts` | Client-only SFX playback (no server involvement) |
+
+In-app back links from lobby, profile, and game (when no lobby) navigate to **`/play`**, not the marketing homepage `/`.
 
 ## Suggested UI states
 
@@ -65,8 +69,16 @@ How the **web app** (`apps/web`) connects to this server today.
 
 1. Anonymous users can sign in through Supabase anonymous auth from `AuthLoginPage`.
 2. `ProfileEditPage` loads the authenticated profile with `GET /api/profile`.
-3. `ProfileViewPage` fetches public data with `GET /api/profile/:id`.
+3. `ProfileViewPage` fetches public data with `GET /api/profile/:id` (shows equipped house name and coin balance).
 4. `AuthSignupPage` can link an anon profile into a new registered account with `POST /api/auth/link-anon`.
+
+## Shop flow (house cosmetics)
+
+1. Open `/shop` from the header **Cửa hàng** link or from your profile (**Cửa hàng nhà**).
+2. `GET /api/shop/catalog` loads skin definitions; authenticated users also call `GET /api/shop/inventory`.
+3. **Purchase** (`POST /api/shop/purchase`) spends coins; **Equip** (`PATCH /api/shop/equip`) updates `equipped_house_id`.
+4. In online games, `GameView` uses `usePlayerHouseSkins` to fetch each human player's `equippedHouseId` and renders the matching model on their **home** tile (`BoardPieces` → `HouseModel`). Bots always use `house_default`.
+5. GLB assets are optional per skin (`hasGlbAsset` in catalog); until then the client renders procedural placeholders. See `apps/web/public/assets/models/houses/README.md`.
 
 ## LAN / second device
 

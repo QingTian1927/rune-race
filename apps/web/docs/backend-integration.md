@@ -11,6 +11,8 @@ The web client is **wired to the live server** for lobby and online play. Local 
 | Your marker card types | Server `runeView` on snapshot |
 | Player id + display name | Supabase session or `localStorage` via `usePlayerIdentity` |
 | Lobby chat | Server `chat:*` (in-memory, lobby-scoped) |
+| House skins (board) | Server `GET /api/players/:id/cosmetics` + local profile `equipped_house_id` |
+| Shop catalog / inventory | Server `GET /api/shop/*` |
 | Board layout in editor | Client JSON (export only in MVP) |
 | Dice animation timing | Client `dicePresentation.ts` |
 
@@ -31,6 +33,11 @@ The web client is **wired to the live server** for lobby and online play. Local 
 | `updateProfile` | `PATCH /api/profile` |
 | `updateDisplayName` | `PATCH /api/player/display-name` |
 | `linkAnonProfile` | `POST /api/auth/link-anon` |
+| `fetchShopCatalog` | `GET /api/shop/catalog` |
+| `fetchShopInventory` | `GET /api/shop/inventory` (Bearer token) |
+| `purchaseHouse` | `POST /api/shop/purchase` |
+| `equipHouse` | `PATCH /api/shop/equip` |
+| `fetchPlayerCosmetics` | `GET /api/players/:id/cosmetics` |
 
 Authenticated requests pass `Authorization: Bearer <supabase_access_token>` when a session exists.
 
@@ -46,12 +53,12 @@ Listen: `lobby:snapshot`, `lobby:host_secrets` (host), `lobby:start_countdown`, 
 
 **Leave behavior (client):**
 
-- **Rời phòng** / **← Trang chủ** on `LobbyPage` → `emitLeaveLobby` then navigate.
-- **Rời game** on `OnlineGamePage` → same (`lobby:leave` removes from lobby and forfeits match).
+- **Rời phòng** / **← Trang chủ** on `LobbyPage` → `emitLeaveLobby` then navigate to `/play`.
+- **Rời game** on `OnlineGamePage` → same (`lobby:leave` removes from lobby and forfeits match), then `/play`.
 - **Lobby → game** navigation sets `rune-race-lobby-retain` so unmount does **not** auto-leave (player stays in lobby for Back link + chat).
 - Do **not** call `lobby:leave` on hook unmount — avoids React StrictMode destroying rooms in dev.
 
-Optional `onRemoved` callback redirects home on `lobby:closed` / `lobby:kicked` / `lobby:removed`.
+Optional `onRemoved` callback redirects to `/play` on `lobby:closed` / `lobby:kicked` / `lobby:removed`.
 
 ### Chat (`useRoomChat`)
 
@@ -77,6 +84,13 @@ While in a match, the hook re-emits `lobby:join` so the socket stays in the lobb
 - **Supabase:** `usePlayerIdentity()` prefers authenticated user id and profile display name; passes `accessToken` to HTTP and socket.
 
 UUID generation uses `randomUUID` → `getRandomValues` → `Math.random` fallback for **HTTP LAN** (non-secure context).
+
+## House cosmetics
+
+- **Shop:** `/shop` — purchase and equip skins; prices from `HOUSE_CATALOG` in `@rune-race/shared`.
+- **Profile:** `equipped_house_id` on profile rows; shown on `ProfileViewPage`.
+- **Board:** `GameView` → `usePlayerHouseSkins` → `BoardPieces` / `HouseModel` on each player's home tile.
+- **Assets:** optional GLB per skin × color under `public/assets/models/houses/` (see README there). Until `hasGlbAsset` is true, procedural placeholders are used.
 
 ## Presentation vs authority
 
