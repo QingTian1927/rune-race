@@ -21,9 +21,14 @@ export function GameHeader({ name, onNameChange, onNameBlur, topNavExtra }: Game
       <div className="top-nav">
         {topNavExtra}
         {profilePath ? (
-          <Link to={profilePath} className="nav-btn">
-            Profile
-          </Link>
+          <>
+            <Link to="/shop" className="nav-btn">
+              Cửa hàng
+            </Link>
+            <Link to={profilePath} className="nav-btn">
+              Profile
+            </Link>
+          </>
         ) : null}
         {isRegistered ? (
           <button type="button" className="nav-btn" onClick={() => void signOut()}>

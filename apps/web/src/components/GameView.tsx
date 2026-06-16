@@ -5,9 +5,11 @@ import type { Player, GameState, RuneCardType, RuneClientView } from '@rune-race
 import {
   captureCoinDeltaFromEvent,
   computeCoinSettlement,
+  DEFAULT_HOUSE_ID,
   formatCoinAmount,
   isBoardMarkerCardType,
   isCoinEligiblePlayer,
+  isHouseSkinId,
   RUNE_DRAW_HAND_THRESHOLD,
   RUNE_MAX_DRAW_PER_PLAYER,
   type HeldCard,
@@ -42,6 +44,8 @@ import { RollDiceButton } from './hud/RollDiceButton'
 import { PhaseCountdownBar } from './hud/PhaseCountdownBar'
 import { usePhaseCountdown } from '../hooks/usePhaseCountdown'
 import { usePlayerAvatars } from '../hooks/usePlayerAvatars'
+import { usePlayerHouseSkins } from '../hooks/usePlayerHouseSkins'
+import { usePlayerProfile } from '../hooks/usePlayerProfile'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { GameSettingsOverlay } from './hud/GameSettingsOverlay'
 import { LandscapeHintOverlay } from './hud/LandscapeHintOverlay'
@@ -105,7 +109,7 @@ export default function GameView({
   rollTrigger,
   onRoll,
   onSelectMove,
-  backHref = '/',
+  backHref = '/play',
   canRoll = true,
   autoResolveRolled = false,
   isPresentingDice = false,
@@ -410,6 +414,17 @@ export default function GameView({
   }, [coinSettlement, displayedFinishOrder, displayedFinishOrderIds, gameState.players])
 
   const playerIds = useMemo(() => gameState.players.map((p) => p.id), [gameState.players])
+  const { profile } = usePlayerProfile()
+  const localEquippedHouseId =
+    profile?.equipped_house_id && isHouseSkinId(profile.equipped_house_id)
+      ? profile.equipped_house_id
+      : DEFAULT_HOUSE_ID
+  const houseSkinsByPlayerId = usePlayerHouseSkins(
+    playerIds,
+    localPlayerId
+      ? { playerId: localPlayerId, houseId: localEquippedHouseId }
+      : null,
+  )
   const fetchedAvatars = usePlayerAvatars(
     playerIds,
     localPlayerId && localAvatarEmoji
@@ -421,7 +436,11 @@ export default function GameView({
   const avatarFor = (playerId: string | undefined) =>
     playerId ? (avatarsByPlayerId[playerId] ?? null) : null
 
-  const returnDestinationLabel = backHref.startsWith('/lobby/') ? 'lobby' : 'trang chủ'
+  const returnDestinationLabel = backHref.startsWith('/lobby/')
+    ? 'lobby'
+    : backHref === '/play' || backHref.startsWith('/play/')
+      ? 'trang chơi'
+      : 'trang chủ'
   const showEndOverlay =
     gameState.status === 'finished' && !isPresentingDice && finishOrderReady
 
@@ -1145,14 +1164,15 @@ export default function GameView({
   }
 
   const finished = gameState.status === 'finished'
+  const exitDestinationLabel = onLeave ? 'trang chơi' : returnDestinationLabel
   const exitConfirmTitle = onLeave ? 'Rời game?' : 'Thoát game?'
   const exitConfirmMessage = onLeave
     ? finished
-      ? 'Bạn sẽ rời game và quay về trang chủ.'
-      : 'Bạn sẽ bỏ cuộc, rời phòng và quay về trang chủ. Đối thủ có thể thắng nếu bạn thoát giữa chừng.'
+      ? `Bạn sẽ rời game và quay về ${exitDestinationLabel}.`
+      : `Bạn sẽ bỏ cuộc, rời phòng và quay về ${exitDestinationLabel}. Đối thủ có thể thắng nếu bạn thoát giữa chừng.`
     : finished
-      ? 'Quay về trang chủ?'
-      : 'Rời game thử nghiệm và quay về trang chủ.'
+      ? `Quay về ${exitDestinationLabel}?`
+      : `Rời game thử nghiệm và quay về ${exitDestinationLabel}.`
   const exitConfirmLabel = onLeave ? 'Rời game' : 'Thoát'
 
   return (
@@ -1194,6 +1214,7 @@ export default function GameView({
         placementPreviewAvatar={avatarFor(localPlayer?.id)}
         onHoverPlacementCell={setHoveredPlacementCellId}
         onSelectPlacementCell={handlePlacementCell}
+        houseSkinsByPlayerId={houseSkinsByPlayerId}
       />
 
       <div className="game-hud-overlay">
