@@ -12,7 +12,8 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 6. **Classic flow:** `game:roll` and `game:choose_move`; each accepted action broadcasts `game:state_snapshot`.
 7. **Chat:** lobby-scoped messages via `chat:*` (persisted in memory for the room lifetime).
 8. **Auth/profile:** Supabase email/password, Google, or anonymous auth. Profile data in Supabase; public profiles viewable by id.
-9. Game ends when `status === 'finished'`; lobby resets for a new match.
+9. **Coins & cosmetics:** online matches award coins to `profiles.coins`; players spend coins in the house shop (`/api/shop/*`) to unlock skins and equip one on their profile (`equipped_house_id`). Other clients load equipped skins via `GET /api/players/:id/cosmetics` for board home tiles.
+10. Game ends when `status === 'finished'`; lobby resets for a new match.
 
 ## HTTP vs Socket
 
@@ -23,6 +24,7 @@ Rune Race uses a **server-authoritative** model: lobbies for match setup, then a
 | Matchmaking queue | `POST/GET/DELETE /api/matchmaking/*` | — |
 | Feature flags | `GET /api/public/feature-flags` | — |
 | Auth/profile | `GET/PATCH /api/profile`, `GET /api/profile/:id`, `POST /api/auth/link-anon`, `PATCH /api/player/display-name` | `auth` token in handshake |
+| House shop | `GET /api/shop/catalog`, `GET /api/shop/inventory`, `POST /api/shop/purchase`, `PATCH /api/shop/equip`, `GET /api/players/:id/cosmetics` | — |
 | Lobby state & ready | — | `lobby:*` |
 | Chat | — | `chat:*` |
 | Gameplay + runes | — | `game:*` |
@@ -52,6 +54,7 @@ Import from `@rune-race/shared`:
 - `ClientToServerEvents`, `ServerToClientEvents`
 - `LobbySnapshot`, `GameState`, `ClientGameSnapshot`, `GameEvent`, `LegalMove`, `Turn`
 - `RuneGameState`, `RuneClientView`, `RUNE_CARD_DEFINITIONS`
+- `HOUSE_CATALOG`, `HouseSkinId`, `getHouseModelPath` (cosmetics)
 - `validateCommand` (Zod per event name)
 - Lobby constants: `LOBBY_START_COUNTDOWN_SECONDS`, `MATCHMAKING_TIER_*`, etc.
 

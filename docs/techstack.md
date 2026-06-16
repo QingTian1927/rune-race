@@ -8,4 +8,5 @@
 - Server: `Node.js` + `TypeScript` + `Fastify`
 - Client state: `Zustand`
 - Schema/validation: `Zod`
-- ORM: `Prisma`
+- Persistence: `Supabase` (auth, profiles, coins, house cosmetics)
+- Shared game data: `@rune-race/shared` (protocol, coins, `HOUSE_CATALOG`, profile emojis)

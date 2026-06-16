@@ -212,11 +212,11 @@ Poll queue/match state (same shape as join response).
 
 #### `GET /api/profile`
 
-Authenticated user's full profile (includes phone). `401` if no valid token.
+Authenticated user's full profile (includes phone and `equipped_house_id`). `401` if no valid token.
 
 #### `GET /api/profile/:id`
 
-Public profile by user id (no phone).
+Public profile by user id (no phone). Includes `equipped_house_id` for house cosmetics display.
 
 #### `PATCH /api/profile`
 
@@ -231,6 +231,77 @@ Update display name only: `{ "displayName": "..." }`.
 Merge anonymous profile into newly registered account: `{ "anonId": "..." }`.
 
 Response: `{ "merged": boolean, "profile": Profile }`.
+
+### Shop (house cosmetics)
+
+Catalog and pricing live in `@rune-race/shared` (`HOUSE_CATALOG`). Purchases debit `profiles.coins` and record rows in `player_cosmetics` and `coin_spend_transactions` (server-only via service role; RLS deny-all on those tables).
+
+#### `GET /api/shop/catalog`
+
+Public house skin list (no auth).
+
+```json
+{
+  "houses": [
+    {
+      "id": "house_default",
+      "name": "Nhà cổ điển",
+      "description": "...",
+      "price": 0,
+      "sortOrder": 0,
+      "hasGlbAsset": false
+    }
+  ]
+}
+```
+
+Skin ids: `house_default` (free), `house_cottage` (1000 coins), `house_villa` (2500), `house_manor` (5000).
+
+#### `GET /api/shop/inventory`
+
+Authenticated inventory. `401` if no valid token.
+
+```json
+{
+  "coins": 1200,
+  "equippedHouseId": "house_default",
+  "ownedHouseIds": ["house_default", "house_cottage"]
+}
+```
+
+`house_default` is always included in `ownedHouseIds`. Works for registered and anonymous Supabase sessions.
+
+#### `POST /api/shop/purchase`
+
+**Body:** `{ "houseId": "house_cottage" }`
+
+Debits coins, inserts `player_cosmetics`, logs `coin_spend_transactions`. Does **not** auto-equip.
+
+**Response:** same shape as inventory plus `purchasedHouseId`.
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid id or default house |
+| `402` | Insufficient coins (`error`, `required`, `balance`) |
+| `409` | Already owned |
+
+#### `PATCH /api/shop/equip`
+
+**Body:** `{ "houseId": "house_cottage" }`
+
+Updates `profiles.equipped_house_id`. `403` if not owned.
+
+**Response:** inventory shape (updated `equippedHouseId`).
+
+#### `GET /api/players/:id/cosmetics`
+
+Public equipped house for board rendering (no auth).
+
+```json
+{ "equippedHouseId": "house_villa" }
+```
+
+Returns `house_default` when profile is missing or id is invalid.
 
 ### Admin (separate admin app)
 

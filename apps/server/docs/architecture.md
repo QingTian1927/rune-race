@@ -9,6 +9,7 @@ apps/server/src/
 │   ├── auth.ts           # Link anon profile into signed-in account
 │   ├── matchmaking.ts    # Matchmaking queue + routes
 │   ├── profile.ts        # Public profile fetch + owner update
+│   ├── shop.ts           # House cosmetics catalog, purchase, equip
 │   ├── player.ts         # Display name patch
 │   ├── rooms.ts          # GET/POST /api/rooms
 │   ├── feature-flags.ts  # Public feature flags

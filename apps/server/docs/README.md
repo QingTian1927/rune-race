@@ -1,6 +1,6 @@
 # Server documentation
 
-Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile, lobby chat, rune gameplay, and authoritative multiplayer.
+Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile, coin shop (house cosmetics), lobby chat, rune gameplay, and authoritative multiplayer.
 
 ## Read first
 
@@ -21,7 +21,7 @@ Backend contract for **Rune Race** — lobby, matchmaking, Supabase auth/profile
 
 - **Package:** `apps/server`
 - **CORS:** configurable via `CLIENT_ORIGIN` (defaults permissive in development)
-- **Persistence:** lobby/game/chat state is in-memory; user profiles and auth live in Supabase
+- **Persistence:** lobby/game/chat state is in-memory; user profiles, coins, and house cosmetics live in Supabase
 - **Authority:** server owns lobby and game state; clients send intents only
 
 ## Monorepo dependencies

@@ -6,15 +6,16 @@ Defined in `apps/web/src/App.tsx`:
 
 | Path | Component | Description |
 |------|-----------|-------------|
-| `/` | `HomePage` | Create/join room, public list, matchmaking |
+| `/` | `LandingPage` | Marketing landing (static) |
+| `/play` | `PlayPage` | Create/join room, public list, matchmaking hub |
 | `/guide` | `GuidePage` | Static gameplay / rune guide |
 | `/auth/login` | `AuthLoginPage` | Supabase login + guest sign-in |
 | `/auth/signup` | `AuthSignupPage` | Supabase registration |
 | `/profile/edit` | `ProfileEditPage` | Own profile editor |
 | `/profile/:profileId` | `ProfileViewPage` | Public profile view |
+| `/shop` | `ShopPage` | Coin shop for house skins (3D preview) |
 | `/lobby/:lobbyId` | `LobbyPage` | Colors, ready, host controls |
 | `/game/:gameId` | `OnlineGamePage` | Live multiplayer viewport |
-| `/play/local` | `LocalGamePage` | Offline test with same engine as server |
 
 ## Layering
 
@@ -22,13 +23,13 @@ Defined in `apps/web/src/App.tsx`:
 App (all routes)
     → useUiSoundEffects() — delegated UI click / hover SFX
 
-Pages (Home, Lobby, Online, Local)
-    → auth hooks (useAuth, usePlayerIdentity)
-    → hooks (useLobbySocket, useGameSocket, useRoomChat, usePresentationGameState)
+Pages (Play, Lobby, Online, Shop, Profile)
+    → auth hooks (useAuth, usePlayerIdentity, usePlayerProfile)
+    → hooks (useLobbySocket, useGameSocket, useRoomChat, usePresentationGameState, usePlayerHouseSkins)
     → GameView (HUD, rune layer, dev menu, editor controls)
         → BoardScene (Canvas, OrbitControls)
             → BoardModel (static mesh)
-            → BoardPieces (pawns, houses, animations)
+            → BoardPieces (pawns, HouseModel homes, animations)
             → RuneMarkers / RunePlacementLayer (when runes enabled)
             → DiceShaker (roll presentation)
 ```
@@ -58,6 +59,7 @@ Static board geometry and track markers.
 
 - Positions tokens from `GameState` (`in_base`, `on_track`, `in_home_lane`, `finished`). Stable uses a **2×2** slot grid (supports classic 4 horses; rune mode uses two slots).
 - **Color slot:** `boardSlotForPlayer()` maps player color → board slot (fixes pawn/house colors vs player order).
+- **Homes:** `HouseModel` renders each player's **home** tile from `houseSkinsByPlayerId` (equipped skin from server). Procedural placeholders per tier until GLB assets are added (`hasGlbAsset` in `HOUSE_CATALOG`). Bots use `house_default`.
 - **Motion:** `tokenMotion.ts` — animates only **delta** events since last `version`; `freezeTokenAnimations` during dice presentation.
 - **Selection:** arrows + click handler when `selectableTokenIds` is non-empty.
 - **Impacts:** `ImpactPuffPool` on step land / spawn / capture; `onImpact` drives walk and kill SFX (see [Audio](./audio.md)).
@@ -83,8 +85,10 @@ Shared shell for local and online: 3D viewport + warm glass HUD overlay + option
 | `runeView` | Per-client marker tooltips from snapshot (`RuneClientView`) |
 | `onDrawCards` / `onPlaceMarker` / `onConfirmPlacementReady` / `onUseLeaveStable` / `onChooseSwap` | Online rune intents via `useGameSocket` |
 | `roomChat` | Optional `RoomChatPanel` slot (online) |
+| `backHref` | Exit destination after game (lobby id or `/play`) |
+| `onLeave` | Online: `lobby:leave` + navigate to `/play` |
 
-Passes `freezeTokenAnimations={isPresentingDice}` to `BoardScene`. Player identity comes from the page layer (`usePlayerIdentity()`), not from `localStorage` directly.
+Passes `freezeTokenAnimations={isPresentingDice}` and `houseSkinsByPlayerId` from `usePlayerHouseSkins` into `BoardScene`. Player identity comes from the page layer (`usePlayerIdentity()`), not from `localStorage` directly.
 
 See [Rune system (client)](./rune-system.md) for hand/placement/swap behavior.
 
@@ -117,6 +121,14 @@ When `waiting_swap_choice`, selection mode is `swap`: pick a valid target token 
 **Dev (F3)**
 
 Camera / game debug / editor toggle — separate from gameplay HUD.
+
+### `ShopPage`
+
+Coin shop at `/shop` (sky layout). Master-detail catalog with `HousePreviewCanvas` (R3F) for color swatches. Calls `fetchShopCatalog`, `fetchShopInventory`, `purchaseHouse`, `equipHouse`. Back link goes to `/play`. Styles scoped under `.shop-form-stage` in `rune-race-sky.css`.
+
+### `HouseModel` / `proceduralHouses`
+
+`components/houses/HouseModel.tsx` picks GLB (`houseLoader.ts`) or procedural tier mesh from `skinId` + `PlayerColor`. Only the **home** zone on the board is customized (not stable).
 
 ## Hooks
 
@@ -159,6 +171,10 @@ Default feedback for `GameView` / `BoardScene`: impact puff visibility follows g
 
 Mounted in `App.tsx`. Global UI click and hover sounds on all routes; respects master volume from `localStorage`.
 
+### `usePlayerHouseSkins`
+
+Loads equipped house skin per player id via `GET /api/players/:id/cosmetics`. Merges the local player's equipped id from `usePlayerProfile` to avoid a stale fetch. Bots always get `house_default`.
+
 ### `useAudioSettings`
 
 Reads/writes `rune-race-audio-volume`; wired into `GameSettingsOverlay` from `GameView`.
@@ -167,7 +183,7 @@ Reads/writes `rune-race-audio-volume`; wired into `GameSettingsOverlay` from `Ga
 
 | Package | Client usage |
 |---------|----------------|
-| `@rune-race/shared` | Types, socket event typings, Zod |
+| `@rune-race/shared` | Types, socket event typings, Zod, `HOUSE_CATALOG`, cosmetics helpers |
 | `@rune-race/game-engine` | Local game + same rules as server |
 
 ## Configuration
@@ -182,6 +198,6 @@ Reads/writes `rune-race-audio-volume`; wired into `GameSettingsOverlay` from `Ga
 
 - **F3** dev menu (camera / game debug / editor toggle)
 - Board layout export JSON
-- Local roll without server on `/play/local`
+- Engine-only rules testing via `@rune-race/game-engine` (no dedicated route in `App.tsx`)
 
 Keep these separate from authoritative online state.
