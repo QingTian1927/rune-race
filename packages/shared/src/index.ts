@@ -1,6 +1,7 @@
 export * from './auth.js'
 export * from './bot.js'
 export * from './coins.js'
+export * from './cosmetics/houses.js'
 export * from './profile-emojis.js'
 export * from './site-banner.js'
 export * from './types/game.js'
