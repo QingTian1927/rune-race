@@ -28,10 +28,12 @@
     "test:game-engine": "pnpm --filter @rune-race/game-engine test",
     "test:server": "pnpm --filter @rune-race/server test",
     "type-check": "pnpm --filter @rune-race/web type-check && pnpm --filter @rune-race/admin type-check",
-    "import:users": "node --env-file=.env scripts/import-users/index.mjs"
+    "import:users": "node --env-file=.env scripts/import-users/index.mjs",
+    "backfill:registration-dates": "node --env-file=.env scripts/backfill-registration-dates/index.mjs"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.48.1",
+    "pg": "^8.16.3",
     "xlsx": "^0.18.5"
   }
 }
