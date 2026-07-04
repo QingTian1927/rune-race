@@ -14,6 +14,12 @@ pnpm import:users -- --apply --datasource campus-excel
 
 Default file: `EXE plan.xlsx` at repo root. Override with `--file path/to/data.xlsx`.
 
+For the second campus sheet (no header, fixed name/email/phone columns):
+
+```bash
+pnpm import:users -- --dry-run --datasource exe-plan2-excel --file "EXE plan 2.xlsx"
+```
+
 Reports are written to `scripts/reports/` (JSON).
 
 ## Options
@@ -32,6 +38,7 @@ Reports are written to `scripts/reports/` (JSON).
 - **Existing email:** updates `full_name` / `phone` in auth metadata + `profiles` when provided; otherwise skips.
 - **Duplicate rows in spreadsheet:** first row wins (same normalized email).
 - **Email typos:** auto-fix obvious domains (`gmal.com` → `gmail.com`, etc.); invalid emails are skipped and logged.
+- **Phone (`exe-plan2-excel`):** strips spaces/commas, prepends missing leading `0` on 9-digit mobiles, handles `+84`, multiple numbers (first valid wins); invalid phones are left empty and logged in `extras.phoneError`.
 
 ## Adding a data source
 

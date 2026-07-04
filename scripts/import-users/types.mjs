@@ -16,6 +16,13 @@
  */
 
 /**
+ * @typedef {Object} PhoneFix
+ * @property {string} from
+ * @property {string} to
+ * @property {string} reason
+ */
+
+/**
  * @typedef {Object} UserDatasource
  * @property {string} id
  * @property {string} label

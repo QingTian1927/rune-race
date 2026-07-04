@@ -1,6 +1,10 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { campusExcelDatasource, loadDuplicateExcelRows } from './datasources/campus-excel.mjs'
+import { campusExcelDatasource, loadDuplicateExcelRows as campusDuplicateRows } from './datasources/campus-excel.mjs'
+import {
+  exePlan2ExcelDatasource,
+  loadDuplicateExcelRows as exePlan2DuplicateRows,
+} from './datasources/exe-plan2-excel.mjs'
 import { createSupabaseImporter } from './lib/supabase-user-import.mjs'
 import { printImportSummary, writeImportReport } from './lib/report.mjs'
 
@@ -12,6 +16,13 @@ const REPO_ROOT = path.resolve(__dirname, '../..')
 /** @type {Record<string, UserDatasource>} */
 const DATASOURCES = {
   [campusExcelDatasource.id]: campusExcelDatasource,
+  [exePlan2ExcelDatasource.id]: exePlan2ExcelDatasource,
+}
+
+/** @type {Record<string, (filePath: string) => Promise<number[]>>} */
+const DUPLICATE_ROW_LOADERS = {
+  [campusExcelDatasource.id]: campusDuplicateRows,
+  [exePlan2ExcelDatasource.id]: exePlan2DuplicateRows,
 }
 
 const DEFAULT_PASSWORD = '123456'
@@ -93,8 +104,8 @@ async function main() {
   console.log(`Mode: ${dryRun ? 'dry-run' : 'apply'}`)
 
   const records = await datasource.load({ filePath })
-  const duplicateRows =
-    datasourceId === 'campus-excel' ? await loadDuplicateExcelRows(filePath) : []
+  const loadDuplicateRows = DUPLICATE_ROW_LOADERS[datasourceId]
+  const duplicateRows = loadDuplicateRows ? await loadDuplicateRows(filePath) : []
 
   console.log(`Loaded ${records.length} unique records`)
 
