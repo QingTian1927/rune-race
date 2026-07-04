@@ -9,6 +9,7 @@ build/
 coverage/
 .pnp.*
 supabase/.temp/
+scripts/reports/
 
 # local assets edits
 **/assets/KayKit_*/

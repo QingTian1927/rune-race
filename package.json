@@ -27,6 +27,11 @@
     "test:bot-ai": "pnpm --filter @rune-race/bot-ai test",
     "test:game-engine": "pnpm --filter @rune-race/game-engine test",
     "test:server": "pnpm --filter @rune-race/server test",
-    "type-check": "pnpm --filter @rune-race/web type-check && pnpm --filter @rune-race/admin type-check"
+    "type-check": "pnpm --filter @rune-race/web type-check && pnpm --filter @rune-race/admin type-check",
+    "import:users": "node --env-file=.env scripts/import-users/index.mjs"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.48.1",
+    "xlsx": "^0.18.5"
   }
 }
