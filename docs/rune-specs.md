@@ -1,708 +1,696 @@
 **RUNE RACE**
 
-**TÀI LIỆU ĐẶC TẢ LUẬT CHƠI MỚI,  
-CƠ CHẾ GIẢ DANH VÀ HỆ THỐNG THẺ RUNE**
+**GAMEPLAY RULES, SPOOFED IDENTITY, AND RUNE CARD SYSTEM SPECIFICATION**
 
 *Gameplay Rule & Rune System Specification*
 
-| **Phiên bản**    | 1.2 - Rule Lock: cập nhật hand array và thưởng trung thực     |
-|------------------|-----------------------------------------------------------|
-| **Trạng thái**   | Đã cập nhật theo các quyết định gameplay được xác nhận     |
-| **Phạm vi**      | MVP web multiplayer 2-4 người chơi                        |
-| **Mục đích**     | Dùng cho game design, UI/UX và triển khai gameplay server |
-| **Tài liệu nền** | Briefing Rune Race ban đầu và chuỗi xác nhận rule mới     |
+| **Version** | 1.2 — Rule lock: hand array and honesty reward updates |
+|-------------|--------------------------------------------------------|
+| **Status** | Updated to match confirmed gameplay decisions |
+| **Scope** | MVP web multiplayer, 2–4 players |
+| **Purpose** | Game design, UI/UX, and server gameplay implementation |
+| **Background** | Original Rune Race briefing and follow-up rule confirmations |
 
-*Tài liệu nội bộ - thiết kế chi tiết phục vụ phát triển sản phẩm*
+*Detailed product design specification*
 
-# MỤC LỤC
+# TABLE OF CONTENTS
 
-**1.** Mục tiêu và phạm vi tài liệu
+**1.** Goals and document scope
 
-**2.** Nguyên tắc thiết kế và thuật ngữ
+**2.** Design principles and terminology
 
-**3.** Vòng lặp gameplay của một lượt
+**3.** Turn gameplay loop
 
-**4.** Cơ chế bốc thẻ, hand array và phần thưởng
+**4.** Draws, hand array, and rewards
 
-**5.** Danh mục thẻ Rune chính thức
+**5.** Official Rune catalog
 
-**6.** Cơ chế đặt marker đồng thời
+**6.** Simultaneous marker placement
 
-**7.** Cơ chế giả danh
+**7.** Spoofed identity
 
-**8.** Thuật toán xử lý di chuyển và chuỗi kích hoạt
+**8.** Movement resolution and trigger chains
 
-**9.** Quy tắc chi tiết theo từng thẻ
+**9.** Per-card detailed rules
 
-**10.** Vòng đời marker và trạng thái ngựa
+**10.** Marker lifecycle and horse status
 
-**11.** Thiết kế giao diện desktop và mobile
+**11.** Desktop and mobile UI design
 
-**12.** Mô hình dữ liệu và sự kiện server đề xuất
+**12.** Proposed server data model and events
 
-**13.** Kịch bản kiểm thử chấp nhận
+**13.** Acceptance test scenarios
 
-**14.** Phạm vi kế thừa, giới hạn và điểm cần lưu ý
+**14.** Inherited scope, limits, and notes
 
-**Phụ lục A.** Bảng tóm tắt rule lock
+**Appendix A.** Rule-lock summary
 
-**Phụ lục B.** Artwork concept bộ thẻ Rune
+**Appendix B.** Rune card artwork concept
 
-| **Quy tắc ưu tiên:** Tài liệu này thay thế các mô tả Rune cũ khi có mâu thuẫn. Luật Cá Ngựa truyền thống đang tồn tại trong MVP vẫn được kế thừa, trừ những điểm được tài liệu này sửa đổi hoặc mở rộng rõ ràng. |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Precedence:** This document overrides older Rune descriptions on conflict. Traditional Ludo/Parcheesi rules already in the MVP are inherited unless this document clearly changes or extends them. |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
-## Thay đổi chính trong phiên bản 1.2
+## Key changes in version 1.2
 
-- Mỗi người chơi có 2 quân ngựa; thắng khi đưa đủ 2 quân về đích.
+- Each player has 2 horses; win by bringing both home.
 
-- Xuất Chuồng không còn là marker. Thẻ được bấm trực tiếp từ hand array sau placement phase và trước khi tung xúc xắc của lượt bình thường.
+- Leave Stable is no longer a board marker. The card is used directly from the hand array after the placement phase and before the normal-turn dice roll.
 
-- Xuất Chuồng luôn bị tiêu hao sau khi bấm, kể cả khi không xuất được quân.
+- Leave Stable is always consumed on press, even when no horse can leave.
 
-- Quân vừa được đưa ra ô xuất phát kích hoạt marker tại ô đó như khi đi vào một ô bình thường.
+- A horse that just entered the start cell triggers markers on that cell as if it moved onto it normally.
 
-- Hand array thông thường chỉ cho phép bốc thêm thẻ khi đang giữ dưới 5 thẻ còn hạn.
+- The normal hand array only allows additional draws while holding fewer than 5 unexpired cards.
 
-- Sau 5 lượt đặt thẻ trung thực liên tiếp, người chơi được chọn 1 thẻ hỗ trợ tại pha bốc và đặt thẻ của lượt bình thường tiếp theo. Thẻ thưởng được append trực tiếp vào hand array kể cả khi đang có từ 5 thẻ trở lên.
+- After 5 consecutive honest placements, the player picks 1 support card during the next normal turn’s draw/placement phase. The reward is appended to the hand array even when it already has 5 or more cards.
 
-# 1. Mục tiêu và phạm vi tài liệu
+# 1. Goals and document scope
 
-Tài liệu này đặc tả phiên bản luật Rune Race mới dành cho MVP. Trọng tâm là lớp gameplay bổ sung trên nền luật Cá Ngựa truyền thống: mỗi người chơi điều khiển 2 quân ngựa, bốc thẻ ngẫu nhiên, dùng trực tiếp thẻ Xuất Chuồng từ hand array, rải marker bí mật trên đường đi chung, kích hoạt thẻ theo chuyển động từng bước, đặt thẻ đồng thời và giả danh người đặt thẻ.
+This document specifies the new Rune Race rules for the MVP. The focus is the layer on top of traditional Ludo/Parcheesi: each player controls 2 horses, draws random cards, uses Leave Stable directly from the hand array, secretly places markers on the shared track, resolves cards step-by-step, places simultaneously, and spoofs placer identity.
 
-- Định nghĩa chính xác vòng lặp lượt chơi và thời điểm mở pha đặt thẻ.
+- Define the turn loop and when the placement phase opens.
 
-- Khóa danh sách 11 loại Rune chính thức; loại bỏ thẻ Nhân đôi bước đi khỏi bộ thẻ mới.
+- Lock the official list of 11 Rune types; remove Double Move from the new deck.
 
-- Khóa thay đổi số quân: mỗi người chơi chỉ có 2 quân ngựa và thắng khi đưa đủ 2 quân về đích.
+- Lock piece count: 2 horses per player; win by bringing both home.
 
-- Khóa thay đổi của Xuất Chuồng: đây là thẻ dùng trực tiếp từ hand array, không còn tạo marker trên bàn cờ.
+- Lock Leave Stable as a direct-use hand card (no board marker).
 
-- Mô tả vòng đời riêng của thẻ đang nằm trong array và marker đã được rải trên bàn cờ.
+- Describe the lifecycle of cards in the array vs markers on the board.
 
-- Mô tả cơ chế giả danh, chuỗi trung thực và phần thưởng hỗ trợ.
+- Describe spoofed identity, honesty streak, and support rewards.
 
-- Quy định giao diện marker bí mật và tooltip riêng cho người đặt thật.
+- Specify secret marker UI and owner-only tooltips.
 
-- Cung cấp dữ liệu và kịch bản kiểm thử để đội phát triển triển khai nhất quán.
+- Provide data and acceptance tests for consistent implementation.
 
-# 2. Nguyên tắc thiết kế và thuật ngữ
+# 2. Design principles and terminology
 
-## 2.1. Nguyên tắc thiết kế
+## 2.1. Design principles
 
-| **Nguyên tắc**                  | **Ý nghĩa triển khai**                                                                                                                                      |
-|---------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Kế thừa luật truyền thống       | Rune Race không thay thế phần luật Cá Ngựa cơ bản đã tồn tại trong MVP; hệ thống Rune tạo thêm lớp chiến thuật và tâm lý.                                   |
-| Hai quân mỗi người              | Mỗi người chơi có 2 quân ngựa. Người chơi thắng khi đưa đủ 2 quân về đích.                                                                                |
-| Thông tin công khai có chủ đích | Người chơi nhìn thấy vị trí marker và danh tính công khai, nhưng không biết loại thẻ hoặc người đặt thật.                                                   |
-| Chuyển động từng bước           | Mỗi ô đi qua đều có thể làm thay đổi hướng hoặc số bước còn lại. Server phải resolve theo từng bước, không dịch chuyển trực tiếp từ điểm đầu tới điểm cuối. |
-| Tác động hai chiều              | Bất kỳ quân ngựa nào đi vào marker đều có thể được hỗ trợ hoặc bị phạt, kể cả quân của người đặt thật.                                                      |
-| Chaos có kiểm soát              | Tất cả người chơi có thể đặt thẻ đồng thời trong cùng một pha; xung đột vị trí được server xử lý theo thứ tự nhận thao tác.                                 |
+| **Principle** | **Implementation meaning** |
+|---------------|----------------------------|
+| Inherit traditional rules | Rune Race does not replace core Ludo/Parcheesi already in the MVP; Runes add tactics and psychology. |
+| Two horses per player | Each player has 2 horses. Win by bringing both home. |
+| Deliberate public information | Players see marker position and displayed identity, but not card type or true placer. |
+| Step-by-step movement | Every cell passed may change direction or remaining steps. The server must resolve per step, not teleport start→end. |
+| Two-way effects | Any horse entering a marker may be helped or hurt, including the true placer’s own horses. |
+| Controlled chaos | Everyone may place in the same phase; cell conflicts resolve by first request received. |
 
-## 2.2. Thuật ngữ
+## 2.2. Terminology
 
-| **Thuật ngữ**              | **Định nghĩa**                                                                                                                             |
-|----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| Lượt bình thường           | Lượt chơi bắt đầu từ bước bốc thẻ của người chơi đang đến lượt. Đây là đơn vị được dùng để đếm nhiều loại thời hạn.                        |
-| Lượt thưởng do tung được 6 | Lượt phụ chỉ lặp lại từ bước tung xúc xắc. Không mở lại bước bốc thẻ hoặc pha đặt thẻ đồng thời; không được tính là một vòng thời hạn mới. |
-| Hand array                 | Khu vực chứa các thẻ còn hạn mà người chơi đang giữ, hiển thị ở góc dưới bên trái giao diện. Ngưỡng bốc thẻ thường là dưới 5 thẻ; thẻ thưởng trung thực được phép append vượt ngưỡng này.                                          |
-| Marker                     | Dấu vị trí bí mật được tạo khi một thẻ đặt được rải lên đường đi chung. Marker không tiết lộ loại Rune. Xuất Chuồng không tạo marker.       |
-| Thẻ dùng trực tiếp          | Thẻ được kích hoạt từ hand array mà không rải xuống bàn cờ. Trong phiên bản này, Xuất Chuồng là thẻ dùng trực tiếp duy nhất.                 |
-| Thẻ đặt được                | Các Rune có thể rải xuống đường đi chung để tạo marker: Khiên, Tiến, Lùi, Đóng băng, Về chuồng và Hoán vị.                                   |
-| Người đặt thật             | Người thực hiện thao tác rải thẻ. Danh tính này không bao giờ được công bố cho người chơi khác.                                            |
-| Danh tính hiển thị         | Người chơi được gắn avatar và màu trên marker. Có thể là người đặt thật hoặc người bị giả danh.                                            |
-| Marker đi qua              | Marker kích hoạt ngay khi quân ngựa đi qua ô chứa marker, kể cả quân chưa dừng lại tại ô đó.                                               |
-| Marker dừng đúng ô         | Marker chỉ kích hoạt nếu chuyển động kết thúc chính xác tại ô chứa marker.                                                                 |
-| Đường đi chung             | Các ô có thể được sử dụng bởi nhiều người chơi. Chỉ những ô này mới được phép đặt marker.                                                  |
+| **Term** | **Definition** |
+|----------|----------------|
+| Normal turn | A turn that starts at the active player’s draw step. Used as the unit for many timers. |
+| Bonus turn from rolling 6 | Extra turn that resumes only from the dice roll. No redraw, no simultaneous placement, no Leave Stable window; does not count as a new expiry round. |
+| Hand array | Unexpired held cards, shown bottom-left. Normal draws only when under 5 cards; honesty rewards may append above that threshold. |
+| Marker | Secret board token created when a placeable card is laid on the shared track. Does not reveal Rune type. Leave Stable does not create markers. |
+| Direct-use card | Activated from the hand without placing on the board. Leave Stable is the only direct-use card in this version. |
+| Placeable card | Runes that can be laid on the shared track: Shield, Advance, Back, Freeze, Send Home, Swap. |
+| True placer | The player who performed the place action. Never revealed to others. |
+| Displayed identity | Avatar/color shown on the marker. May be the true placer or a spoofed player. |
+| Pass-through marker | Triggers when a horse passes through the cell, even if it does not stop there. |
+| Exact-stop marker | Triggers only if movement ends exactly on the marker cell. |
+| Shared track | Cells usable by multiple players. Only these cells may receive markers. |
 
-# 3. Vòng lặp gameplay của một lượt
+# 3. Turn gameplay loop
 
-## 3.1. Lượt bình thường
+## 3.1. Normal turn
 
-| **Bước** | **Tên bước**          | **Mô tả**                                                                                                                                 |
-|----------|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| 1        | Mở lượt bình thường   | Xử lý thẻ trong hand array đã hết hạn của người chơi đang đến lượt trước khi người này bốc, đặt hoặc dùng thẻ.                            |
-| 2        | Bốc thẻ               | Người chơi đang đến lượt có thể bốc 0 hoặc nhiều thẻ ngẫu nhiên, miễn tổng lượt bốc cá nhân chưa vượt 25 và hand array đang có dưới 5 thẻ. Nếu người chơi có reward trung thực đến hạn nhận ở lượt này, hệ thống mở lựa chọn 1 thẻ hỗ trợ trong chính pha bốc và đặt thẻ rồi append thẻ đã chọn vào hand array, kể cả khi array đang có từ 5 thẻ trở lên.  |
-| 3        | Pha đặt thẻ đồng thời | Tất cả người chơi đang giữ thẻ đặt được có thể rải không giới hạn số thẻ còn hạn xuống các ô hợp lệ. Người chơi được phép giữ lại thẻ.  |
-| 4        | Cửa sổ dùng Xuất Chuồng | Sau pha đặt marker, người đang đến lượt có thể bấm một hoặc nhiều thẻ Xuất Chuồng đang giữ. Mỗi lần bấm đều tiêu hao thẻ ngay.            |
-| 5        | Tung xúc xắc          | Chỉ người đang đến lượt tung xúc xắc.                                                                                                     |
-| 6        | Chọn quân ngựa        | Người đang đến lượt chọn một quân ngựa hợp lệ theo luật Cá Ngựa truyền thống và các trạng thái hiện tại.                                  |
-| 7        | Di chuyển từng bước   | Quân ngựa nhảy theo số xúc xắc. Server resolve từng ô và xử lý marker trên đường đi theo luật tại Mục 8.                                  |
-| 8        | Kết thúc lượt         | Cập nhật bộ đếm trạng thái, vòng đời marker và các hiệu ứng liên quan.                                                                    |
+| **Step** | **Name** | **Description** |
+|----------|----------|-----------------|
+| 1 | Open normal turn | Expire the active player’s held cards before they draw, place, or use cards. |
+| 2 | Draw | Active player may draw 0 or more random cards if personal draw quota is under 25 and hand has under 5 cards. If an honesty reward is due this turn, the system opens a pick of 1 support card in this same phase and appends it even when the hand already has 5+ cards. |
+| 3 | Simultaneous placement | Every player holding unexpired placeable cards may place any number on legal cells. Keeping cards is allowed. |
+| 4 | Leave Stable window | After placement, the active player may press one or more held Leave Stable cards. Each press consumes immediately. |
+| 5 | Roll dice | Only the active player rolls. |
+| 6 | Choose horse | Active player picks a legal horse under traditional rules and current status. |
+| 7 | Step movement | Horse advances by the dice value. Server resolves each cell and markers per Section 8. |
+| 8 | End turn | Update counters, marker lifecycles, and related effects. |
 
-## 3.2. Lượt thưởng do tung được 6
+## 3.2. Bonus turn from rolling 6
 
-Nếu người chơi tung được 6 và được thêm lượt theo luật truyền thống, quy trình chỉ lặp lại từ bước tung xúc xắc. Không được bốc thêm Rune, không mở thêm pha đặt thẻ đồng thời và không mở lại cửa sổ dùng Xuất Chuồng.
+If the player rolls a 6 and receives an extra turn under traditional rules, the flow resumes only from the dice roll. No Rune draws, no simultaneous placement, no Leave Stable window.
 
-| **Có thực hiện lại?**      | **Bốc thẻ** | **Pha đặt đồng thời** | **Dùng Xuất Chuồng** | **Tung xúc xắc** | **Chọn quân** | **Di chuyển** |
-|----------------------------|-------------|-----------------------|----------------------|------------------|---------------|---------------|
-| Lượt thưởng do tung được 6 | Không       | Không                 | Không                | Có               | Có            | Có            |
+| **Repeat?** | **Draw** | **Placement** | **Leave Stable** | **Dice** | **Choose horse** | **Move** |
+|-------------|----------|---------------|------------------|----------|------------------|----------|
+| Bonus turn from 6 | No | No | No | Yes | Yes | Yes |
 
-# 4. Cơ chế bốc thẻ, hand array và phần thưởng
+# 4. Draws, hand array, and rewards
 
-## 4.1. Giới hạn bốc thẻ cá nhân
+## 4.1. Personal draw limit
 
-- Mỗi người chơi được bốc tối đa 25 thẻ ngẫu nhiên trong một ván.
+- Each player may draw at most 25 random cards per match.
 
-- Đây là giới hạn cá nhân, không phải giới hạn dùng chung cho toàn bộ trận.
+- This is a personal limit, not a shared match pool.
 
-- Trong bước bốc thẻ của lượt bình thường, người chơi có thể bốc nhiều thẻ liên tiếp, miễn còn quota và hand array chưa đầy.
+- During the normal-turn draw step, players may draw multiple times while quota and hand capacity allow.
 
-- Không được bốc thẻ trong lượt thưởng do tung được 6.
+- No draws during a bonus turn from rolling 6.
 
-- Thẻ thưởng từ chuỗi trung thực không tính vào quota 25 thẻ bốc cá nhân.
+- Honesty reward cards do not count toward the 25-draw quota.
 
-## 4.2. Hand array và ngưỡng bốc thẻ thường
+## 4.2. Hand array and normal draw threshold
 
-- Hand array hiển thị các thẻ còn hạn mà người chơi đang giữ ở góc dưới bên trái màn hình.
+- The hand array shows unexpired held cards at the bottom-left.
 
-- Người chơi chỉ được bốc thêm thẻ thường khi hand array đang có dưới 5 thẻ còn hạn.
+- Normal draws are only allowed while holding fewer than 5 unexpired cards.
 
-- Khi hand array đang có từ 5 thẻ trở lên, nút bốc thẻ thường bị vô hiệu hóa.
+- At 5+ cards, the normal draw button is disabled.
 
-- Thẻ thưởng trung thực là ngoại lệ: sau khi người chơi chọn thẻ hỗ trợ, hệ thống append thẻ thưởng trực tiếp vào hand array kể cả khi array đang có từ 5 thẻ trở lên.
+- Honesty rewards are an exception: after choosing a support card, the system appends it even at 5+ cards.
 
-- Vì reward có thể được nhận nhiều lần, hand array có thể tạm thời tăng lên 6, 7, 8 hoặc nhiều thẻ hơn. Trong trạng thái này, người chơi vẫn không được bốc thẻ thường cho đến khi số thẻ còn hạn giảm xuống dưới 5.
+- Because rewards can stack, the hand may temporarily hold 6, 7, 8, or more cards. Normal draws stay locked until unexpired cards drop below 5.
 
-- Người chơi có thể giữ thẻ để đặt hoặc dùng ở lượt sau nếu thẻ vẫn còn hạn.
+- Players may keep cards for later turns while they remain unexpired.
 
-- Mỗi thẻ trong array phải hiển thị số vòng còn lại.
+- Each held card must show remaining rounds.
 
-## 4.3. Hạn của thẻ chưa đặt
+## 4.3. Unplaced card expiry
 
-Một thẻ được bốc lên hand array sẽ hết hạn sau 2 vòng tính theo các lượt bình thường tiếp theo của chính người đã bốc thẻ. Lượt thưởng do tung được 6 không làm giảm thời hạn. Quy tắc này áp dụng cả với Xuất Chuồng nếu thẻ chưa được dùng.
+A card drawn into the hand expires after 2 rounds counted by the owner’s next normal turns. Bonus turns from rolling 6 do not reduce expiry. The same rule applies to unused Leave Stable cards.
 
-| **Mốc**                                   | **Trạng thái của thẻ A vừa bốc**                             |
-|-------------------------------------------|--------------------------------------------------------------|
-| Ngay trong lượt bốc                       | Còn hạn; có thể đặt trong pha đồng thời hoặc dùng nếu là Xuất Chuồng. |
-| Lượt bình thường tiếp theo của chủ thẻ    | Đã trải qua vòng thứ nhất.                                   |
-| Lượt bình thường tiếp theo nữa            | Đã trải qua vòng thứ hai.                                    |
-| Bắt đầu lượt bình thường thứ ba tiếp theo | Xóa thẻ khỏi array trước khi mở bước bốc và pha đặt thẻ.     |
+| **Checkpoint** | **State of card A just drawn** |
+|----------------|--------------------------------|
+| During the draw turn | Unexpired; may place in the simultaneous phase or use if Leave Stable. |
+| Owner’s next normal turn | Completed first round. |
+| Owner’s following normal turn | Completed second round. |
+| Start of the third following normal turn | Remove from the array before draw/placement opens. |
 
-## 4.4. Chuỗi trung thực và thẻ thưởng
+## 4.4. Honesty streak and reward cards
 
-- Một lượt của người chơi được tính là trung thực nếu người đó đặt ít nhất một marker trong pha đặt thẻ và tất cả marker do người đó đặt trong pha đều sử dụng danh tính hiển thị là chính mình.
+- A placement turn is honest if the player placed at least one marker and every marker they placed that phase used their own displayed identity.
 
-- Một lượt không đặt marker giữ nguyên bộ đếm trung thực hiện tại.
+- A turn with no markers placed leaves the honesty streak unchanged.
 
-- Chỉ cần có ít nhất một marker giả danh trong lượt, bộ đếm trung thực của người đặt thật trở về 0.
+- Any spoofed marker in the phase resets the true placer’s streak to 0.
 
-- Khi người chơi hoàn thành 5 lượt trung thực liên tiếp, phần thưởng không được thêm ngay trong lượt thứ năm. Hệ thống đánh dấu 1 reward đến hạn nhận ở lượt bình thường tiếp theo của chính người chơi đó.
+- After 5 consecutive honest placement turns, the reward is not granted on the fifth turn. The system marks 1 reward due on that player’s next normal turn.
 
-- Tại pha bốc và đặt thẻ của lượt bình thường tiếp theo, người chơi được chọn 1 trong 5 thẻ hỗ trợ: Xuất Chuồng, Khiên Chắn, Tiến 2 bước, Tiến 3 bước hoặc Tiến 4 bước.
+- In the next normal turn’s draw/placement phase, the player picks 1 of 5 support cards: Leave Stable, Shield, Advance 2, Advance 3, or Advance 4.
 
-- Cơ chế chọn reward được coi như một lần bốc thẻ đặc biệt: người chơi chủ động chọn loại thẻ thay vì nhận ngẫu nhiên.
+- Reward selection is a special draw: the player chooses the type instead of receiving a random card.
 
-- Thẻ thưởng được append trực tiếp vào hand array ngay sau khi chọn, kể cả khi hand array đang có từ 5 thẻ trở lên. Không dùng hàng chờ pending reward do array đầy.
+- The reward is appended immediately, even at 5+ cards. No pending queue when the hand is full.
 
-- Nếu người chơi không chọn trước khi hết thời gian cho phép, hệ thống tự chọn ngẫu nhiên 1 trong 5 thẻ hỗ trợ và append vào hand array.
+- If the player does not choose in time, the server picks one of the 5 support cards at random and appends it.
 
-- Thẻ thưởng có hạn 2 vòng của chính người nhận, tính từ thời điểm được append vào hand array. Lượt thưởng do tung được 6 không làm giảm thời hạn.
+- Reward cards expire after 2 of the recipient’s rounds from the moment they are appended. Bonus turns from 6 do not reduce expiry.
 
-- Thẻ thưởng không tính vào quota 25 thẻ bốc cá nhân.
+- Rewards do not count toward the 25 personal draw quota.
 
-- Người chơi có thể sử dụng ngay thẻ thưởng trong chính lượt nhận thưởng như một thẻ vừa bốc được. Nếu chọn Xuất Chuồng, thẻ có thể được dùng trong cửa sổ Xuất Chuồng của cùng lượt; nếu chọn một thẻ tạo marker, thẻ có thể được đặt ngay trong placement phase hiện tại.
+- The player may use the reward immediately in the same turn as a freshly drawn card (Leave Stable in the Leave Stable window; placeable cards in the current placement phase).
 
-- Sau khi người chơi nhận reward ở lượt bình thường tiếp theo, bộ đếm trung thực reset về 0. Nếu người chơi tiếp tục đặt marker hoàn toàn chính danh trong placement phase của lượt nhận reward, lượt đó được tính là lượt trung thực đầu tiên của chuỗi mới.
+- After the reward is received on the next normal turn, the honesty streak resets to 0. If the player places fully honest markers in that same placement phase, that turn becomes the first turn of a new streak.
 
-- Hệ thống công bố cho tất cả người chơi rằng người chơi A đã nhận 1 thẻ hỗ trợ vì chuỗi trung thực. Không tiết lộ A đã chọn thẻ gì, số lượng thẻ A đang giữ hoặc thời hạn còn lại của thẻ thưởng.
+- The system announces that player A received a support card for honesty. It does not reveal which card, how many cards A holds, or the reward’s remaining expiry.
 
-# 5. Danh mục thẻ Rune chính thức
+# 5. Official Rune catalog
 
-Bộ Rune phiên bản mới gồm 11 loại thẻ. Thẻ Nhân đôi bước đi trong briefing cũ không còn nằm trong danh sách chính thức.
+The new Rune set has 11 card types. Double Move from the older briefing is no longer official.
 
-| **Nhóm** | **Tên thẻ** | **Kích hoạt** | **TTL marker** | **Vai trò**                                                                                                            |
-|----------|-------------|---------------|----------------|------------------------------------------------------------------------------------------------------------------------|
-| Hỗ trợ   | Xuất chuồng | Dùng trực tiếp từ hand array | Không áp dụng | Trong cửa sổ trước khi tung xúc xắc của lượt bình thường, chủ thẻ bấm thẻ để thử đưa một quân từ chuồng ra ô xuất phát. Thẻ luôn bị tiêu hao sau khi bấm. |
-| Hỗ trợ   | Khiên chắn  | Đi qua        | 3 vòng         | Cấp tối đa một lớp bảo vệ cho quân kích hoạt. Lớp này chặn một bẫy tiếp theo thuộc nhóm Lùi, Đóng băng hoặc Về chuồng. |
-| Hỗ trợ   | Tiến 2 bước | Đi qua        | 3 vòng         | Cộng thêm 2 bước tiến vào chuyển động hiện tại.                                                                        |
-| Hỗ trợ   | Tiến 3 bước | Đi qua        | 3 vòng         | Cộng thêm 3 bước tiến vào chuyển động hiện tại.                                                                        |
-| Hỗ trợ   | Tiến 4 bước | Đi qua        | 3 vòng         | Cộng thêm 4 bước tiến vào chuyển động hiện tại.                                                                        |
-| Bẫy      | Lùi 3 bước  | Đi qua        | 3 vòng         | Buộc quân kích hoạt chuyển sang lùi 3 bước; marker biến mất sau khi kích hoạt.                                         |
-| Bẫy      | Lùi 4 bước  | Đi qua        | 3 vòng         | Buộc quân kích hoạt chuyển sang lùi 4 bước; marker biến mất sau khi kích hoạt.                                         |
-| Bẫy      | Lùi 5 bước  | Đi qua        | 3 vòng         | Buộc quân kích hoạt chuyển sang lùi 5 bước; marker biến mất sau khi kích hoạt.                                         |
-| Bẫy      | Đóng băng   | Đi qua        | 3 vòng         | Dừng quân ngay tại marker và khóa quân trong 2 lượt bình thường tiếp theo của chủ quân.                                |
-| Bẫy      | Về chuồng   | Dừng đúng ô   | 5 vòng         | Đưa quân kích hoạt về chuồng ngay lập tức, trừ khi được Khiên chắn vô hiệu hóa.                                        |
-| Đặc biệt | Hoán vị     | Dừng đúng ô   | 5 vòng         | Người kích hoạt chọn một quân hợp lệ của danh tính hiển thị để đổi vị trí.                                             |
+| **Group** | **Card** | **Trigger** | **Marker TTL** | **Role** |
+|-----------|----------|-------------|----------------|----------|
+| Support | Leave Stable | Direct use from hand | N/A | Before the normal-turn dice roll, the owner presses the card to try moving one horse from the stable to the start cell. Always consumed on press. |
+| Support | Shield | Pass-through | 3 rounds | Grants at most one protection layer that blocks the next Back, Freeze, or Send Home trap. |
+| Support | Advance 2 | Pass-through | 3 rounds | Adds 2 forward steps to the current movement. |
+| Support | Advance 3 | Pass-through | 3 rounds | Adds 3 forward steps to the current movement. |
+| Support | Advance 4 | Pass-through | 3 rounds | Adds 4 forward steps to the current movement. |
+| Trap | Back 3 | Pass-through | 3 rounds | Forces the activating horse backward 3 steps; marker removed on trigger. |
+| Trap | Back 4 | Pass-through | 3 rounds | Forces the activating horse backward 4 steps; marker removed on trigger. |
+| Trap | Back 5 | Pass-through | 3 rounds | Forces the activating horse backward 5 steps; marker removed on trigger. |
+| Trap | Freeze | Pass-through | 3 rounds | Stops the horse on the marker and locks it for the owner’s next 2 normal turns. |
+| Trap | Send Home | Exact stop | 5 rounds | Sends the activating horse home immediately unless Shield cancels it. |
+| Special | Swap | Exact stop | 5 rounds | Activator chooses a legal horse belonging to the displayed identity and swaps positions. |
 
-# 6. Cơ chế đặt marker đồng thời
+# 6. Simultaneous marker placement
 
-## 6.1. Pha đặt thẻ
+## 6.1. Placement phase
 
-- Pha đặt thẻ đồng thời mở sau bước bốc thẻ của mỗi lượt bình thường và trước khi người đang đến lượt tung xúc xắc.
+- Opens after the normal-turn draw and before the active player rolls.
 
-- Tất cả người chơi đang giữ thẻ đặt được và còn hạn được phép tham gia, không chỉ người đang đến lượt.
+- Every player with unexpired placeable cards may participate, not only the active player.
 
-- Mỗi người có thể đặt không giới hạn số thẻ đặt được trong array trong cùng một pha. Xuất Chuồng không được rải xuống bàn cờ.
+- Each player may place any number of placeable cards in the same phase. Leave Stable is never laid on the board.
 
-- Người chơi có quyền không đặt hoặc giữ lại một phần thẻ cho các pha sau.
+- Players may place nothing or keep some cards for later phases.
 
-## 6.2. Ô hợp lệ để đặt marker
+## 6.2. Legal marker cells
 
-| **Loại ô**               | **Quyền đặt**   | **Ghi chú**                                                                          |
-|--------------------------|-----------------|--------------------------------------------------------------------------------------|
-| Ô thuộc đường đi chung   | Được phép       | Bao gồm ô xuất phát chung của người chơi và các ô chung ngay trước cửa chuồng.       |
-| Ô đang có quân ngựa đứng | Không được phép | Không thể đặt marker tại vị trí đang bị chiếm dụng.                                  |
-| Đường về đích riêng      | Không được phép | Các ô chỉ quân của một người chơi sử dụng để về đích không thuộc phạm vi đặt marker. |
-| Ô đã có marker           | Không được phép | Mỗi ô chỉ chứa tối đa một marker bí mật.                                             |
+| **Cell type** | **May place?** | **Notes** |
+|---------------|----------------|-----------|
+| Shared-track cell | Yes | Includes shared start cells and shared cells just outside stables. |
+| Cell currently occupied by a horse | No | Cannot place on an occupied cell. |
+| Private home stretch | No | Finish-path cells unique to one player are out of scope. |
+| Cell that already has a marker | No | At most one secret marker per cell. |
 
-| **Không dùng khái niệm ô sao an toàn trong đặc tả Rune:** Luật đặt marker chỉ dựa trên điều kiện ô thuộc đường đi chung. Nếu MVP truyền thống đang có một loại ô đặc biệt khác, cần xử lý theo luật nền riêng; tài liệu này không bổ sung thêm quyền miễn nhiễm Rune cho ô đó. |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **No safe-star concept in the Rune spec:** Marker placement depends only on shared-track eligibility. If the traditional MVP has other special cells, handle them under base rules; this document does not grant Rune immunity there. |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
-## 6.3. Xử lý xung đột vị trí
+## 6.3. Cell conflicts
 
-Nếu nhiều người chơi gửi yêu cầu đặt marker vào cùng một ô còn trống trong cùng pha, server chấp nhận yêu cầu đến sớm nhất. Các yêu cầu đến sau thất bại; thẻ tương ứng vẫn nằm trong array của người đặt thất bại và không bị tiêu hao.
+If multiple players request the same empty cell in one phase, the server accepts the earliest request. Later requests fail; those cards stay in the failed placer’s hand and are not consumed.
 
-# 7. Cơ chế giả danh
+# 7. Spoofed identity
 
-## 7.1. Phạm vi áp dụng
+## 7.1. Scope
 
-Mọi marker đều được áp dụng cơ chế giả danh, bao gồm Khiên chắn, Tiến 2/3/4 bước, Lùi 3/4/5 bước, Đóng băng, Về chuồng và Hoán vị. Xuất Chuồng không tạo marker nên không tham gia cơ chế giả danh.
+Every marker uses spoofed identity, including Shield, Advance 2/3/4, Back 3/4/5, Freeze, Send Home, and Swap. Leave Stable creates no marker and does not use spoofing.
 
-- Khi đặt marker, người đặt thật chọn một danh tính hiển thị trong số người chơi vẫn đang tham gia trận.
+- When placing, the true placer chooses a displayed identity among players still in the match.
 
-- Người đặt thật được phép chọn chính mình. Đây là một lượt đặt trung thực nếu mọi marker người đó đặt trong pha đều hiển thị chính mình.
+- Choosing yourself is allowed. That counts as an honest placement turn if every marker you place that phase displays yourself.
 
-- Không được chọn người đã thoát trận hoặc đã hoàn thành toàn bộ quân làm danh tính hiển thị cho marker mới.
+- Players who left or finished all horses cannot be chosen as displayed identity for new markers.
 
-- Danh tính người đặt thật không bao giờ được công bố, kể cả khi marker kích hoạt, hết hạn hoặc trận đấu kết thúc.
+- The true placer is never revealed — not on trigger, expiry, or match end.
 
-## 7.2. Thông tin công khai trên bàn cờ
+## 7.2. Public board information
 
-- Marker hiển thị dưới dạng location icon hình tròn tại ô đường đi chung.
+- Markers appear as circular location icons on shared-track cells.
 
-- Bên trong vòng tròn là avatar của danh tính hiển thị.
+- Inside the circle: the displayed identity’s avatar.
 
-- Màu sắc marker sử dụng màu của danh tính hiển thị.
+- Marker color follows the displayed identity’s color.
 
-- Không hiển thị loại thẻ đang được đặt tại marker.
+- Card type is not shown on the public marker.
 
-- Không hiển thị số vòng tồn tại còn lại cho người chơi khác.
+- Remaining TTL is not shown to other players.
 
-# 8. Thuật toán xử lý di chuyển và chuỗi kích hoạt
+# 8. Movement resolution and trigger chains
 
-## 8.1. Nguyên tắc resolve từng bước
+## 8.1. Step-by-step resolve
 
-Server không được tính điểm đến cuối cùng chỉ bằng phép cộng xúc xắc. Mỗi bước nhảy phải được resolve tuần tự vì marker có thể cộng bước, đổi hướng, dừng chuyển động hoặc tạo hiệu ứng trạng thái.
+The server must not compute the final cell by only adding the dice value. Each hop resolves in sequence because markers may add steps, reverse direction, stop movement, or apply status.
 
-<table>
-<colgroup>
-<col style="width: 100%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>resolveMovement(horse, initialDiceSteps):<br />
-direction = FORWARD<br />
-remainingSteps = initialDiceSteps<br />
-<br />
-while remainingSteps &gt; 0:<br />
-horse.moveOneCell(direction)<br />
-remainingSteps -= 1<br />
-<br />
-resolvePassThroughMarkerIfPresent(horse, direction, remainingSteps)<br />
-# Hàm trên có thể đổi direction, cộng bước hoặc dừng toàn bộ chuyển động.<br />
-<br />
-resolveExactStopMarkerIfPresent(horse)<br />
-resolveTraditionalRuleIfApplicable(horse)</th>
-</tr>
-</thead>
-<tbody>
-</tbody>
-</table>
+```
+resolveMovement(horse, initialDiceSteps):
+  direction = FORWARD
+  remainingSteps = initialDiceSteps
 
-## 8.2. Quy tắc chuyển động khi đi qua marker
+  while remainingSteps > 0:
+    horse.moveOneCell(direction)
+    remainingSteps -= 1
 
-| **Tình huống**               | **Hướng sau xử lý**  | **Kết quả**                                                                                                     |
-|------------------------------|----------------------|-----------------------------------------------------------------------------------------------------------------|
-| Đang tiến, gặp Tiến N        | Giữ hướng tiến       | Cộng thêm N bước vào số bước tiến còn lại.                                                                      |
-| Đang tiến, gặp Lùi N         | Đổi sang lùi         | Bỏ số bước tiến còn lại; bắt đầu lùi đúng N bước.                                                               |
-| Đang lùi, gặp Lùi N          | Tiếp tục lùi         | Cộng dồn N bước vào số bước lùi còn lại.                                                                        |
-| Đang lùi, gặp Tiến N         | Đổi sang tiến        | Bỏ số bước lùi còn lại; bắt đầu tiến đúng N bước.                                                               |
-| Gặp Khiên chắn               | Không đổi hướng      | Marker biến mất. Nếu quân chưa có Khiên chắn, cấp một lớp; nếu đã có, marker vẫn mất nhưng không cộng thêm lớp. |
-| Gặp Đóng băng không có Khiên | Dừng ngay            | Marker biến mất; xóa các bước còn lại; áp dụng trạng thái Đóng băng.                                            |
-| Gặp bẫy được Khiên chặn      | Tiếp tục chuyển động | Marker bẫy biến mất; xóa một lớp Khiên; không áp dụng hình phạt.                                                |
+    resolvePassThroughMarkerIfPresent(horse, direction, remainingSteps)
+    # May change direction, add steps, or stop all movement.
 
-## 8.3. Chuỗi marker
+    resolveExactStopMarkerIfPresent(horse)
+    resolveTraditionalRuleIfApplicable(horse)
+```
 
-- Các marker có thể tạo chuỗi tác động dài. Ví dụ Tiến 3 rồi Tiến 2 sẽ cộng dồn tổng cộng 5 bước bổ sung.
+## 8.2. Pass-through marker movement rules
 
-- Trong chuyển động cưỡng chế do Lùi, quân vẫn kích hoạt marker mà nó đi qua.
+| **Situation** | **Direction after** | **Result** |
+|---------------|---------------------|------------|
+| Moving forward, hit Advance N | Stay forward | Add N to remaining forward steps. |
+| Moving forward, hit Back N | Switch to back | Discard remaining forward steps; start backing exactly N. |
+| Moving back, hit Back N | Keep backing | Add N to remaining back steps. |
+| Moving back, hit Advance N | Switch to forward | Discard remaining back steps; start advancing exactly N. |
+| Hit Shield | No direction change | Marker removed. If horse had no Shield, grant one layer; if already shielded, marker still removed with no extra layer. |
+| Hit Freeze without Shield | Stop immediately | Marker removed; clear remaining steps; apply Freeze. |
+| Hit trap blocked by Shield | Continue movement | Trap marker removed; remove one Shield layer; no penalty applied. |
 
-- Nếu đang lùi và gặp Tiến, quân lập tức đổi hướng tiến theo số bước mới.
+## 8.3. Marker chains
 
-- Nếu đang lùi và gặp thêm Lùi, số bước lùi mới được cộng dồn với số bước lùi còn lại.
+- Markers can chain. Example: Advance 3 then Advance 2 adds 5 bonus forward steps total.
 
-- Marker dừng đúng ô được kiểm tra sau khi mọi bước chuyển động hiện tại kết thúc, bất kể điểm dừng sinh ra từ xúc xắc, Tiến hay Lùi.
+- During forced Back movement, the horse still triggers markers it passes.
 
-# 9. Quy tắc chi tiết theo từng thẻ
+- While backing, hitting Advance immediately switches to forward with the new step count.
 
-## 9.1. Tiến 2 / 3 / 4 bước
+- While backing, hitting another Back stacks additional back steps.
 
-Các thẻ Tiến là marker hỗ trợ kích hoạt khi quân ngựa đi qua ô chứa marker.
+- Exact-stop markers are checked after the current movement ends, whether the stop came from dice, Advance, or Back.
 
-- Marker biến mất ngay khi kích hoạt.
+# 9. Per-card detailed rules
 
-- Số bước được cộng dồn vào chuyển động tiến hiện tại.
+## 9.1. Advance 2 / 3 / 4
 
-- Nếu quân đang bị đẩy lùi, phần lùi còn lại bị bỏ và quân chuyển sang tiến đúng số bước trên thẻ.
+Support markers that trigger when a horse passes through.
 
-- Trong các bước bổ sung, quân tiếp tục kích hoạt marker bình thường.
+- Marker removed on trigger.
 
-## 9.2. Lùi 3 / 4 / 5 bước
+- Steps stack into current forward movement.
 
-Các thẻ Lùi là bẫy kích hoạt khi quân ngựa đi qua ô chứa marker.
+- If the horse is being forced back, remaining back steps are discarded and the horse advances by the card’s step value.
 
-- Marker biến mất ngay khi kích hoạt.
+- During bonus steps, further markers still resolve normally.
 
-- Nếu quân đang tiến, bỏ các bước tiến còn lại và bắt đầu lùi đúng số bước trên thẻ.
+## 9.2. Back 3 / 4 / 5
 
-- Nếu quân đang lùi, cộng thêm số bước lùi mới vào số bước lùi còn lại.
+Trap markers that trigger on pass-through.
 
-- Trong quá trình lùi, mọi marker đi qua vẫn được xử lý bình thường.
+- Marker removed on trigger.
 
-- Nếu quân có Khiên chắn, bẫy bị tiêu hao nhưng không tạo hiệu ứng; Khiên chắn cũng bị tiêu hao.
+- If moving forward, discard remaining forward steps and start backing by the card value.
 
-## 9.3. Khiên chắn
+- If already backing, add the new back steps to the remaining back count.
 
-Khiên chắn là marker hỗ trợ kích hoạt khi quân ngựa đi qua ô chứa marker.
+- While backing, pass-through markers still resolve.
 
-- Marker biến mất ngay khi kích hoạt.
+- With Shield, the trap is consumed with no effect; Shield is also consumed.
 
-- Một quân chỉ giữ tối đa một lớp Khiên chắn.
+## 9.3. Shield
 
-- Nếu quân đã có Khiên mà tiếp tục gặp marker Khiên khác, marker mới vẫn biến mất nhưng quân không tích lũy thêm lớp.
+Support marker that triggers on pass-through.
 
-- Khiên tồn tại vô thời hạn cho tới khi vô hiệu hóa một bẫy hoặc quân ngựa bị đá về chuồng.
+- Marker removed on trigger.
 
-- Khiên chặn được Lùi bước, Đóng băng và Về chuồng.
+- A horse holds at most one Shield layer.
 
-- Khiên không chặn được Hoán vị.
+- Hitting another Shield while already shielded still removes the new marker but does not stack layers.
 
-## 9.4. Đóng băng
+- Shield lasts until it cancels a trap or the horse is kicked home.
 
-Đóng băng là bẫy kích hoạt ngay khi quân ngựa đi qua marker.
+- Shield blocks Back, Freeze, and Send Home.
 
-- Nếu không có Khiên chắn, quân dừng ngay tại ô marker và bỏ toàn bộ số bước còn lại.
+- Shield does not block Swap.
 
-- Marker biến mất ngay sau khi kích hoạt.
+## 9.4. Freeze
 
-- Quân không được chọn để di chuyển trong 2 lượt bình thường tiếp theo của chủ quân.
+Trap that triggers immediately on pass-through.
 
-- Lượt thưởng do tung được 6 không làm giảm bộ đếm Đóng băng và không cho phép chọn quân đang bị khóa.
+- Without Shield, the horse stops on the marker cell and discards remaining steps.
 
-- Quân bị đóng băng vẫn có thể bị quân khác đá về chuồng theo luật truyền thống.
+- Marker removed after trigger.
 
-- Nếu bị đá về chuồng trong thời gian Đóng băng, trạng thái Đóng băng bị xóa ngay.
+- The horse cannot be chosen to move for the owner’s next 2 normal turns.
 
-## 9.5. Về chuồng
+- Bonus turns from rolling 6 do not reduce the Freeze counter and do not allow choosing a locked horse.
 
-Về chuồng là bẫy chỉ kích hoạt khi quân ngựa dừng chính xác tại ô marker.
+- A frozen horse can still be kicked home by traditional landing rules.
 
-- Marker biến mất ngay khi kích hoạt.
+- If kicked home while Frozen, Freeze clears immediately.
 
-- Nếu quân không có Khiên chắn, đưa quân về chuồng ngay lập tức.
+## 9.5. Send Home
 
-- Nếu quân có Khiên chắn, marker vẫn biến mất nhưng hiệu ứng bị vô hiệu; lớp Khiên cũng bị tiêu hao.
+Trap that triggers only on exact stop.
 
-## 9.6. Xuất chuồng
+- Marker removed on trigger.
 
-Xuất Chuồng là thẻ hỗ trợ dùng trực tiếp từ hand array. Thẻ này không được rải xuống bàn cờ, không tạo marker, không có TTL marker và không tham gia cơ chế giả danh.
+- Without Shield, send the horse home immediately.
 
-- Chỉ người đang đến lượt được bấm Xuất Chuồng trong cửa sổ dùng thẻ sau pha đặt marker đồng thời và trước khi tung xúc xắc của lượt bình thường.
+- With Shield, marker still removed but the effect is cancelled; Shield is consumed.
 
-- Lượt thưởng do tung được 6 không mở lại cửa sổ dùng Xuất Chuồng.
+## 9.6. Leave Stable
 
-- Người chơi được phép bấm nhiều thẻ Xuất Chuồng liên tiếp trong cùng một cửa sổ. Mỗi lần bấm được xử lý độc lập.
+Direct-use support card from the hand. Never placed on the board, creates no marker, has no marker TTL, and does not use spoofing.
 
-- Mỗi lần bấm luôn tiêu hao thẻ ngay và xóa thẻ khỏi hand array, kể cả khi không thể đưa quân ra chuồng.
+- Only the active player may press Leave Stable after simultaneous placement and before the normal-turn dice roll.
 
-- Nếu trong chuồng không còn quân, không có quân nào được đưa ra nhưng thẻ vẫn bị tiêu hao.
+- Bonus turns from rolling 6 do not reopen the Leave Stable window.
 
-- Nếu ô xuất phát đang có quân của chính người dùng thẻ, không có quân nào được đưa ra nhưng thẻ vẫn bị tiêu hao.
+- Multiple Leave Stable cards may be pressed in one window; each press resolves independently.
 
-- Nếu trong chuồng còn quân và ô xuất phát không bị quân của chính người dùng thẻ chiếm giữ, đưa một quân ra ô xuất phát theo rule xuất chuồng truyền thống đang có trong MVP.
+- Every press always consumes the card and removes it from the hand, even when no horse can leave.
 
-- Nếu ô xuất phát đang có quân đối thủ, áp dụng xử lý đá quân đối thủ về chuồng theo rule truyền thống.
+- Empty stable: no horse exits; card still consumed.
 
-- Nếu ô xuất phát có marker, quân vừa được đưa ra được coi là đã đi vào ô đó như một bước di chuyển bình thường. Marker tại ô xuất phát được kích hoạt theo trigger mode của chính marker và tiếp tục resolve chuỗi tác động theo Mục 8.
+- Start cell occupied by the user’s own horse: no horse exits; card still consumed.
 
-## 9.7. Hoán vị
+- Stable has a horse and start cell is not occupied by the user’s own horse: move one horse to start under existing traditional leave-stable rules.
 
-Hoán vị là marker đặc biệt chỉ kích hoạt khi quân ngựa dừng chính xác tại ô marker.
+- Start cell occupied by an opponent: apply traditional kick-home rules.
 
-- Marker luôn biến mất sau khi được kích hoạt, kể cả khi không đủ điều kiện tạo hiệu ứng.
+- If the start cell has a marker, the exiting horse is treated as entering that cell like a normal move. Resolve the start-cell marker by its trigger mode and continue chains per Section 8.
 
-- Người điều khiển quân vừa kích hoạt chọn một quân hợp lệ thuộc danh tính hiển thị trên marker để đổi vị trí.
+## 9.7. Swap
 
-- Quân được chọn bắt buộc phải đang nằm trên đường đi chung.
+Special exact-stop marker.
 
-- Không được chọn quân đang trong chuồng, đã về đích hoặc đang ở đường về đích riêng.
+- Marker always removed after trigger, even when no swap occurs.
 
-- Nếu danh tính hiển thị chính là chủ của quân vừa kích hoạt, Hoán vị không tạo hiệu ứng và marker biến mất.
+- The controller of the activating horse chooses a legal horse belonging to the displayed identity and swaps positions.
 
-- Nếu danh tính hiển thị không có quân hợp lệ trên đường đi chung, Hoán vị không tạo hiệu ứng và marker biến mất.
+- The chosen horse must be on the shared track.
 
-- Khiên chắn không vô hiệu hóa Hoán vị.
+- Horses in the stable, finished, or on a private home stretch are illegal.
 
-# 10. Vòng đời marker và trạng thái ngựa
+- If displayed identity is the activator’s own identity, no swap; marker still removed.
 
-## 10.1. TTL của marker đã đặt
+- If displayed identity has no legal shared-track horse, no swap; marker still removed.
 
-| **Nhóm marker**      | **Các thẻ**                                                        | **TTL** |
-|----------------------|--------------------------------------------------------------------|---------|
-| Đi qua - 3 vòng      | Tiến 2, Tiến 3, Tiến 4, Khiên chắn, Lùi 3, Lùi 4, Lùi 5, Đóng băng | 3 vòng  |
-| Dừng đúng ô - 5 vòng | Về chuồng, Hoán vị                                                  | 5 vòng  |
+- Shield does not cancel Swap.
 
-## 10.2. Cách đếm vòng marker
+# 10. Marker lifecycle and horse status
 
-TTL marker được đếm theo các lượt bình thường tiếp theo của danh tính hiển thị trên marker, kể cả khi danh tính đó không phải người đặt thật. Lượt thưởng do tung được 6 không tính thêm vòng.
+## 10.1. Placed marker TTL
 
-| **TTL marker** | **Thời điểm xóa nếu chưa kích hoạt**                                            |
-|----------------|---------------------------------------------------------------------------------|
-| 3 vòng         | Xóa ngay khi bắt đầu lượt bình thường thứ tư tiếp theo của danh tính hiển thị.  |
-| 5 vòng         | Xóa ngay khi bắt đầu lượt bình thường thứ sáu tiếp theo của danh tính hiển thị. |
+| **Marker group** | **Cards** | **TTL** |
+|------------------|-----------|---------|
+| Pass-through — 3 rounds | Advance 2/3/4, Shield, Back 3/4/5, Freeze | 3 rounds |
+| Exact stop — 5 rounds | Send Home, Swap | 5 rounds |
 
-## 10.3. Khi danh tính hiển thị rời trận hoặc hoàn thành toàn bộ quân
+## 10.2. Counting marker rounds
 
-Nếu danh tính hiển thị thoát khỏi trận hoặc đã hoàn thành toàn bộ quân sau khi marker được đặt, marker vẫn tiếp tục tồn tại. Chế độ đếm TTL chuyển sang vòng toàn bàn chơi. Số vòng TTL còn lại được giữ nguyên tại thời điểm chuyển chế độ.
+Marker TTL counts by the displayed identity’s next normal turns, even when that identity is not the true placer. Bonus turns from rolling 6 do not add rounds.
 
-| **Quy ước triển khai tối thiểu:** Khi chuyển từ lượt của danh tính hiển thị sang vòng toàn bàn, server giữ nguyên remainingTTL. Mỗi vòng toàn bàn hoàn tất làm giảm remainingTTL một đơn vị. Đây là cách biểu diễn trực tiếp ý nghĩa “chuyển sang đếm theo vòng toàn bàn” và tránh xóa marker đột ngột. |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Marker TTL** | **Removed if never triggered** |
+|----------------|--------------------------------|
+| 3 rounds | At the start of the displayed identity’s fourth following normal turn. |
+| 5 rounds | At the start of the displayed identity’s sixth following normal turn. |
 
-## 10.4. Trạng thái Đóng băng
+## 10.3. When displayed identity leaves or finishes
 
-Nếu quân của A bị Đóng băng trong lượt của B, hai lượt bình thường tiếp theo của A đều không thể chọn quân đó. Sau khi A hoàn thành lượt bình thường thứ hai, trạng thái Đóng băng được xóa. Nếu quân bị đá về chuồng sớm hơn, trạng thái được xóa ngay.
+If the displayed identity leaves or finishes all horses after the marker was placed, the marker remains. TTL counting switches to full-table rounds. Remaining TTL at switch time is preserved.
 
-# 11. Thiết kế giao diện desktop và mobile
+| **Minimum implementation note:** When switching from displayed-identity turns to full-table rounds, keep `remainingTTL`. Each completed full-table round decrements it by one. This matches “switch to table-round counting” without suddenly deleting markers. |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 
-## 11.1. Bố cục bàn chơi
+## 10.4. Freeze status
 
-- Giữ bàn cờ là vùng trung tâm; marker được neo trực tiếp lên từng ô đường đi chung.
+If A’s horse is Frozen on B’s turn, A cannot choose that horse for A’s next two normal turns. After A completes the second normal turn, Freeze clears. If the horse is kicked home earlier, Freeze clears immediately.
 
-- Marker sử dụng location icon hình tròn để người chơi nhìn thấy có Rune tại vị trí đó nhưng không biết nội dung Rune.
+# 11. Desktop and mobile UI design
 
-- Bên trong circle là avatar của danh tính hiển thị; màu vòng tròn hoặc nền marker theo màu của danh tính hiển thị.
+## 11.1. Board layout
 
-- Không sử dụng hình minh họa loại thẻ trên marker công khai.
+- Keep the board central; markers anchor to shared-track cells.
 
-- Không hiển thị TTL marker cho người chơi khác.
+- Use circular location icons so players see a Rune is present without knowing which one.
 
-## 11.2. Tooltip marker của người đặt thật
+- Inside the circle: displayed identity avatar; ring/background uses that identity’s color.
 
-| **Nền tảng**                    | **Tương tác**                 | **Thông tin hiển thị**                          |
-|---------------------------------|-------------------------------|-------------------------------------------------|
-| Desktop                         | Hover marker                  | Chỉ hiển thị loại Rune mà người chơi đó đã đặt. |
-| Mobile / cảm ứng                | Chạm marker để mở tooltip nhỏ | Chỉ hiển thị loại Rune mà người chơi đó đã đặt. |
-| Người không phải người đặt thật | Hover hoặc chạm               | Không xem được loại Rune hoặc TTL.              |
+- Do not show card-type art on the public marker.
 
-## 11.3. Hand array ở góc dưới bên trái
+- Do not show marker TTL to other players.
 
-- Hiển thị toàn bộ thẻ đang còn hạn trong hand array.
+## 11.2. True placer marker tooltip
 
-- Mỗi thẻ hiển thị số vòng còn lại trước khi hết hạn.
+| **Platform** | **Interaction** | **Shown** |
+|--------------|-----------------|-----------|
+| Desktop | Hover marker | Only the Rune type that player placed. |
+| Mobile / touch | Tap marker for a small tooltip | Only the Rune type that player placed. |
+| Non-true placer | Hover or tap | No Rune type or TTL. |
 
-- Hiển thị số lượng thẻ hiện tại. Ví dụ: 4 thẻ, 5 thẻ hoặc 7 thẻ.
+## 11.3. Hand array (bottom-left)
 
-- Khi hand array đang có từ 5 thẻ trở lên, nút bốc thẻ thường bị vô hiệu hóa và hiển thị lý do ngắn gọn.
+- Show all unexpired held cards.
 
-- Thẻ reward trung thực vẫn được append vào hand array kể cả khi số lượng hiện tại đã đạt hoặc vượt 5.
+- Each card shows remaining rounds before expiry.
 
-- Khi reward đến hạn nhận, hiển thị giao diện chọn 1 trong 5 thẻ hỗ trợ trong pha bốc và đặt thẻ. Nếu hết thời gian, client hiển thị kết quả loại thẻ được server tự chọn ngẫu nhiên.
+- Show current count (e.g. 4, 5, or 7 cards).
 
-## 11.4. Pha đặt thẻ đồng thời
+- At 5+ cards, disable normal draw and show a short reason.
 
-- Hiển thị trạng thái pha rõ ràng để mọi người biết đang được phép rải marker.
+- Honesty rewards still append at or above 5.
 
-- Khi chọn một thẻ đặt được trong array, highlight các ô đường đi chung hợp lệ và ẩn hoặc khóa các ô không hợp lệ. Xuất Chuồng không mở giao diện chọn ô.
+- When a reward is due, show a pick of 1 of 5 support cards in the draw/placement phase. On timeout, show the server-chosen type.
 
-- Khi người chơi chọn ô, mở bước chọn danh tính hiển thị trước khi gửi yêu cầu đặt marker.
+## 11.4. Simultaneous placement phase
 
-- Nếu server từ chối do ô vừa bị người khác chiếm trước, giữ nguyên thẻ trong array và thông báo đặt thất bại.
+- Show clear phase state so everyone knows marker placement is open.
 
+- Selecting a placeable card highlights legal shared-track cells and locks illegal ones. Leave Stable does not open cell picking.
 
-## 11.5. Tương tác dùng thẻ Xuất Chuồng
+- After choosing a cell, open displayed-identity selection before sending the place request.
 
-- Trong lượt bình thường của active player, sau khi placement phase kết thúc và trước khi tung xúc xắc, thẻ Xuất Chuồng trong hand array có thể được bấm trực tiếp.
+- If the server rejects because another player took the cell first, keep the card in hand and show placement failed.
 
-- Khi bấm, client gửi yêu cầu dùng thẻ ngay; không mở bước chọn ô hoặc chọn danh tính hiển thị.
+## 11.5. Leave Stable interaction
 
-- Sau phản hồi server, thẻ biến mất khỏi hand array bất kể có xuất được quân hay không.
+- On the active player’s normal turn, after placement ends and before the dice roll, Leave Stable cards in the hand may be pressed directly.
 
-- Nếu xuất thành công, animate quân từ chuồng ra ô xuất phát. Nếu ô xuất phát có marker, tiếp tục animate chuỗi Rune như một bước di chuyển bình thường.
+- On press, the client sends use immediately; no cell or identity picker.
 
-- Nếu không xuất được quân vì chuồng trống hoặc ô xuất phát đang có quân cùng chủ, hiển thị phản hồi ngắn nhưng vẫn thể hiện thẻ đã bị tiêu hao.
+- After the server response, the card leaves the hand whether or not a horse exited.
 
-## 11.6. Animation khi kích hoạt
+- On success, animate from stable to start. If start has a marker, continue animating the Rune chain as a normal entry.
 
-- Quân ngựa di chuyển theo từng ô để người chơi nhìn thấy chuỗi Rune được resolve theo thứ tự.
+- If no horse can exit (empty stable or own horse on start), show brief feedback but still show the card consumed.
 
-- Khi marker kích hoạt, marker biến mất và animation ngắn thể hiện hiệu ứng: mũi tên tiến, mũi tên lùi, lớp Khiên, đóng băng, về chuồng hoặc đổi chỗ.
+## 11.6. Trigger animation
 
-- Animation được phép tiết lộ hiệu ứng vừa xảy ra nhưng không bao giờ tiết lộ người đặt thật.
+- Horses move cell-by-cell so players can follow Rune resolution order.
 
-# 12. Mô hình dữ liệu và sự kiện server đề xuất
+- On trigger, remove the marker and play a short effect: advance arrow, back arrow, shield layer, freeze, send home, or swap.
 
-Phần này là đặc tả kỹ thuật tham chiếu để triển khai nhất quán. Tên trường có thể thay đổi theo codebase, nhưng ý nghĩa gameplay không được thay đổi.
+- Animation may reveal the effect that happened but must never reveal the true placer.
+
+# 12. Proposed server data model and events
+
+Reference technical shape for consistent implementation. Field names may change in code; gameplay meaning must not.
 
 ## 12.1. CardDefinition
 
-| **Trường**    | **Kiểu dữ liệu** | **Ý nghĩa**                                                                                             |
-|---------------|------------------|---------------------------------------------------------------------------------------------------------|
-| cardType      | enum             | LEAVE_STABLE, SHIELD, ADVANCE_2, ADVANCE_3, ADVANCE_4, BACK_3, BACK_4, BACK_5, FREEZE, SEND_HOME, SWAP. |
-| category      | enum             | SUPPORT, TRAP hoặc SPECIAL.                                                                             |
-| activationKind| enum             | DIRECT_USE hoặc BOARD_MARKER. LEAVE_STABLE dùng DIRECT_USE; các loại còn lại dùng BOARD_MARKER.        |
-| triggerMode   | enum \| null     | PASS_THROUGH hoặc EXACT_STOP với marker; null đối với LEAVE_STABLE.                                     |
-| markerTTL     | number \| null   | 3 hoặc 5 vòng với marker; null đối với LEAVE_STABLE.                                                    |
-| stepValue     | number \| null   | Giá trị bước cho các thẻ Tiến và Lùi.                                                                   |
+| **Field** | **Type** | **Meaning** |
+|-----------|----------|-------------|
+| cardType | enum | LEAVE_STABLE, SHIELD, ADVANCE_2, ADVANCE_3, ADVANCE_4, BACK_3, BACK_4, BACK_5, FREEZE, SEND_HOME, SWAP. |
+| category | enum | SUPPORT, TRAP, or SPECIAL. |
+| activationKind | enum | DIRECT_USE or BOARD_MARKER. LEAVE_STABLE uses DIRECT_USE; others use BOARD_MARKER. |
+| triggerMode | enum \| null | PASS_THROUGH or EXACT_STOP for markers; null for LEAVE_STABLE. |
+| markerTTL | number \| null | 3 or 5 for markers; null for LEAVE_STABLE. |
+| stepValue | number \| null | Step value for Advance and Back cards. |
 
 ## 12.2. HeldCard
 
-| **Trường**          | **Kiểu dữ liệu** | **Ý nghĩa**                                       |
-|---------------------|------------------|---------------------------------------------------|
-| heldCardId          | string           | ID instance thẻ trong hand array.                 |
-| ownerPlayerId       | string           | Người đang giữ thẻ.                               |
-| cardType            | enum             | Loại Rune.                                        |
-| remainingHandRounds | number           | Khởi tạo 2; giảm theo lượt bình thường của owner. |
-| source              | enum             | DRAW hoặc HONESTY_REWARD.                         |
+| **Field** | **Type** | **Meaning** |
+|-----------|----------|-------------|
+| heldCardId | string | Card instance id in the hand array. |
+| ownerPlayerId | string | Current holder. |
+| cardType | enum | Rune type. |
+| remainingHandRounds | number | Starts at 2; decreases on owner normal turns. |
+| source | enum | DRAW or HONESTY_REWARD. |
 
 ## 12.3. BoardMarker
 
-| **Trường**            | **Kiểu dữ liệu** | **Ý nghĩa**                                                                             |
-|-----------------------|------------------|-----------------------------------------------------------------------------------------|
-| markerId              | string           | ID marker.                                                                              |
-| cellId                | string           | Ô đường đi chung đang chứa marker.                                                      |
-| cardType              | enum             | Loại Rune bí mật.                                                                       |
-| realPlacerId          | string           | Người đặt thật; chỉ server và chính người đặt thật được dùng để hiển thị tooltip riêng. |
-| displayedIdentityId   | string           | Danh tính công khai trên avatar marker.                                                 |
-| remainingMarkerRounds | number           | Khởi tạo 3 hoặc 5.                                                                      |
-| ttlMode               | enum             | DISPLAYED_IDENTITY_TURN hoặc FULL_TABLE_ROUND.                                          |
-| createdAtPhaseId      | string           | Pha đặt marker tạo instance này.                                                        |
+| **Field** | **Type** | **Meaning** |
+|-----------|----------|-------------|
+| markerId | string | Marker id. |
+| cellId | string | Shared-track cell holding the marker. |
+| cardType | enum | Secret Rune type. |
+| realPlacerId | string | True placer; only server and the true placer use this for private tooltips. |
+| displayedIdentityId | string | Public avatar identity. |
+| remainingMarkerRounds | number | Starts at 3 or 5. |
+| ttlMode | enum | DISPLAYED_IDENTITY_TURN or FULL_TABLE_ROUND. |
+| createdAtPhaseId | string | Placement phase that created this instance. |
 
 ## 12.4. HorseState
 
-| **Trường**                | **Kiểu dữ liệu** | **Ý nghĩa**                                                           |
-|---------------------------|------------------|-----------------------------------------------------------------------|
-| horseId                   | string           | ID quân ngựa.                                                         |
-| ownerPlayerId             | string           | Chủ quân.                                                             |
-| position                  | object           | Chuồng, ô xuất phát, ô đường đi chung, đường về đích riêng hoặc đích. |
-| hasShield                 | boolean          | Tối đa một lớp Khiên chắn.                                            |
-| freezeOwnerTurnsRemaining | number           | 0 hoặc số lượt bình thường còn bị khóa; khởi tạo 2 khi Đóng băng.     |
+| **Field** | **Type** | **Meaning** |
+|-----------|----------|-------------|
+| horseId | string | Horse id. |
+| ownerPlayerId | string | Owner. |
+| position | object | Stable, start, shared track, private home stretch, or finish. |
+| hasShield | boolean | At most one Shield layer. |
+| freezeOwnerTurnsRemaining | number | 0 or remaining locked normal turns; starts at 2 on Freeze. |
 
 ## 12.5. RunePlayerState
 
-| **Trường**            | **Kiểu dữ liệu** | **Ý nghĩa**                                                       |
-|-----------------------|------------------|-------------------------------------------------------------------|
-| drawCount             | number           | Số thẻ đã bốc ngẫu nhiên; tối đa 25.                              |
-| hand                  | HeldCard\[\]     | Danh sách thẻ còn hạn. Ngưỡng cho phép bốc thẻ thường là dưới 5; reward được phép append vượt ngưỡng. |
-| hasClaimableHonestyReward | boolean          | `true` khi reward trung thực đến hạn nhận ở pha bốc và đặt thẻ của lượt bình thường hiện tại. Sau khi chọn hoặc timeout, trở về `false`. |
-| honestPlacementStreak | number           | 0-5; đạt 5 thì tạo reward đến hạn nhận ở lượt bình thường tiếp theo, sau khi nhận reward reset về 0. |
+| **Field** | **Type** | **Meaning** |
+|-----------|----------|-------------|
+| drawCount | number | Random draws so far; max 25. |
+| hand | HeldCard[] | Unexpired cards. Normal draw threshold under 5; rewards may append above. |
+| hasClaimableHonestyReward | boolean | `true` when an honesty reward is due in the current normal turn’s draw/placement phase. Cleared after pick or timeout. |
+| honestPlacementStreak | number | 0–5; at 5, create a reward due next normal turn; reset to 0 after receiving it. |
 
-## 12.6. Sự kiện server chính
+## 12.6. Main server events
 
-| **Event**              | **Ý nghĩa**                                                                |
-|------------------------|----------------------------------------------------------------------------|
-| TURN_STARTED           | Bắt đầu lượt bình thường; xóa held card hết hạn và cập nhật TTL liên quan. |
-| CARDS_DRAWN            | Người đang đến lượt bốc một hoặc nhiều thẻ.                                |
-| PLACEMENT_PHASE_OPENED | Mở quyền đặt đồng thời cho tất cả người chơi với các thẻ tạo marker.       |
-| MARKER_PLACE_REQUESTED | Client gửi card instance, cellId và displayedIdentityId.                   |
-| MARKER_PLACED          | Server chấp nhận marker đầu tiên tại ô.                                    |
-| MARKER_PLACE_REJECTED  | Server từ chối vì ô không hợp lệ hoặc đã bị chiếm; held card không mất.    |
-| LEAVE_STABLE_USED      | Active player bấm Xuất Chuồng; luôn tiêu hao held card và resolve kết quả. |
-| DICE_ROLLED            | Người đang đến lượt tung xúc xắc.                                          |
-| HORSE_STEP_MOVED       | Quân nhảy một ô; dùng để animate và resolve marker.                        |
-| MARKER_TRIGGERED       | Marker kích hoạt và bị xóa.                                                |
-| HORSE_STATUS_CHANGED   | Áp dụng hoặc xóa Shield, Freeze, về chuồng hoặc swap.                      |
-| HONESTY_REWARD_AVAILABLE | Reward trung thực đến hạn nhận ở pha bốc và đặt thẻ của lượt bình thường tiếp theo. |
-| HONESTY_REWARD_SELECTED  | Người nhận chọn 1 support card; nếu timeout server tự chọn ngẫu nhiên.          |
-| HONESTY_REWARD_GRANTED   | Append support card vào hand kể cả khi hand đã có từ 5 thẻ trở lên; công bố người nhận nhưng ẩn loại thẻ. |
-| MARKER_EXPIRED         | TTL marker hết; xóa khỏi bàn cờ.                                           |
-| HELD_CARD_EXPIRED      | Held card quá 2 vòng; xóa khỏi hand.                                       |
+| **Event** | **Meaning** |
+|-----------|-------------|
+| TURN_STARTED | Normal turn begins; expire held cards and update related TTL. |
+| CARDS_DRAWN | Active player drew one or more cards. |
+| PLACEMENT_PHASE_OPENED | Simultaneous placement open for marker cards. |
+| MARKER_PLACE_REQUESTED | Client sends card instance, cellId, displayedIdentityId. |
+| MARKER_PLACED | Server accepted the first marker on that cell. |
+| MARKER_PLACE_REJECTED | Rejected (illegal or taken cell); held card kept. |
+| LEAVE_STABLE_USED | Active player pressed Leave Stable; always consumes held card and resolves. |
+| DICE_ROLLED | Active player rolled. |
+| HORSE_STEP_MOVED | Horse hopped one cell; used for animation and marker resolve. |
+| MARKER_TRIGGERED | Marker triggered and removed. |
+| HORSE_STATUS_CHANGED | Apply or clear Shield, Freeze, send home, or swap. |
+| HONESTY_REWARD_AVAILABLE | Honesty reward due in next normal turn’s draw/placement phase. |
+| HONESTY_REWARD_SELECTED | Recipient picked a support card; on timeout server picks randomly. |
+| HONESTY_REWARD_GRANTED | Append support card even at 5+; announce recipient, hide card type. |
+| MARKER_EXPIRED | Marker TTL ended; remove from board. |
+| HELD_CARD_EXPIRED | Held card past 2 rounds; remove from hand. |
 
-# 13. Kịch bản kiểm thử chấp nhận
+# 13. Acceptance test scenarios
 
-| **ID** | **Mục tiêu**                | **Thiết lập**                                                                 | **Kết quả mong đợi**                                                                     |
-|--------|-----------------------------|-------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| TC-01  | Giới hạn bốc cá nhân        | A đã bốc 24 thẻ và hand còn chỗ.                                              | A chỉ có thể bốc thêm tối đa 1 thẻ trong ván.                                            |
-| TC-02  | Đạt ngưỡng bốc thường       | A đang giữ 5 thẻ còn hạn.                                                     | Nút bốc thẻ thường bị khóa. Reward trung thực vẫn có thể append vào hand.                  |
-| TC-03  | Hết hạn held card           | A bốc thẻ ở lượt hiện tại và không đặt trong 2 lượt bình thường tiếp theo.    | Thẻ bị xóa khi bắt đầu lượt bình thường thứ ba tiếp theo của A.                          |
-| TC-04  | Lượt thưởng do số 6         | A tung được 6.                                                                | Chỉ lặp lại tung xúc xắc, chọn quân và di chuyển; không bốc và không mở placement phase. |
-| TC-05  | Xung đột đặt marker         | A và B cùng đặt marker tại một ô trống.                                       | Request đến server trước thành công; request sau thất bại và người đó vẫn giữ thẻ.       |
-| TC-06  | Tiến cộng dồn               | Ngựa đi qua Tiến 3 rồi Tiến 2.                                                | Ngựa nhận tổng cộng 5 bước tiến bổ sung.                                                 |
-| TC-07  | Tiến gặp Lùi                | Ngựa đang tiến còn bước và đi qua Lùi 4.                                      | Bỏ bước tiến còn lại; ngựa bắt đầu lùi 4 bước.                                           |
-| TC-08  | Lùi gặp Lùi                 | Ngựa đang lùi còn 3 bước và đi qua Lùi 3.                                     | Ngựa tiếp tục lùi tổng cộng 6 bước.                                                      |
-| TC-09  | Lùi gặp Tiến                | Ngựa đang lùi và đi qua Tiến 3.                                               | Bỏ lùi còn lại; đổi hướng và tiến 3 bước.                                                |
-| TC-10  | Khiên chặn bẫy              | Ngựa có Khiên và đi qua Đóng băng.                                            | Đóng băng mất; Khiên mất; ngựa tiếp tục số bước còn lại.                                 |
-| TC-11  | Khiên thứ hai               | Ngựa đang có Khiên và đi qua marker Khiên.                                    | Marker Khiên mới mất; ngựa vẫn chỉ có một lớp.                                           |
-| TC-12  | Đóng băng                   | Ngựa không có Khiên đi qua Đóng băng.                                         | Ngựa dừng ngay và bị khóa trong 2 lượt bình thường tiếp theo của chủ quân.               |
-| TC-13  | Đá quân đang đóng băng      | Ngựa đang đóng băng bị đá về chuồng.                                          | Trạng thái Đóng băng bị xóa ngay.                                                        |
-| TC-14  | Xuất Chuồng thành công       | A còn quân trong chuồng; ô xuất phát trống; A bấm Xuất Chuồng trước khi tung xúc xắc. | Một quân ra ô xuất phát; thẻ bị xóa khỏi hand.                                           |
-| TC-15  | Xuất Chuồng gặp quân mình   | A còn quân trong chuồng nhưng ô xuất phát đang có quân của A.                 | Không xuất quân mới; thẻ vẫn bị xóa khỏi hand.                                           |
-| TC-16  | Xuất Chuồng gặp quân địch   | A còn quân trong chuồng; ô xuất phát đang có quân của B.                      | Quân A ra ô xuất phát; quân B bị đá về chuồng theo rule truyền thống; thẻ bị xóa.        |
-| TC-17  | Xuất Chuồng khi chuồng trống| A không còn quân trong chuồng và bấm Xuất Chuồng.                             | Không có quân được đưa ra; thẻ vẫn bị xóa khỏi hand.                                     |
-| TC-18  | Xuất Chuồng kích hoạt marker| Ô xuất phát trống nhưng đang có marker; A bấm Xuất Chuồng thành công.         | Quân A ra ô xuất phát và marker được resolve như khi quân đi vào ô bình thường.          |
-| TC-19  | Dùng nhiều Xuất Chuồng      | A giữ 2 thẻ Xuất Chuồng và còn 2 quân trong chuồng; ô xuất phát ban đầu trống.| Lần bấm đầu xuất 1 quân; lần bấm hai không xuất vì ô bị quân A chiếm; cả hai thẻ đều mất.|
-| TC-20  | Swap hợp lệ                 | Ngựa A dừng đúng Hoán vị giả danh B; B có quân trên đường chung.              | A chọn một quân hợp lệ của B và hai quân đổi vị trí.                                     |
-| TC-21  | Swap tự giả danh            | Ngựa A dừng đúng Hoán vị có displayedIdentity là A.                           | Không swap; marker vẫn mất.                                                              |
-| TC-22  | Marker hết hạn 3 vòng       | Marker Tiến chưa bị kích hoạt.                                                | Xóa khi bắt đầu lượt bình thường thứ tư tiếp theo của displayedIdentity.                 |
-| TC-23  | Displayed identity rời trận | Marker còn TTL khi displayedIdentity rời trận.                                | Marker giữ remainingTTL và chuyển sang giảm theo vòng toàn bàn.                          |
-| TC-24  | Chuỗi trung thực            | A đặt marker chính danh trong 5 lượt đặt liên tiếp; lượt không đặt xen giữa.  | Lượt không đặt giữ streak; reward đến hạn nhận trong pha bốc và đặt thẻ của lượt bình thường tiếp theo của A. |
-| TC-25  | Giả danh phá streak         | A có streak 4 nhưng đặt ít nhất một marker giả danh.                          | Streak trở về 0.                                                                         |
-| TC-26  | Điều kiện chiến thắng       | A đưa đủ 2 quân ngựa về đích.                                                 | A được xác định là người chiến thắng theo rule mới.                                      |
-| TC-27  | Reward vượt ngưỡng hand     | A đang giữ 5 thẻ và nhận reward trung thực đến hạn.                           | A chọn 1 support card; thẻ được append và hand tăng lên 6. Nút bốc thẻ thường vẫn bị khóa. |
-| TC-28  | Reward tích lũy vượt ngưỡng | A đang giữ 6 thẻ và tiếp tục nhận reward mới.                                 | Reward mới vẫn được append; hand có thể tăng lên 7 hoặc cao hơn.                          |
-| TC-29  | Chọn reward theo ý muốn      | Reward đến hạn ở pha bốc và đặt thẻ của A.                                    | A được chọn 1 trong 5 support card; người khác chỉ nhận thông báo A được thưởng.           |
-| TC-30  | Timeout chọn reward          | Reward đến hạn nhưng A không chọn trước khi hết thời gian.                    | Server tự chọn ngẫu nhiên 1 support card, append vào hand và tiếp tục trận.                |
-| TC-31  | Dùng reward ngay             | A chọn Tiến 3 hoặc Xuất Chuồng làm reward trong lượt nhận thưởng.             | A có thể dùng thẻ ngay trong đúng pha tương ứng của cùng lượt như thẻ vừa bốc được.        |
-| TC-32  | Bắt đầu streak mới           | A nhận reward ở lượt thứ 6 và tiếp tục đặt toàn bộ marker chính danh trong pha hiện tại. | Sau khi reward reset streak về 0, lượt này được tính là lượt trung thực đầu tiên của chuỗi mới. |
+| **ID** | **Goal** | **Setup** | **Expected** |
+|--------|----------|-----------|--------------|
+| TC-01 | Personal draw limit | A has drawn 24 and has hand space. | A may draw at most 1 more card in the match. |
+| TC-02 | Normal draw threshold | A holds 5 unexpired cards. | Normal draw locked. Honesty reward may still append. |
+| TC-03 | Held card expiry | A draws now and does not place for the next 2 normal turns. | Card removed at the start of A’s third following normal turn. |
+| TC-04 | Bonus turn from 6 | A rolls 6. | Only dice / choose / move repeats; no draw, no placement. |
+| TC-05 | Marker place conflict | A and B place on the same empty cell. | Earlier request wins; later fails and keeps the card. |
+| TC-06 | Advance stacking | Horse passes Advance 3 then Advance 2. | +5 bonus forward steps total. |
+| TC-07 | Advance into Back | Forward horse with remaining steps hits Back 4. | Discard forward remainder; back 4. |
+| TC-08 | Back into Back | Horse backing with 3 left hits Back 3. | Continue backing for 6 total. |
+| TC-09 | Back into Advance | Backing horse hits Advance 3. | Discard remaining back; advance 3. |
+| TC-10 | Shield blocks trap | Shielded horse hits Freeze. | Freeze removed; Shield removed; horse keeps remaining steps. |
+| TC-11 | Second Shield | Shielded horse hits another Shield. | New Shield marker removed; still one layer. |
+| TC-12 | Freeze | Unshielded horse hits Freeze. | Stops immediately; locked for owner’s next 2 normal turns. |
+| TC-13 | Kick frozen horse | Frozen horse is kicked home. | Freeze clears immediately. |
+| TC-14 | Leave Stable success | A has a stable horse; start empty; A presses Leave Stable before rolling. | One horse exits to start; card removed. |
+| TC-15 | Leave Stable blocked by own horse | A has a stable horse but own horse occupies start. | No new exit; card still removed. |
+| TC-16 | Leave Stable vs enemy | A has a stable horse; B occupies start. | A exits; B kicked home traditionally; card removed. |
+| TC-17 | Leave Stable empty stable | A has no stable horses and presses Leave Stable. | No exit; card still removed. |
+| TC-18 | Leave Stable triggers marker | Start empty but has a marker; Leave Stable succeeds. | A exits and marker resolves as a normal entry. |
+| TC-19 | Multiple Leave Stable | A holds 2 Leave Stable and 2 stable horses; start empty. | First press exits one; second fails because A occupies start; both cards consumed. |
+| TC-20 | Valid Swap | Horse A exact-stops on Swap spoofed as B; B has a shared-track horse. | A picks a legal B horse; positions swap. |
+| TC-21 | Self-spoof Swap | Horse A exact-stops on Swap with displayed identity A. | No swap; marker still removed. |
+| TC-22 | 3-round marker expiry | Untouched Advance marker. | Removed at start of displayed identity’s fourth following normal turn. |
+| TC-23 | Displayed identity leaves | Marker still has TTL when displayed identity leaves. | Keep remainingTTL; switch to full-table round decay. |
+| TC-24 | Honesty streak | A places honest markers for 5 placement turns; non-place turns in between. | Non-place keeps streak; reward due in A’s next normal draw/placement phase. |
+| TC-25 | Spoof breaks streak | A has streak 4 then places at least one spoofed marker. | Streak returns to 0. |
+| TC-26 | Win condition | A brings both horses home. | A wins under the new rule. |
+| TC-27 | Reward above hand threshold | A holds 5 and receives a due honesty reward. | A picks 1 support card; hand becomes 6; normal draw stays locked. |
+| TC-28 | Stacked rewards above threshold | A holds 6 and receives another reward. | New reward still appends; hand may reach 7+. |
+| TC-29 | Choose reward | Reward due in A’s draw/placement phase. | A picks 1 of 5 support cards; others only see that A was rewarded. |
+| TC-30 | Reward timeout | Reward due but A does not choose in time. | Server picks a random support card, appends, continues match. |
+| TC-31 | Use reward immediately | A picks Advance 3 or Leave Stable as reward in the reward turn. | A may use it in the matching phase of the same turn. |
+| TC-32 | Start new streak | A receives reward on turn 6 and places fully honest markers that phase. | After reward resets streak to 0, this turn counts as first honest turn of a new streak. |
 
+# 14. Inherited scope, limits, and notes
 
-# 14. Phạm vi kế thừa, giới hạn và điểm cần lưu ý
+## 14.1. Inherited traditional rules
 
-## 14.1. Rule truyền thống được kế thừa
+Base Ludo/Parcheesi handling already in the MVP continues: dice rolls, horse selection, kicking opponents home on exact landings, and occupied start-cell handling. However, each player has only 2 horses and wins by bringing both home. Leave Stable follows Section 9.6 and fully replaces the older Leave Stable marker mechanism.
 
-Các xử lý Cá Ngựa nền đã có trong MVP tiếp tục được sử dụng, bao gồm quy tắc tung xúc xắc, chọn quân, đá quân đối thủ về chuồng khi dừng đúng ô và xử lý ô xuất phát đang có quân đối thủ. Tuy nhiên, mỗi người chơi chỉ có 2 quân ngựa và thắng khi đưa đủ 2 quân về đích. Việc dùng Rune Xuất Chuồng tuân theo Mục 9.6 và thay thế hoàn toàn cơ chế marker Xuất Chuồng cũ.
+## 14.2. Do not add rules outside the lock
 
-## 14.2. Không bổ sung luật ngoài phạm vi đã khóa
+- Do not add new safe cells or Rune immunity.
 
-- Không bổ sung ô an toàn hoặc miễn nhiễm Rune mới.
+- Do not add teammates in the MVP.
 
-- Không bổ sung đồng đội trong MVP.
+- Do not allow multiple markers on one cell.
 
-- Không cho phép nhiều marker cùng tồn tại tại một ô.
+- Never reveal the true placer.
 
-- Không tiết lộ danh tính người đặt thật ở bất kỳ thời điểm nào.
+- Do not allow markers on private home stretches or occupied cells.
 
-- Không cho phép đặt marker trong đường về đích riêng hoặc tại ô đang có quân ngựa.
+- Do not keep Double Move in the new Rune list.
 
-- Không giữ thẻ Nhân đôi bước đi trong danh sách Rune mới.
+- Do not make Leave Stable a marker; it is direct-use from the hand only.
 
-- Không đặt Xuất Chuồng thành marker; thẻ này chỉ được dùng trực tiếp từ hand array.
+# APPENDIX A. Rule-lock summary
 
-# PHỤ LỤC A. Bảng tóm tắt Rule Lock
+| **Item** | **Locked rule** |
+|----------|-----------------|
+| Draw quota | Max 25 random draws per player per match. |
+| Hand array | Normal draws only under 5 unexpired cards; rewards may append above; all cards expire after the owner’s next 2 normal turns. |
+| Bonus turn from 6 | Resume from dice only; no draw, placement, or Leave Stable. |
+| Placement phase | Opens after active player draws; everyone places marker cards simultaneously with no per-phase place limit. |
+| Legal cells | Shared track only; not occupied, not private home stretch, not already marked. |
+| Cell conflict | Earlier server request wins; later fails and keeps the card. |
+| Spoofing | Applies to every marker; not to Leave Stable. True placer never revealed. |
+| Marker UI | Location circle + avatar + displayed-identity color; hide Rune type and TTL from others. |
+| Marker TTL 3 | Advance, Shield, Back, Freeze. |
+| Marker TTL 5 | Send Home, Swap. |
+| TTL counting | By displayed identity’s normal turns; on leave/finish switch to full-table rounds. |
+| Freeze | Stop immediately; lock for owner’s next 2 normal turns. |
+| Shield | One layer; until next blocked trap or kick-home; blocks Back, Freeze, Send Home; not Swap. |
+| Swap | Activator picks a legal shared-track horse of displayed identity; self-spoof has no effect. |
+| Leave Stable | Direct use after placement, before dice; always consumed; no marker; may trigger start-cell markers. |
+| Horses / win | 2 horses each; win by bringing both home. |
+| Honesty reward | After 5 consecutive honest placements, reward due next normal turn; recipient picks 1 support card; timeout → random; append above 5; hide type from others. |
 
-| **Hạng mục**      | **Quy tắc đã khóa**                                                                                                |
-|-------------------|--------------------------------------------------------------------------------------------------------------------|
-| Quota bốc         | Tối đa 25 lượt bốc ngẫu nhiên cho mỗi người chơi trong một ván.                                                    |
-| Hand array        | Chỉ được bốc thẻ thường khi đang giữ dưới 5 thẻ còn hạn; reward có thể append vượt ngưỡng; mọi thẻ hết hạn sau 2 lượt bình thường tiếp theo của chủ thẻ. |
-| Lượt thưởng số 6  | Chỉ lặp từ tung xúc xắc; không bốc, không mở placement phase và không dùng Xuất Chuồng.                               |
-| Placement phase   | Mở sau khi active player bốc; mọi người đặt đồng thời các thẻ tạo marker, không giới hạn số thẻ đặt.                  |
-| Ô hợp lệ          | Chỉ ô đường đi chung; không ô đang có ngựa, không đường về đích riêng, không ô đã có marker.                       |
-| Xung đột ô        | Request server đến trước thắng; request sau thất bại và giữ thẻ.                                                   |
-| Giả danh          | Áp dụng cho mọi marker; không áp dụng cho Xuất Chuồng vì thẻ này dùng trực tiếp. True placer không bao giờ bị lộ.      |
-| Marker UI         | Location circle + avatar + màu displayed identity; ẩn loại Rune và TTL với người khác.                             |
-| TTL marker 3 vòng | Tiến, Khiên, Lùi, Đóng băng.                                                                                       |
-| TTL marker 5 vòng | Về chuồng, Hoán vị.                                                                                               |
-| Cách đếm TTL      | Theo lượt bình thường của displayed identity; rời trận hoặc hoàn thành toàn bộ quân thì chuyển sang vòng toàn bàn. |
-| Đóng băng         | Dừng ngay và khóa quân trong 2 lượt bình thường tiếp theo của chủ quân.                                            |
-| Khiên             | Một lớp; tồn tại tới bẫy tiếp theo hoặc khi bị đá về chuồng; chặn Lùi, Freeze, Send Home; không chặn Swap.         |
-| Swap              | Activator chọn một quân hợp lệ trên đường chung của displayed identity; tự giả danh thì không có hiệu ứng.         |
-| Xuất Chuồng       | Dùng trực tiếp sau placement phase và trước xúc xắc; luôn tiêu hao; không tạo marker; có thể kích hoạt marker tại ô xuất phát. |
-| Số quân / chiến thắng | Mỗi người có 2 quân; thắng khi đưa đủ 2 quân về đích.                                                           |
-| Thưởng trung thực | Sau 5 lượt đặt chính danh liên tiếp, reward đến hạn ở lượt bình thường tiếp theo; người nhận chọn 1 support card; timeout thì server chọn ngẫu nhiên; reward append vượt ngưỡng 5 và không lộ loại thẻ cho người khác. |
+# APPENDIX B. Rune card artwork concept
 
-# PHỤ LỤC B. Artwork concept bộ thẻ Rune
+Contact sheet for the official 11 Rune cards in a rounded 3D low-poly style — bright, friendly, simple icons. Concept art for visual alignment; production assets may be split and refined later.
 
-Contact sheet minh họa bộ 11 thẻ Rune chính thức theo phong cách 3D low-poly bo tròn, màu sáng, thân thiện và icon đơn giản. Đây là artwork concept dùng để thống nhất định hướng hình ảnh; đội thiết kế có thể tách và tinh chỉnh asset production sau.
+<!-- Add artwork at docs/media/rune-cards-contact-sheet.png when available -->
 
-<img src="media/image1.png" style="width:8.75in;height:6.5625in" />
-
-Hình B.1. Contact sheet bộ thẻ Rune: 5 thẻ hỗ trợ, 5 thẻ bẫy và 1 thẻ đặc biệt Hoán vị.
+Figure B.1. Rune card contact sheet: 5 support, 5 traps, and 1 special Swap card.

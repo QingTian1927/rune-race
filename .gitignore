@@ -9,6 +9,14 @@ build/
 coverage/
 .pnp.*
 supabase/.temp/
+
+# Local operational scripts (kept on disk, not published)
+scripts/import-users/
+scripts/backfill-registration-dates/
+scripts/backfill-play-activity/
+scripts/redistribute-registration-dates/
+scripts/export-exe201-metrics/
+scripts/export-registered-users/
 scripts/reports/
 
 # local assets edits
