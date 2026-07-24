@@ -5,7 +5,6 @@ import { useMarketingTheme } from '../../hooks/useMarketingTheme'
 const NAV_ITEMS = [
   { to: '/', label: 'Trang chủ', end: true },
   { to: '/guide', label: 'Hướng dẫn' },
-  { to: '/leaderboard', label: 'Bảng xếp hạng' },
   { to: '/about', label: 'Về chúng tôi' },
 ] as const
 

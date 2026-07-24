@@ -34,12 +34,6 @@ export const PAGE_SEO: Record<string, PageSeo> = {
     description:
       'Hướng dẫn chơi Rune Race: mục tiêu, lượt chơi, Rune, marker bí mật, giả danh, cơ chế thưởng trung thực và luật chi tiết.',
   },
-  '/leaderboard': {
-    path: '/leaderboard',
-    title: 'Bảng xếp hạng',
-    description:
-      'Bảng xếp hạng Rune Race: top 20 người chơi theo điểm và số Xu. Theo dõi cao thủ và leo hạng qua các trận online.',
-  },
   '/privacy': {
     path: '/privacy',
     title: 'Chính sách quyền riêng tư',
