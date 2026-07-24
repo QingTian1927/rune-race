@@ -3,7 +3,6 @@ export const PRERENDER_PATHS = [
   '/',
   '/about',
   '/guide',
-  '/leaderboard',
   '/privacy',
   '/privacy/en',
   '/terms',
@@ -19,7 +18,6 @@ type SitemapEntry = {
 const SITEMAP_META: Record<(typeof PRERENDER_PATHS)[number], Omit<SitemapEntry, 'path'>> = {
   '/': { priority: '1.0', changefreq: 'weekly' },
   '/guide': { priority: '0.9', changefreq: 'weekly' },
-  '/leaderboard': { priority: '0.85', changefreq: 'weekly' },
   '/about': { priority: '0.7', changefreq: 'monthly' },
   '/privacy': { priority: '0.4', changefreq: 'monthly' },
   '/privacy/en': { priority: '0.4', changefreq: 'monthly' },
